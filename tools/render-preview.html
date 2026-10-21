@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Render preview — 戰國 XT</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #f1e7d0; font-family: system-ui, sans-serif; color: #1c1915; }
+      #map, #battle { position: fixed; inset: 0; }
+      #battle { display: none; }
+      #battle.open { display: block; }
+      #hud { position: fixed; top: 10px; left: 10px; display: flex; gap: 8px; flex-wrap: wrap; z-index: 10; }
+      #hud button { font: 600 13px system-ui, sans-serif; padding: 8px 12px; border: 1.5px solid #1c1915; background: rgba(241,231,208,0.92); color: #1c1915; border-radius: 4px; cursor: pointer; }
+      #hud button:active { background: #1c1915; color: #f1e7d0; }
+      #log { position: fixed; left: 10px; bottom: 10px; max-width: 60vw; max-height: 30vh; overflow: auto; font: 12px ui-monospace, monospace; background: rgba(241,231,208,0.9); border: 1px solid rgba(28,25,21,0.4); padding: 6px 8px; z-index: 10; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="battle"></div>
+    <div id="hud">
+      <button id="btn-battle">Battle</button>
+      <button id="btn-army">Toggle fake army</button>
+      <button id="btn-focus">Focus Owari</button>
+      <button id="btn-close" style="display:none">Close battle</button>
+    </div>
+    <div id="log"></div>
+    <script type="module" src="./render-preview.ts"></script>
+  </body>
+</html>
