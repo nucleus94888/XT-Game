@@ -17,7 +17,7 @@ import { cmdGift, cmdAlliance, cmdTruce, cmdMarriageAlliance, cmdDemandSurrender
 import { cmdNinja, ninjaTargets, NINJA_COSTS, type NinjaAction } from '../systems/ninja';
 import { regionMods } from '../systems/modifiers';
 import { t, officerName } from '../i18n';
-import { h, fmt, bar, modal, slider } from './dom';
+import { h, fmt, bar, modal, slider, toast } from './dom';
 import { silhouetteDataUrl } from './silhouette';
 import { getAdvice, isUnlocked, guideActive, advisorOf, skipGuide } from '../systems/advisor';
 
@@ -43,6 +43,12 @@ export function advisorBox(app: App): HTMLElement | null {
     if (a.officer) app.ui.officer = a.officer;
     app.ui.hintCmd = a.cmd ?? null;
     app.renderPanel();
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.cmd.hinted') ?? document.querySelector('.officer.selected');
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    if (a.officer && a.cmd) toast(t('advisor.went', { name: a.officer, cmd: t(`cmd.${a.cmd}`) }));
+    else if (a.officer) toast(t('advisor.wentOfficer', { name: a.officer }));
   } }, t('advisor.go')) : null;
   const skip = adv.tutorial ? h('button', { class: 'btn tiny', onClick: async () => {
     const r = await modal(t('advisor.skip'), t('advisor.skipConfirm'), [t('app.confirm'), t('app.cancel')]);
@@ -176,10 +182,13 @@ function regionPanel(app: App): HTMLElement {
   const here = r.owner ? officersIn(s, id, r.owner) : [];
   if (mine) {
     const sec = h('div', { class: 'section' }, h('h3', null, `${t('app.officers')}（${t('stat.acting', { n: here.filter(o => !o.acted && o.injuredMonths === 0).length, total: here.length })}）`));
-    for (const o of here) sec.appendChild(officerCard(app, o, { onClick: () => { app.ui.officer = app.ui.officer === o.id ? null : o.id; app.renderPanel(); } }));
+    for (const o of here) {
+      sec.appendChild(officerCard(app, o, { onClick: () => { app.ui.officer = app.ui.officer === o.id ? null : o.id; app.ui.hintCmd = null; app.renderPanel(); } }));
+      // 指令列直接接在被選中的武將下方，手機上不必往下找
+      if (app.ui.officer === o.id) sec.appendChild(commandGrid(app, o.id, id));
+    }
     if (!here.length) sec.appendChild(h('div', { class: 'muted' }, t('cmd.noOfficer')));
     wrap.appendChild(sec);
-    if (app.ui.officer && here.some(o => o.id === app.ui.officer)) wrap.appendChild(commandGrid(app, app.ui.officer, id));
   } else if (known && here.length) {
     const sec = h('div', { class: 'section' }, h('h3', null, t('app.officers')));
     for (const o of here) sec.appendChild(officerCard(app, o));

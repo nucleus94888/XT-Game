@@ -469,6 +469,8 @@ const zhTW: Record<string, string> = {
   'advisor.skip': '跳過引導',
   'advisor.skipConfirm': '跳過引導後所有功能立即開放。確定？',
   'advisor.goodAt': '擅長',
+  'advisor.went': '已選定{name}，請點下方發亮的「{cmd}」',
+  'advisor.wentOfficer': '已選定{name}，請在下方選擇指令',
   'guide.intro': '主公，{name} 在此。初掌家督，諸事繁雜，請容在下逐一引路。',
   'guide.0.oda': '今川義元的大軍預計初夏南下，尾張一國正面難敵。先充實軍資：讓{name}振興商業。',
   'guide.0': '先充實軍資：讓{name}振興商業，之後每月都有金收入。',

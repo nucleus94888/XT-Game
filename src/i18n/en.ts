@@ -469,6 +469,8 @@ const en: Record<string, string> = {
   'advisor.skip': 'Skip guide',
   'advisor.skipConfirm': 'Skipping the guide unlocks everything immediately. Continue?',
   'advisor.goodAt': 'Strengths',
+  'advisor.went': '{name} selected. Tap the highlighted "{cmd}" below.',
+  'advisor.wentOfficer': '{name} selected. Choose a command below.',
   'guide.intro': 'My lord, {name} at your service. You have only just taken the clan; allow me to guide you step by step.',
   'guide.0.oda': "Imagawa Yoshimoto's host marches south in early summer; Owari alone cannot meet it head-on. First, funds: have {name} develop trade.",
   'guide.0': 'First, funds: have {name} develop trade for steady monthly income.',

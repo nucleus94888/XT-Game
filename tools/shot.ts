@@ -15,7 +15,7 @@ if (!executablePath) throw new Error('找不到 Chrome / Edge');
 const shots: { name: string; url: string; w: number; h: number; mobile: boolean; wait?: number; steps?: string[] }[] = [
   { name: 'title', url: '/', w: 390, h: 844, mobile: true },
   { name: 'guide-start', url: '/?faction=oda&seed=1&guide=0&intro=1', w: 390, h: 844, mobile: true, steps: ['wait:300'] },
-  { name: 'guide-go', url: '/?faction=oda&seed=1&guide=0', w: 390, h: 844, mobile: true, steps: ['click:帶我去', 'wait:700', 'scroll:#panel,420', 'wait:200'] },
+  { name: 'guide-go', url: '/?faction=oda&seed=1&guide=0', w: 390, h: 844, mobile: true, steps: ['click:帶我去', 'wait:1200'] },
   { name: 'guide-step3', url: '/?faction=oda&seed=1&guide=3', w: 390, h: 844, mobile: true, steps: ['wait:300'] },
   { name: 'drill', url: '/', w: 390, h: 844, mobile: true, steps: ['click:合戰演習', 'wait:2500'] },
   { name: 'desktop-guide', url: '/?faction=oda&seed=1&guide=0', w: 1280, h: 720, mobile: false },

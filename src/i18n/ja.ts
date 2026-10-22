@@ -469,6 +469,8 @@ const ja: Record<string, string> = {
   'advisor.skip': '案内を飛ばす',
   'advisor.skipConfirm': '案内を飛ばすと全機能がすぐ開放されます。よろしいですか？',
   'advisor.goodAt': '得意',
+  'advisor.went': '{name}を選びました。下の光っている「{cmd}」を押してください',
+  'advisor.wentOfficer': '{name}を選びました。下で指令を選んでください',
   'guide.intro': '殿、{name}にございます。家督を継いだばかりで何かと煩雑ゆえ、順を追ってご案内いたします。',
   'guide.0.oda': '今川義元の大軍が初夏に南下する見込み。尾張一国では正面から敵いません。まず軍資金を：{name}に商業振興を。',
   'guide.0': 'まず軍資金を：{name}に商業振興を命じれば毎月の収入が増えます。',
