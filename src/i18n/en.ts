@@ -478,7 +478,7 @@ const en: Record<string, string> = {
   'guide.3': 'Diplomacy is now open: send a gift to {faction} or ask for a truce to secure one flank.',
   'guide.4.oda': 'Information wins wars. Ninja are now open: hire a ninja clan and spy on the Imagawa at Sunpu.',
   'guide.4': 'Information wins wars. Ninja are now open: hire a ninja clan and spy on your neighbours.',
-  'guide.5.oda': 'The Imagawa approach. Keep Nobunaga in Owari; the rest recruit and train. Battles are real time: Hold beats Charge, Charge beats Volley and Flank.',
+  'guide.5.oda': "The Imagawa approach; a head-on fight is hopeless. When they arrive, choose 'Surprise attack': Nobunaga's valor is high, and rain helps. Battles afterwards are real time: Hold beats Charge, Charge beats Volley and Flank.",
   'guide.5': 'Keep recruiting and training until the time is right. Battles are real time: Hold beats Charge, Charge beats Volley and Flank.',
   'guide.6': 'Technology is now open: "Arquebus" lets you recruit gunners, superb in defence. Research needs a clever officer.',
   'guide.done': 'The guide is over. Tenka Fubu begins here.',

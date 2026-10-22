@@ -7,6 +7,7 @@ async function boot() {
   if (lang !== 'zh-TW') await setLang(lang);
   const root = document.getElementById('app')!;
   const app = new App(root);
+  (window as unknown as { __app: App }).__app = app; // 開發 / 自動測試用
   // 開發用：?faction=oda&seed=1 直接開局
   const q = new URLSearchParams(location.search);
   const f = q.get('faction');

@@ -19,7 +19,7 @@ export function attemptOkehazama(state: GameState, b: BattleState, rng: Rng): bo
   b.special = undefined;
   const cmd = b.defender.commander ? officerDef(b.defender.commander) : null;
   const valor = cmd?.valor ?? 50;
-  const p = clamp(0.4 + (valor - 60) / 200 + (b.weather === 'rain' ? 0.25 : 0), 0.2, 0.9);
+  const p = clamp(0.5 + (valor - 60) / 200 + (b.weather === 'rain' ? 0.25 : 0), 0.25, 0.92);
   if (rng.chance(p)) {
     const A = b.attacker;
     const loss = Math.round(totalTroops(A) * 0.5);
@@ -38,7 +38,7 @@ export function attemptOkehazama(state: GameState, b: BattleState, rng: Rng): bo
     state.factions.oda.fame += 25;
     return true;
   }
-  b.defender.morale = clamp(b.defender.morale - 25, 10, 130);
+  b.defender.morale = clamp(b.defender.morale - 15, 10, 130);
   b.rounds.push({ round: 0, atkTactic: 'hold', defTactic: 'charge', atkLoss: 0, defLoss: Math.round(totalTroops(b.defender) * 0.1), atkMorale: b.attacker.morale, defMorale: b.defender.morale, notes: ['battle.note.okehazamaFail'] });
   const D = b.defender; const l = Math.round(totalTroops(D) * 0.1);
   D.troops.ashigaru = Math.max(0, D.troops.ashigaru - l);
