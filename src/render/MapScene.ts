@@ -97,6 +97,8 @@ export class MapScene {
   private armyGroup = new THREE.Group();
   private borderGroup = new THREE.Group();
   private selectGroup = new THREE.Group();
+  private hintGroup = new THREE.Group();
+  private hinted: RegionId | null = null;
   private lineMaterials: LineMaterial[] = [];
   private borderSignature = '';
   private selected: RegionId | null = null;
@@ -138,7 +140,7 @@ export class MapScene {
     this.buildRegions();
     this.buildCoast();
     this.buildSeaRoutes();
-    this.scene.add(this.borderGroup, this.selectGroup, this.armyGroup);
+    this.scene.add(this.borderGroup, this.selectGroup, this.hintGroup, this.armyGroup);
 
     this.computeBounds();
     this.target.copy(this.bounds.getCenter(new THREE.Vector3()));
@@ -451,6 +453,18 @@ export class MapScene {
     }
   }
 
+  /** 教學提示：金色脈動框標出要點的區域；null 清除 */
+  hint(id: RegionId | null): void {
+    if (id === this.hinted) return;
+    this.hinted = id;
+    disposeObject(this.hintGroup);
+    this.hintGroup.clear();
+    if (!id) return;
+    const segs: number[] = [];
+    for (const ring of GEO_REGIONS[id].polys) polylineSegments([...ring, ring[0]], TOP_Y + 0.25, segs);
+    this.hintGroup.add(this.makeLines(segs, { color: 0xd9a93a, width: 5, opacity: 0.9 }));
+  }
+
   /** 標示一組區域（例如可出陣目標）；空陣列清除。 */
   highlight(ids: RegionId[]): void {
     const set = new Set(ids);
@@ -725,6 +739,13 @@ export class MapScene {
       for (const o of this.selectGroup.children) {
         const m = (o as LineSegments2).material as LineMaterial;
         m.opacity = 0.55 + 0.35 * Math.sin(now * 0.004);
+      }
+    }
+    if (this.hinted) {
+      for (const o of this.hintGroup.children) {
+        const m = (o as LineSegments2).material as LineMaterial;
+        m.opacity = 0.45 + 0.5 * Math.abs(Math.sin(now * 0.005));
+        m.linewidth = 3.5 + 2.5 * Math.abs(Math.sin(now * 0.005));
       }
     }
     this.renderer.render(this.scene, this.camera);

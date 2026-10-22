@@ -44,6 +44,15 @@ export class BattleView {
   private sceneStance: Record<SideKey, { stance: Stance; switching: boolean } | null> = { attacker: null, defender: null };
   private opts: BattleViewOptions;
   private rng: Rng | null = null;
+  private overlayMatchup: HTMLElement;
+  private overlayAnn: HTMLElement;
+  private matchupKey = '';
+
+  private announce(text: string, cls = ''): void {
+    const el = h('div', { class: `announce ${cls}` }, text);
+    this.overlayAnn.appendChild(el);
+    setTimeout(() => el.remove(), 1900);
+  }
 
   constructor(private app: App, private b: BattleState, opts: BattleViewOptions = {}) {
     this.opts = opts;
@@ -51,6 +60,9 @@ export class BattleView {
     this.mySide = b.attacker.faction === s.player ? 'attacker' : 'defender';
     this.hud = h('div', { class: 'bhud' });
     this.sceneEl = h('div', { class: 'scene' });
+    this.overlayMatchup = h('div', { class: 'matchup' });
+    this.overlayAnn = h('div', { class: 'announce-layer' });
+    this.sceneEl.append(this.overlayMatchup, this.overlayAnn);
     this.panel = h('div', { class: 'bpanel' });
     this.root = h('div', { id: 'battle' }, this.hud, this.sceneEl, this.panel);
     document.body.appendChild(this.root);
@@ -143,6 +155,8 @@ export class BattleView {
       this.scene.setup(b, this.info('attacker'), this.info('defender'), { attacker: this.rt.sides.attacker.stance, defender: this.rt.sides.defender.stance });
       this.sceneStance = { attacker: { stance: this.rt.sides.attacker.stance, switching: false }, defender: { stance: this.rt.sides.defender.stance, switching: false } };
       this.renderControls();
+      this.scene.begin();
+      this.announce(t('battle.rt.begin'), 'red');
       this.lastFrame = performance.now();
       let endAt = 0;
       const loop = (now: number) => {
@@ -176,12 +190,21 @@ export class BattleView {
     // 敵方預告（依智謀可見）
     this.scene.setTelegraph(this.foeSide, this.auto ? null : visibleTelegraph(rt, this.mySide));
     this.scene.setTelegraph(this.mySide, null);
+    // 畫面上方的優劣指示
+    const m = matchup(rt.sides[this.mySide].stance, rt.sides[this.foeSide].stance);
+    const sw = rt.sides[this.mySide].switching > 0;
+    const key = rt.over ? '' : sw ? 'sw' : m > 1.2 ? 'adv' : m < 0.8 ? 'dis' : 'even';
+    if (key !== this.matchupKey) {
+      this.matchupKey = key;
+      this.overlayMatchup.className = `matchup ${key}`;
+      this.overlayMatchup.textContent = key === '' ? '' : key === 'sw' ? t('battle.rt.stanceLabel.switching') : t(`battle.rt.matchup.${key}`);
+    }
     // 事件
     while (this.eventIdx < rt.events.length) {
       const ev = rt.events[this.eventIdx++];
       this.scene.showEvent(ev);
-      if (ev.note) this.notes.push(ev.note);
-      else if (ev.kind === 'rally') this.notes.push(`@rally:${ev.side}`);
+      if (ev.note) { this.notes.push(ev.note); if (ev.kind !== 'switch') this.announce(t(ev.note), ev.ok === false || ev.kind === 'rout' ? 'red' : ''); }
+      else if (ev.kind === 'rally') { this.notes.push(`@rally:${ev.side}`); this.announce(t('battle.rt.rally'), 'gold'); }
     }
     // 傷亡：每累積一定損失濺一次墨
     const lossA = rt.stats.attacker.loss - this.lossShown.attacker, lossD = rt.stats.defender.loss - this.lossShown.defender;

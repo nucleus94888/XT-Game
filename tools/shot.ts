@@ -15,7 +15,8 @@ if (!executablePath) throw new Error('找不到 Chrome / Edge');
 const shots: { name: string; url: string; w: number; h: number; mobile: boolean; wait?: number; steps?: string[] }[] = [
   { name: 'title', url: '/', w: 390, h: 844, mobile: true },
   { name: 'guide-start', url: '/?faction=oda&seed=1&guide=0&intro=1', w: 390, h: 844, mobile: true, steps: ['wait:300'] },
-  { name: 'guide-go', url: '/?faction=oda&seed=1&guide=0', w: 390, h: 844, mobile: true, steps: ['click:帶我去', 'wait:1200'] },
+  { name: 'guide-go', url: '/?faction=oda&seed=1&guide=0', w: 390, h: 844, mobile: true, steps: ['eval:__app.selectRegion("owari")', 'wait:600'] },
+  { name: 'guide-go2', url: '/?faction=oda&seed=1&guide=0', w: 390, h: 844, mobile: true, steps: ['eval:__app.selectRegion("owari")', 'wait:300', 'eval:__app.ui.officer="kinoshita_hideyoshi";__app.renderPanel()', 'wait:600', 'scroll:#panel,500'] },
   { name: 'guide-step3', url: '/?faction=oda&seed=1&guide=3', w: 390, h: 844, mobile: true, steps: ['wait:300'] },
   { name: 'drill', url: '/', w: 390, h: 844, mobile: true, steps: ['click:合戰演習', 'wait:2500'] },
   { name: 'desktop-guide', url: '/?faction=oda&seed=1&guide=0', w: 1280, h: 720, mobile: false },
@@ -43,6 +44,7 @@ const only = process.argv[3];
 async function runStep(page: import('puppeteer-core').Page, step: string) {
   const [kind, arg] = [step.slice(0, step.indexOf(':')), step.slice(step.indexOf(':') + 1)];
   if (kind === 'wait') { await new Promise(r => setTimeout(r, Number(arg))); return; }
+  if (kind === 'eval') { await page.evaluate((code: string) => { (0, eval)(code); }, arg); return; }
   if (kind === 'scroll') { const [sel, px] = arg.split(','); await page.evaluate((s: string, p: number) => { const el = document.querySelector(s); if (el) el.scrollTop = p; }, sel, Number(px)); return; }
   if (kind === 'click') {
     const ok = await page.evaluate((sel: string) => {

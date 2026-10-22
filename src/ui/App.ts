@@ -22,7 +22,7 @@ export class App {
   selected: RegionId | null = null;
   tab: Tab = 'region';
   /** 面板內暫存（選中的武將等） */
-  ui: { officer: string | null; highlight: RegionId[]; hintCmd: string | null; lastStats: { id: RegionId; kokudaka: number; commerce: number; troops: number; defense: number; loyalty: number; training: number } | null } = { officer: null, highlight: [], hintCmd: null, lastStats: null };
+  ui: { officer: string | null; highlight: RegionId[]; hintCmd: string | null; hintOfficer: string | null; lastStats: { id: RegionId; kokudaka: number; commerce: number; troops: number; defense: number; loyalty: number; training: number } | null } = { officer: null, highlight: [], hintCmd: null, hintOfficer: null, lastStats: null };
   /** 結束回合前的快照，給月報用 */
   private report: { gold: number; rice: number; troops: number; regions: number } | null = null;
   private root: HTMLElement;
@@ -103,7 +103,7 @@ export class App {
   // ===== 遊戲畫面 =====
   startFrom(state: GameState): void {
     this.state = state;
-    this.selected = null; this.tab = 'region'; this.ui = { officer: null, highlight: [], hintCmd: null, lastStats: null };
+    this.selected = null; this.tab = 'region'; this.ui = { officer: null, highlight: [], hintCmd: null, hintOfficer: null, lastStats: null };
     clear(this.root);
     this.hud = h('div', { id: 'hud' });
     this.mapEl = h('div', { id: 'map' });
@@ -116,7 +116,11 @@ export class App {
     this.refresh();
     // 初次提示
     const home = regionsOf(state, state.player)[0];
-    if (home) { this.selectRegion(home.id); this.map.focus(home.id, false, innerWidth < 700 ? 42 : 70); }
+    if (home) {
+      // 引導模式第一回合不自動選取：第一步就是請玩家自己在地圖上點領地
+      if (!(guideActive(state) && state.turn === 0)) this.selectRegion(home.id);
+      this.map.focus(home.id, false, innerWidth < 700 ? 42 : 70);
+    }
     if (state.turn === 0 && !state.flags.devSkipIntro) {
       if (guideActive(state)) {
         const who = advisorOf(state);

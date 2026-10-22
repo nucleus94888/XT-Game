@@ -246,3 +246,17 @@ button { font-family: inherit; }
 .report .report-events { margin: 10px 0 6px; font-size: 14px; line-height: 1.6; }
 .report .report-events .note { color: var(--vermilion); font-weight: bold; }
 .report .check { display: flex; align-items: center; gap: 6px; color: var(--ink-faint); margin-top: 6px; }
+
+/* 戰場文字層 */
+#battle .scene .matchup { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 4px 14px; border: 2px solid var(--ink); border-radius: 3px; background: rgba(243,234,216,0.92); font-size: 16px; font-weight: bold; letter-spacing: 2px; pointer-events: none; transition: all 0.2s; z-index: 2; }
+#battle .scene .matchup:empty { display: none; }
+#battle .scene .matchup.adv { color: var(--green); border-color: var(--green); }
+#battle .scene .matchup.dis { color: var(--vermilion); border-color: var(--vermilion); }
+#battle .scene .matchup.sw { color: var(--ink-faint); border-color: var(--ink-faint); }
+#battle .scene .announce-layer { position: absolute; left: 0; right: 0; top: 22%; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 2; }
+#battle .scene .announce { font-size: 30px; font-weight: bold; letter-spacing: 6px; color: var(--ink); text-shadow: 0 0 6px rgba(243,234,216,1), 0 0 12px rgba(243,234,216,1), 2px 2px 0 rgba(243,234,216,1); animation: announce 1.9s ease-out forwards; }
+#battle .scene .announce.red { color: var(--vermilion); }
+#battle .scene .announce.gold { color: var(--gold); }
+@keyframes announce { 0% { opacity: 0; transform: scale(0.6); } 12% { opacity: 1; transform: scale(1.05); } 20% { transform: scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-20px); } }
+
+.advisor .step { margin-top: 6px; padding: 6px 10px; background: var(--ink); color: var(--paper); border-radius: 3px; font-size: 14px; font-weight: bold; letter-spacing: 1px; }

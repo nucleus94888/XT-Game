@@ -44,16 +44,17 @@ const log = (s: string) => console.log(s);
 let st = await snap();
 log(`開局：step=${st.step} tabs=${st.tabs.join('/')} advice=「${st.advice}」`);
 
-// 步驟 0：帶我去 → 點高亮指令
-log(`帶我去: ${await click('帶我去')}`); await sleep(400);
-let cmds = (await snap()).cmds;
-log(`指令列（引導中）：${cmds.join(' ')}`);
-log(`點高亮指令: ${await click('.cmd.hinted')}`); await sleep(400);
-st = await snap(); log(`→ step=${st.step} gold=${st.gold} advice=「${st.advice}」`);
-// 步驟 1
-log(`帶我去: ${await click('帶我去')}`); await sleep(400);
-log(`點高亮指令: ${await click('.cmd.hinted')}`); await sleep(400);
-st = await snap(); log(`→ step=${st.step} troops=${st.troops} advice=「${st.advice}」`);
+// 步驟 0：照三步做：點地圖 → 點高亮武將 → 點高亮指令
+const doStep = async (label: string) => {
+  await page.evaluate(() => (window as unknown as { __app: { selectRegion: (id: string) => void } }).__app.selectRegion('owari')); await sleep(400);
+  const o = await click('.officer.hinted'); await sleep(400);
+  const c = await click('.cmd.hinted'); await sleep(500);
+  const st2 = await snap();
+  log(`${label}: 點武將=${o} 點指令=${c} → step=${st2.step} gold=${st2.gold} troops=${st2.troops} advice=「${st2.advice}」`);
+};
+log(`指令列（引導中）：${(await snap()).cmds.join(' ')}`);
+await doStep('步驟0');
+await doStep('步驟1');
 
 // 連跑回合直到戰鬥出現或 8 回合
 for (let i = 0; i < 8; i++) {

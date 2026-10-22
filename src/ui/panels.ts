@@ -36,7 +36,33 @@ export function advisorBox(app: App): HTMLElement | null {
   const adv = getAdvice(s);
   if (!adv) return null;
   const who = advisorOf(s);
-  const go = adv.action ? h('button', { class: 'btn tiny primary', onClick: () => {
+  // 教學：一次只指一件事（先點地圖 → 再點武將 → 再點指令），不代勞
+  let sub: HTMLElement | null = null;
+  let show: HTMLElement | null = null;
+  if (adv.tutorial && adv.action && (adv.action.region || adv.action.officer || adv.action.cmd)) {
+    const a = adv.action;
+    if (a.region && app.selected !== a.region) {
+      app.map?.hint(a.region);
+      app.ui.hintOfficer = null; app.ui.hintCmd = null;
+      sub = h('div', { class: 'step' }, t('guide.sub.region', { region: a.region }));
+      show = h('button', { class: 'btn tiny primary', onClick: () => app.map?.focus(a.region!, true, innerWidth < 700 ? 30 : 50) }, t('advisor.show'));
+    } else if (a.officer && app.ui.officer !== a.officer) {
+      app.map?.hint(null);
+      app.ui.hintOfficer = a.officer; app.ui.hintCmd = null;
+      sub = h('div', { class: 'step' }, t('guide.sub.officer', { name: a.officer }));
+      show = h('button', { class: 'btn tiny primary', onClick: () => document.querySelector('.officer.hinted')?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }, t('advisor.show'));
+    } else if (a.cmd) {
+      app.map?.hint(null);
+      app.ui.hintOfficer = null; app.ui.hintCmd = a.cmd;
+      sub = h('div', { class: 'step' }, t('guide.sub.cmd', { cmd: t(`cmd.${a.cmd}`) }));
+      show = h('button', { class: 'btn tiny primary', onClick: () => document.querySelector('.cmd.hinted')?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }, t('advisor.show'));
+    } else {
+      app.map?.hint(null);
+    }
+  } else {
+    app.map?.hint(null);
+  }
+  const go = adv.action && !sub && !(adv.tutorial && adv.action.region && !adv.action.tab) ? h('button', { class: 'btn tiny primary', onClick: () => {
     const a = adv.action!;
     if (a.tab) { app.setTab(a.tab); return; }
     if (a.region) { app.selectRegion(a.region); app.map?.focus(a.region, true); }
@@ -59,7 +85,8 @@ export function advisorBox(app: App): HTMLElement | null {
     h('div', null,
       h('div', { class: 'who' }, `${t('advisor.title')}${who ? ' ・ ' + officerName(who) : ''}`),
       h('div', { class: 'say' }, t(adv.key, adv.params)),
-      h('div', { class: 'acts' }, go, skip)));
+      sub,
+      h('div', { class: 'acts' }, show, go, skip)));
 }
 
 export function renderPanel(app: App): HTMLElement {
@@ -86,7 +113,7 @@ export function officerCard(app: App, o: OfficerState, opts: { selectable?: bool
   const cmdLabel = o.lastCmd && t(`cmd.${o.lastCmd}`) !== `cmd.${o.lastCmd}` ? t('stat.actedCmd', { cmd: t(`cmd.${o.lastCmd}`) }) : t('stat.acted');
   const status = o.armyId ? t('stat.marching') : o.injuredMonths > 0 ? `${t('stat.injured')} ${o.injuredMonths}` : o.acted ? cmdLabel : t('stat.idle');
   return h('div', {
-    class: `officer ${app.ui.officer === o.id ? 'selected' : ''} ${busy ? 'acted' : ''} ${app.ui.hintCmd && app.ui.officer === o.id ? 'hinted' : ''}`,
+    class: `officer ${app.ui.officer === o.id ? 'selected' : ''} ${busy ? 'acted' : ''} ${app.ui.hintOfficer === o.id ? 'hinted' : ''}`,
     onClick: opts.onClick,
   },
     h('img', { class: 'silhouette', src: silhouetteDataUrl(o.id) }),
