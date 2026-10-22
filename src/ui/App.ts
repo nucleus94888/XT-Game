@@ -10,8 +10,11 @@ import { kamonDataUrl, type KamonId } from '../data/kamon';
 import { t, setLang, getLang, LANGS, LANG_NAMES, officerName } from '../i18n';
 import { h, clear, fmt, toast, modal } from './dom';
 import { MapScene } from '../render/MapScene';
-import { renderPanel, type Tab, TABS } from './panels';
+import { renderPanel, type Tab, visibleTabs } from './panels';
 import { BattleView } from './BattleView';
+import { onPlayerAction, guideActive, advisorOf } from '../systems/advisor';
+import { createBattle } from '../systems/battle';
+import type { Army } from '../core/types';
 
 export class App {
   state: GameState | null = null;
@@ -19,7 +22,7 @@ export class App {
   selected: RegionId | null = null;
   tab: Tab = 'region';
   /** 面板內暫存（選中的武將等） */
-  ui: { officer: string | null; highlight: RegionId[] } = { officer: null, highlight: [] };
+  ui: { officer: string | null; highlight: RegionId[]; hintCmd: string | null } = { officer: null, highlight: [], hintCmd: null };
   private root: HTMLElement;
   private hud!: HTMLElement;
   private mapEl!: HTMLElement;
@@ -36,13 +39,20 @@ export class App {
     clear(this.root);
     this.map?.dispose(); this.map = null; this.state = null;
     const auto = loadAutosave();
+    const item = (label: string, desc: string | null, cls: string, onClick: () => void) =>
+      h('button', { class: `btn ${cls}`, onClick }, h('span', null, label), desc ? h('span', { class: 'd' }, desc) : null);
     const title = h('div', { id: 'title' },
       h('h1', null, t('app.title')),
       h('div', { class: 'sub' }, t('app.subtitle')),
-      h('button', { class: 'btn primary', onClick: () => this.showFactionSelect() }, t('app.newGame')),
-      auto ? h('button', { class: 'btn', onClick: () => this.startFrom(auto) }, `${t('app.continue')}（${t(`faction.${auto.player}`)} ${t('app.date', { year: auto.year, month: auto.month })}）`) : null,
-      h('button', { class: 'btn', onClick: () => this.showLoad() }, t('app.load')),
+      h('div', { class: 'menu' },
+        auto ? item(t('app.continue'), `${t(`faction.${auto.player}`)} ${t('app.date', { year: auto.year, month: auto.month })}`, 'primary', () => this.startFrom(auto)) : null,
+        item(t('app.scenarioOda'), t('app.scenarioOda.desc'), auto ? '' : 'primary', () => { const st = createGame(Date.now() % 1000000, 'oda'); st.flags.guide = true; st.flags.guideStep = 0; this.startFrom(st); }),
+        item(t('app.drill'), t('app.drill.desc'), '', () => this.runDrill()),
+        item(t('app.chooseFactionBtn'), null, '', () => this.showFactionSelect()),
+        item(t('app.load'), null, '', () => this.showLoad()),
+      ),
       h('div', { class: 'lang' }, LANGS.map(l => h('button', { class: `btn tiny ${getLang() === l ? 'primary' : ''}`, onClick: async () => { await setLang(l); this.showTitle(); } }, LANG_NAMES[l]))),
+      h('div', { class: 'credits' }, t('app.credits')),
     );
     this.root.appendChild(title);
   }
@@ -74,12 +84,16 @@ export class App {
       desc.textContent = t(`factionDesc.${chosen}`);
     };
     render();
+    let guide = localStorage.getItem('xt.guide') !== '0';
+    const check = h('input', { type: 'checkbox', checked: guide });
+    check.addEventListener('change', () => { guide = check.checked; localStorage.setItem('xt.guide', guide ? '1' : '0'); });
     this.root.appendChild(h('div', { id: 'title' },
       h('div', { class: 'sub' }, t('app.chooseFaction')),
       grid, desc,
+      h('label', { class: 'check' }, check, t('app.guideToggle')),
       h('div', { class: 'row' },
         h('button', { class: 'btn', onClick: () => this.showTitle() }, t('app.back')),
-        h('button', { class: 'btn primary', onClick: () => this.startFrom(createGame(Date.now() % 1000000, chosen)) }, t('app.start')),
+        h('button', { class: 'btn primary', onClick: () => { const st = createGame(Date.now() % 1000000, chosen); if (guide) { st.flags.guide = true; st.flags.guideStep = 0; } this.startFrom(st); } }, t('app.start')),
       ),
     ));
   }
@@ -87,7 +101,7 @@ export class App {
   // ===== 遊戲畫面 =====
   startFrom(state: GameState): void {
     this.state = state;
-    this.selected = null; this.tab = 'region'; this.ui = { officer: null, highlight: [] };
+    this.selected = null; this.tab = 'region'; this.ui = { officer: null, highlight: [], hintCmd: null };
     clear(this.root);
     this.hud = h('div', { id: 'hud' });
     this.mapEl = h('div', { id: 'map' });
@@ -102,8 +116,13 @@ export class App {
     const home = regionsOf(state, state.player)[0];
     if (home) { this.selectRegion(home.id); this.map.focus(home.id, false, innerWidth < 700 ? 42 : 70); }
     if (state.turn === 0 && !state.flags.devSkipIntro) {
-      const body = h('div', null, h('p', null, t('panel.tutorial')), state.player === 'oda' ? h('p', { class: 'hint' }, t('panel.hint.oda')) : null);
-      modal(t('app.title'), body, [t('app.confirm')]);
+      if (guideActive(state)) {
+        const who = advisorOf(state);
+        modal(t('advisor.title'), h('div', null, h('p', null, t('guide.intro', { name: who ?? '' })), h('p', { class: 'muted' }, t('panel.tutorial'))), [t('app.confirm')]);
+      } else {
+        const body = h('div', null, h('p', null, t('panel.tutorial')), state.player === 'oda' ? h('p', { class: 'hint' }, t('panel.hint.oda')) : null);
+        modal(t('app.title'), body, [t('app.confirm')]);
+      }
     }
     if (state.battleQueue.length) this.runBattles();
   }
@@ -112,13 +131,14 @@ export class App {
     this.selected = id;
     this.ui.officer = null;
     this.ui.highlight = [];
+    this.ui.hintCmd = null;
     this.map?.select(id);
     this.map?.highlight([]);
     if (id) this.tab = 'region';
     this.renderTabs(); this.renderPanel();
   }
 
-  setTab(tab: Tab): void { this.tab = tab; this.ui.officer = null; this.renderTabs(); this.renderPanel(); }
+  setTab(tab: Tab): void { this.tab = tab; this.ui.officer = null; this.ui.hintCmd = null; this.renderTabs(); this.renderPanel(); }
 
   refresh(): void {
     if (!this.state) return;
@@ -149,7 +169,9 @@ export class App {
     clear(this.tabsEl);
     const s = this.state!;
     const important = s.log.filter(l => l.important && l.turn === s.turn - 1 && (!l.faction || l.faction === s.player)).length;
-    for (const tab of TABS) {
+    const tabs = visibleTabs(this);
+    if (!tabs.includes(this.tab)) this.tab = 'region';
+    for (const tab of tabs) {
       this.tabsEl.appendChild(h('button', { class: tab === this.tab ? 'active' : '', onClick: () => this.setTab(tab) },
         t(`panel.${tab}`), tab === 'log' && important ? h('span', { class: 'badge' }, important) : null));
     }
@@ -164,7 +186,7 @@ export class App {
   /** 指令執行後統一刷新 */
   afterCommand(result: { ok: boolean; key: string; params?: Record<string, string | number> }): void {
     toast(t(result.key, result.params), result.ok);
-    if (result.ok) this.ui.officer = null;
+    if (result.ok) { this.ui.officer = null; this.ui.hintCmd = null; onPlayerAction(this.state!, 'cmd', result.key); }
     this.refresh();
   }
 
@@ -177,8 +199,11 @@ export class App {
       const r = await modal(t('app.endTurn'), t('app.endTurnConfirm', { n: unacted }), [t('app.confirm'), t('app.cancel')]);
       if (r !== 0) return;
     }
-    this.ui.officer = null; this.ui.highlight = [];
+    this.ui.officer = null; this.ui.highlight = []; this.ui.hintCmd = null;
+    const wasGuide = guideActive(s);
     endTurn(s);
+    onPlayerAction(s, 'endTurn');
+    if (wasGuide && !guideActive(s)) toast(t('guide.done'));
     if (s.battleQueue.length) await this.runBattles();
     else await this.afterTurn();
   }
@@ -190,6 +215,7 @@ export class App {
       const view = new BattleView(this, b);
       await view.run();
       finishBattle(s, b);
+      onPlayerAction(s, 'battleEnd');
     }
     completeTurn(s);
     await this.afterTurn();
@@ -214,6 +240,25 @@ export class App {
       return;
     }
     autosave(s);
+  }
+
+  /** 合戰演習：不影響任何存檔的單場即時戰鬥 */
+  async runDrill(): Promise<void> {
+    const st = createGame(7, 'oda');
+    st.flags.devSkipIntro = true;
+    this.state = st;
+    const army: Army = { id: 'drill', faction: 'oda', from: 'owari', target: 'mino', troops: { ashigaru: 5200, cavalry: 800, gun: 0 }, training: 60, commander: 'oda_nobunaga', officers: ['oda_nobunaga', 'shibata_katsuie'], eta: 0 };
+    // 以美濃守軍為對手，但改成野戰、晴天、兵力相當
+    const rng = { chance: () => false } as unknown as import('../core/rng').Rng;
+    const b = createBattle(st, army, rng);
+    b.siege = false; b.weather = 'clear'; b.terrain = 'plain';
+    b.defender.troops = { ashigaru: 5000, cavalry: 600, gun: 0 }; b.defender.initial = 5600; b.defender.morale = 100;
+    b.attacker.initial = 6000;
+    const view = new BattleView(this, b, { introKey: 'battle.rt.drillIntro', noDelegate: true });
+    clear(this.root);
+    await view.run();
+    this.state = null;
+    this.showTitle();
   }
 
   async showMenu(): Promise<void> {

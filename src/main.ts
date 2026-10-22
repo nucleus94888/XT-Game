@@ -14,6 +14,7 @@ async function boot() {
     const { createGame, officersIn, regionsOf, totalTroops } = await import('./core/state');
     const state = createGame(Number(q.get('seed') ?? 1), f as never);
     state.flags.devSkipIntro = true;
+    if (q.get('guide')) { state.flags.guide = true; state.flags.guideStep = Number(q.get('guide')) || 0; state.flags.devSkipIntro = !q.get('intro'); }
     if (q.get('battle')) {
       // 開發用：立刻對相鄰敵區出陣並進入戰鬥
       const { cmdMarch, marchTargets } = await import('./systems/military');

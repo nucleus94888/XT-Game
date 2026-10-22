@@ -7,7 +7,7 @@ import type { Rng } from '../core/rng';
 export const TACTICS: Tactic[] = ['charge', 'hold', 'volley', 'maneuver', 'fire', 'duel', 'retreat'];
 
 /** 戰術剋制：矩陣[mine][theirs] = 我方傷害倍率 */
-const MATCHUP: Record<Tactic, Partial<Record<Tactic, number>>> = {
+export const MATCHUP: Record<Tactic, Partial<Record<Tactic, number>>> = {
   charge:   { charge: 1.0, hold: 0.6, volley: 1.5, maneuver: 1.3, fire: 1.2, duel: 1.0, retreat: 1.6 },
   hold:     { charge: 1.5, hold: 0.8, volley: 0.6, maneuver: 0.7, fire: 0.4, duel: 0.8, retreat: 0.8 },
   volley:   { charge: 0.7, hold: 1.5, volley: 1.0, maneuver: 1.4, fire: 1.0, duel: 1.0, retreat: 1.3 },
@@ -24,7 +24,7 @@ const KEY_STAT: Record<Tactic, keyof Pick<OfficerDef, 'lead' | 'valor' | 'intel'
 const DEFAULT_CMD: Pick<OfficerDef, 'lead' | 'valor' | 'intel' | 'politics' | 'charm' | 'traits' | 'name'> =
   { lead: 40, valor: 40, intel: 40, politics: 40, charm: 40, traits: [], name: '?' };
 
-function cmdOf(side: BattleSide) {
+export function cmdOf(side: BattleSide) {
   return side.commander ? OFFICER_MAP[side.commander] : DEFAULT_CMD;
 }
 
@@ -124,13 +124,13 @@ export function aiTactic(b: BattleState, who: 'attacker' | 'defender', rng: Rng)
   return 'hold';
 }
 
-function effectiveStrength(side: BattleSide, t: Tactic, terrain: 'plain' | 'mountain'): number {
+export function effectiveStrength(side: BattleSide, t: Tactic, terrain: 'plain' | 'mountain'): number {
   const cavMul = (t === 'charge' ? 1.8 : t === 'maneuver' ? 1.4 : 1.0) * (terrain === 'mountain' ? 0.6 : 1);
   const gunMul = t === 'volley' ? 2.5 : t === 'hold' ? 1.3 : 0.8;
   return side.troops.ashigaru + side.troops.cavalry * cavMul + side.troops.gun * gunMul;
 }
 
-function officerMod(side: BattleSide, t: Tactic): number {
+export function officerMod(side: BattleSide, t: Tactic): number {
   const c = cmdOf(side);
   let m = 0.7 + c[KEY_STAT[t]] / 200;
   if (t === 'charge' && c.traits.includes('cavalry') && side.troops.cavalry > 0) m *= 1.2;
@@ -142,7 +142,7 @@ function officerMod(side: BattleSide, t: Tactic): number {
   return m;
 }
 
-function applyLoss(side: BattleSide, loss: number) {
+export function applyLoss(side: BattleSide, loss: number) {
   const n = totalTroops(side);
   if (n <= 0) return;
   loss = Math.min(loss, n);

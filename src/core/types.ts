@@ -39,10 +39,6 @@ export interface RegionDef {
   adjacent: RegionId[];
   terrain: Terrain;
   bonuses: RegionBonus[];
-  /** 地圖上的 2D 座標（單位：抽象格，x 往東、y 往北），供 three.js 佈局 */
-  pos: { x: number; y: number };
-  /** 地圖上區塊的大致半徑（抽象格），供地圖繪製 */
-  size: number;
   /** 開局數值 */
   init: {
     owner: FactionId | null;

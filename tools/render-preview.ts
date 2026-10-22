@@ -1,10 +1,12 @@
 // Dev preview for MapScene / BattleScene. Served by Vite at /tools/render-preview.html
 import { createGame } from '../src/core/state';
-import type { BattleRoundLog, BattleState, RegionId } from '../src/core/types';
+import type { BattleState, RegionId } from '../src/core/types';
 import { FACTION_MAP } from '../src/data/factions';
 import { REGION_MAP } from '../src/data/regions';
 import { MapScene } from '../src/render/MapScene';
 import { BattleScene } from '../src/render/BattleScene';
+import { createRtBattle, rtStep } from '../src/systems/rtbattle';
+import { Rng } from '../src/core/rng';
 
 const logEl = document.getElementById('log') as HTMLDivElement;
 function log(msg: string): void {
@@ -47,73 +49,55 @@ btnArmy.onclick = () => {
 btnFocus.onclick = () => map.focus(selected ?? 'owari', true);
 
 let battle: BattleScene | null = null;
+let battleRaf = 0;
 
 function fakeBattle(): BattleState {
   return {
-    id: 'preview-battle',
-    armyId: 'a1',
-    region: 'mikawa',
-    terrain: 'mountain',
-    weather: 'rain',
-    siege: true,
-    defense: 55,
+    id: 'preview-battle', armyId: 'a1', region: 'mikawa', terrain: 'mountain', weather: 'rain', siege: true, defense: 55,
     attacker: { faction: 'oda', troops: { ashigaru: 6000, cavalry: 2000, gun: 1000 }, initial: 9000, training: 70, morale: 100, commander: 'oda_nobunaga', officers: ['oda_nobunaga'], fireUsed: false },
     defender: { faction: 'imagawa', troops: { ashigaru: 9000, cavalry: 2000, gun: 1000 }, initial: 12000, training: 60, morale: 100, commander: 'imagawa_yoshimoto', officers: ['imagawa_yoshimoto'], fireUsed: false },
-    round: 0,
-    maxRounds: 8,
-    rounds: [],
-    over: false,
+    round: 0, maxRounds: 8, rounds: [], over: false,
   };
 }
 
-function applyLoss(side: BattleState['attacker'], loss: number): void {
-  let left = loss;
-  for (const k of ['ashigaru', 'cavalry', 'gun'] as const) {
-    const take = Math.min(side.troops[k], left);
-    side.troops[k] -= take;
-    left -= take;
-  }
-}
-
-async function runFakeBattle(): Promise<void> {
+/** AI 對 AI 的即時戰鬥，用場景播放 */
+function runFakeBattle(): void {
   const b = fakeBattle();
   const atkF = FACTION_MAP[b.attacker.faction];
   const defF = FACTION_MAP[b.defender.faction];
+  const rng = new Rng(3);
+  const rt = createRtBattle(b, rng, { playerSide: null });
   battle = new BattleScene(battleEl);
-  battle.setup(b, { kamon: atkF.kamon, color: atkF.color, name: atkF.name }, { kamon: defF.kamon, color: defF.color, name: defF.name });
-
-  const script: [BattleRoundLog['atkTactic'], BattleRoundLog['defTactic'], number, number][] = [
-    ['charge', 'hold', 1400, 500],
-    ['volley', 'charge', 600, 1600],
-    ['fire', 'hold', 300, 2400],
-    ['duel', 'duel', 800, 900],
-    ['maneuver', 'retreat', 200, 1200],
-  ];
-  for (let i = 0; i < script.length; i++) {
+  battle.setup(b, { kamon: atkF.kamon, color: atkF.color, name: atkF.name }, { kamon: defF.kamon, color: defF.color, name: defF.name }, { attacker: rt.sides.attacker.stance, defender: rt.sides.defender.stance });
+  let last = performance.now(), evIdx = 0, shownA = 0, shownD = 0;
+  const loop = (now: number) => {
     if (!battle) return;
-    const [atkTactic, defTactic, atkLoss, defLoss] = script[i];
-    applyLoss(b.attacker, atkLoss);
-    applyLoss(b.defender, defLoss);
-    b.round = i + 1;
-    const round: BattleRoundLog = { round: i + 1, atkTactic, defTactic, atkLoss, defLoss, atkMorale: 90 - i * 5, defMorale: 85 - i * 8, notes: [] };
-    b.rounds.push(round);
-    log(`round ${i + 1}: ${atkTactic} vs ${defTactic} (-${atkLoss} / -${defLoss})`);
-    const t0 = performance.now();
-    await battle.playRound(round, b);
-    log(`  round ${i + 1} done in ${Math.round(performance.now() - t0)}ms`);
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  log('battle script finished');
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!rt.over) {
+      rtStep(rt, dt, rng, ['attacker', 'defender']);
+      for (const side of ['attacker', 'defender'] as const) {
+        const st = rt.sides[side];
+        battle.setStance(side, st.pending ?? st.stance, st.switching > 0);
+      }
+      while (evIdx < rt.events.length) { const ev = rt.events[evIdx++]; battle.showEvent(ev); log(`${ev.t.toFixed(1)}s ${ev.side} ${ev.kind} ${ev.stance ?? ''}`); }
+      const lA = rt.stats.attacker.loss - shownA, lD = rt.stats.defender.loss - shownD;
+      if (lA > 300 || lD > 300 || rt.over) { battle.syncTroops(b, lA, lD); shownA += lA; shownD += lD; }
+      if (rt.over) log(`over: ${b.winner} in ${rt.time.toFixed(1)}s`);
+    }
+    battleRaf = requestAnimationFrame(loop);
+  };
+  battleRaf = requestAnimationFrame(loop);
 }
 
 btnBattle.onclick = () => {
   battleEl.classList.add('open');
   btnClose.style.display = '';
   btnBattle.style.display = 'none';
-  void runFakeBattle();
+  runFakeBattle();
 };
 
 btnClose.onclick = () => {
+  cancelAnimationFrame(battleRaf);
   battle?.dispose();
   battle = null;
   battleEl.classList.remove('open');
@@ -121,7 +105,6 @@ btnClose.onclick = () => {
   btnBattle.style.display = '';
 };
 
-// 讓 headless 截圖能用 query string 直接開戰鬥 / 選區 / 放軍隊
 const qs = new URLSearchParams(location.search);
 if (qs.has('battle')) btnBattle.click();
 if (qs.has('army')) btnArmy.click();

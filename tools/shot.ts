@@ -3,7 +3,7 @@
 import puppeteer from 'puppeteer-core';
 import { existsSync } from 'node:fs';
 
-const base = process.argv[2] ?? 'http://127.0.0.1:5180';
+const base = process.argv[2] ?? 'http://localhost:5180';
 const candidates = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -14,6 +14,11 @@ if (!executablePath) throw new Error('找不到 Chrome / Edge');
 /** 步驟：'click:文字' 點擊第一個文字相符的按鈕/卡片；'wait:毫秒' */
 const shots: { name: string; url: string; w: number; h: number; mobile: boolean; wait?: number; steps?: string[] }[] = [
   { name: 'title', url: '/', w: 390, h: 844, mobile: true },
+  { name: 'guide-start', url: '/?faction=oda&seed=1&guide=0&intro=1', w: 390, h: 844, mobile: true, steps: ['wait:300'] },
+  { name: 'guide-go', url: '/?faction=oda&seed=1&guide=0', w: 390, h: 844, mobile: true, steps: ['click:帶我去', 'wait:700', 'scroll:#panel,420', 'wait:200'] },
+  { name: 'guide-step3', url: '/?faction=oda&seed=1&guide=3', w: 390, h: 844, mobile: true, steps: ['wait:300'] },
+  { name: 'drill', url: '/', w: 390, h: 844, mobile: true, steps: ['click:合戰演習', 'wait:2500'] },
+  { name: 'desktop-guide', url: '/?faction=oda&seed=1&guide=0', w: 1280, h: 720, mobile: false },
   { name: 'portrait', url: '/?faction=oda&seed=1', w: 390, h: 844, mobile: true },
   { name: 'landscape', url: '/?faction=oda&seed=1', w: 844, h: 390, mobile: true },
   { name: 'desktop', url: '/?faction=oda&seed=1', w: 1280, h: 720, mobile: false },
@@ -23,10 +28,12 @@ const shots: { name: string; url: string; w: number; h: number; mobile: boolean;
   { name: 'tab-diplomacy', url: '/?faction=oda&seed=1', w: 390, h: 844, mobile: true, steps: ['click:#tabs>外交', 'wait:300'] },
   { name: 'tab-tech', url: '/?faction=oda&seed=1', w: 390, h: 844, mobile: true, steps: ['click:#tabs>技術', 'wait:300'] },
   { name: 'faction-select', url: '/', w: 390, h: 844, mobile: true, steps: ['click:新遊戲', 'wait:500'] },
-  { name: 'battle-full', url: '/?faction=oda&seed=1&battle=1', w: 390, h: 844, mobile: true, wait: 2500,
-    steps: Array.from({ length: 9 }, () => ['click:.tactic:not(:disabled)', 'wait:2200']).flat() },
+  { name: 'battle-mid', url: '/?faction=oda&seed=1&battle=1', w: 390, h: 844, mobile: true, wait: 2500,
+    steps: ['click:開戰', 'wait:6000', 'click:.stance:not(.active):not(:disabled)', 'wait:3000'] },
   { name: 'battle-done', url: '/?faction=oda&seed=1&battle=1', w: 390, h: 844, mobile: true, wait: 2500,
-    steps: [...Array.from({ length: 9 }, () => ['click:.tactic:not(:disabled)', 'wait:2200']).flat(), 'click:結束戰鬥', 'wait:1500'] },
+    steps: ['click:開戰', 'wait:45000'] },
+  { name: 'battle-landscape', url: '/?faction=oda&seed=1&battle=1', w: 844, h: 390, mobile: true, wait: 2500,
+    steps: ['click:開戰', 'wait:5000'] },
   // 連過 6 個月（1 月→7 月）：今川 5 月出陣、6 月到達 → 應出現桶狹間奇襲選項
   { name: 'okehazama', url: '/?faction=oda&seed=1', w: 390, h: 844, mobile: true,
     steps: Array.from({ length: 6 }, () => ['click:結束回合', 'wait:300', 'click:確定', 'wait:1800', 'click:謝絕', 'wait:200']).flat() },
@@ -36,13 +43,14 @@ const only = process.argv[3];
 async function runStep(page: import('puppeteer-core').Page, step: string) {
   const [kind, arg] = [step.slice(0, step.indexOf(':')), step.slice(step.indexOf(':') + 1)];
   if (kind === 'wait') { await new Promise(r => setTimeout(r, Number(arg))); return; }
+  if (kind === 'scroll') { const [sel, px] = arg.split(','); await page.evaluate((s: string, p: number) => { const el = document.querySelector(s); if (el) el.scrollTop = p; }, sel, Number(px)); return; }
   if (kind === 'click') {
     const ok = await page.evaluate((sel: string) => {
       let scope: ParentNode = document;
       let text = sel;
       if (sel.includes('>')) { const [s, t] = sel.split('>'); scope = document.querySelector(s) ?? document; text = t; }
       if (text.startsWith('.') || text.startsWith('#')) { const el = scope.querySelector(text) as HTMLElement | null; el?.click(); return !!el; }
-      const els = [...scope.querySelectorAll('button, .cmd, .list-item, .officer, .tactic')] as HTMLElement[];
+      const els = [...scope.querySelectorAll('button, .cmd, .list-item, .officer, .tactic, .stance')] as HTMLElement[];
       const el = els.find(e => e.textContent?.includes(text));
       el?.click();
       return !!el;

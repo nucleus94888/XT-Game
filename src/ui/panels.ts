@@ -19,9 +19,42 @@ import { regionMods } from '../systems/modifiers';
 import { t, officerName } from '../i18n';
 import { h, fmt, bar, modal, slider } from './dom';
 import { silhouetteDataUrl } from './silhouette';
+import { getAdvice, isUnlocked, guideActive, advisorOf, skipGuide } from '../systems/advisor';
 
 export type Tab = 'region' | 'officers' | 'diplomacy' | 'tech' | 'ninja' | 'log' | 'faction';
 export const TABS: Tab[] = ['region', 'officers', 'diplomacy', 'tech', 'ninja', 'log', 'faction'];
+
+/** 引導模式下尚未解鎖的分頁不顯示 */
+export function visibleTabs(app: App): Tab[] {
+  const s = app.state!;
+  return TABS.filter(tab => tab === 'diplomacy' ? isUnlocked(s, 'diplomacy') : tab === 'ninja' ? isUnlocked(s, 'ninja') : tab === 'tech' ? isUnlocked(s, 'tech') : true);
+}
+
+/** 軍師：教學步驟或每月一句建議 */
+export function advisorBox(app: App): HTMLElement | null {
+  const s = app.state!;
+  const adv = getAdvice(s);
+  if (!adv) return null;
+  const who = advisorOf(s);
+  const go = adv.action ? h('button', { class: 'btn tiny primary', onClick: () => {
+    const a = adv.action!;
+    if (a.tab) { app.setTab(a.tab); return; }
+    if (a.region) { app.selectRegion(a.region); app.map?.focus(a.region, true); }
+    if (a.officer) app.ui.officer = a.officer;
+    app.ui.hintCmd = a.cmd ?? null;
+    app.renderPanel();
+  } }, t('advisor.go')) : null;
+  const skip = adv.tutorial ? h('button', { class: 'btn tiny', onClick: async () => {
+    const r = await modal(t('advisor.skip'), t('advisor.skipConfirm'), [t('app.confirm'), t('app.cancel')]);
+    if (r === 0) { skipGuide(s); app.refresh(); }
+  } }, t('advisor.skip')) : null;
+  return h('div', { class: 'advisor' },
+    who ? h('img', { src: silhouetteDataUrl(who) }) : null,
+    h('div', null,
+      h('div', { class: 'who' }, `${t('advisor.title')}${who ? ' ・ ' + officerName(who) : ''}`),
+      h('div', { class: 'say' }, t(adv.key, adv.params)),
+      h('div', { class: 'acts' }, go, skip)));
+}
 
 export function renderPanel(app: App): HTMLElement {
   switch (app.tab) {
@@ -46,7 +79,7 @@ export function officerCard(app: App, o: OfficerState, opts: { selectable?: bool
   const busy = o.acted || o.armyId || o.injuredMonths > 0;
   const status = o.armyId ? t('stat.marching') : o.injuredMonths > 0 ? `${t('stat.injured')} ${o.injuredMonths}` : o.acted ? t('stat.acted') : t('stat.idle');
   return h('div', {
-    class: `officer ${app.ui.officer === o.id ? 'selected' : ''} ${busy ? 'acted' : ''}`,
+    class: `officer ${app.ui.officer === o.id ? 'selected' : ''} ${busy ? 'acted' : ''} ${app.ui.hintCmd && app.ui.officer === o.id ? 'hinted' : ''}`,
     onClick: opts.onClick,
   },
     h('img', { class: 'silhouette', src: silhouetteDataUrl(o.id) }),
@@ -54,10 +87,12 @@ export function officerCard(app: App, o: OfficerState, opts: { selectable?: bool
       h('div', { class: 'name' }, officerName(o.id), ' ',
         h('span', { class: `tag ${o.rank === 'daimyo' ? 'fill' : ''}` }, t(`rank.${o.rank}`)),
         o.clanTie && o.rank !== 'daimyo' ? h('span', { class: 'tag gold' }, t('clanTie')) : null),
-      h('div', { class: 'stats' },
-        h('span', null, `${t('stat.lead')} `, h('b', null, d.lead)), h('span', null, `${t('stat.valor')} `, h('b', null, d.valor)),
-        h('span', null, `${t('stat.intel')} `, h('b', null, d.intel)), h('span', null, `${t('stat.politics')} `, h('b', null, d.politics)),
-        h('span', null, `${t('stat.charm')} `, h('b', null, d.charm))),
+      guideActive(s)
+        ? h('div', { class: 'stats' }, h('span', null, `${t('advisor.goodAt')} `, h('b', null, (['lead', 'valor', 'intel', 'politics', 'charm'] as const).map(k => [k, d[k]] as const).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => t(`stat.${k}`)).join('・'))))
+        : h('div', { class: 'stats' },
+          h('span', null, `${t('stat.lead')} `, h('b', null, d.lead)), h('span', null, `${t('stat.valor')} `, h('b', null, d.valor)),
+          h('span', null, `${t('stat.intel')} `, h('b', null, d.intel)), h('span', null, `${t('stat.politics')} `, h('b', null, d.politics)),
+          h('span', null, `${t('stat.charm')} `, h('b', null, d.charm))),
       h('div', { class: 'stats' }, d.traits.map(tr => h('span', { class: 'tag' }, t(`trait.${tr}`)))),
     ),
     h('div', { class: 'right' },
@@ -103,12 +138,12 @@ function freeOfficers(app: App, region?: RegionId): OfficerState[] {
 function regionPanel(app: App): HTMLElement {
   const s = app.state!;
   const id = app.selected;
-  if (!id) return h('div', null, h('div', { class: 'hint' }, t('panel.tutorial')), factionOverview(app));
+  if (!id) return h('div', null, advisorBox(app), h('div', { class: 'hint' }, t('panel.tutorial')), factionOverview(app));
   const r = s.regions[id]; const def = REGION_MAP[id];
   const mine = r.owner === s.player;
   const known = mine || (s.factions[s.player].intel[id] ?? -1) >= s.turn;
   const mods = regionMods(s, id);
-  const wrap = h('div', null);
+  const wrap = h('div', null, advisorBox(app));
 
   wrap.appendChild(h('div', { class: 'region-head' }, kamonImg(r.owner, 44),
     h('div', null, h('div', { class: 'rname' }, t(`region.${id}`)),
@@ -176,8 +211,10 @@ function commandGrid(app: App, oid: string, rid: RegionId): HTMLElement {
   const busy = o.acted || !!o.armyId || o.injuredMonths > 0;
   const gold = s.factions[f].gold;
   const grid = h('div', { class: 'cmd-grid' });
-  const add = (name: string, cost: number, onClick: () => void, extra: { disabled?: boolean; danger?: boolean } = {}) => {
-    grid.appendChild(h('button', { class: `cmd ${extra.danger ? 'danger' : ''}`, disabled: busy || extra.disabled || gold < cost, onClick },
+  const adv = isUnlocked(s, 'advanced');
+  const add = (name: string, cost: number, onClick: () => void, extra: { disabled?: boolean; danger?: boolean; hidden?: boolean } = {}) => {
+    if (extra.hidden) return;
+    grid.appendChild(h('button', { class: `cmd ${extra.danger ? 'danger' : ''} ${app.ui.hintCmd === name ? 'hinted' : ''}`, disabled: busy || extra.disabled || gold < cost, onClick },
       h('div', { class: 'cmd-name' }, t(`cmd.${name}`)),
       h('div', { class: 'cmd-desc' }, t(`cmd.${name}.desc`)),
       h('div', { class: 'cmd-desc' }, cost ? t('cmd.cost', { n: cost }) : t('cmd.free'))));
@@ -186,18 +223,18 @@ function commandGrid(app: App, oid: string, rid: RegionId): HTMLElement {
   add('commerce', COSTS.commerce, () => app.afterCommand(cmdCommerce(s, f, oid, rid)));
   add('recruit', recruitCost(s, rid), () => app.afterCommand(cmdRecruit(s, f, oid, rid)));
   add('train', COSTS.train, () => app.afterCommand(cmdTrain(s, f, oid, rid)));
-  add('castle', COSTS.castle, () => app.afterCommand(cmdCastle(s, f, oid, rid)));
+  add('castle', COSTS.castle, () => app.afterCommand(cmdCastle(s, f, oid, rid)), { hidden: !adv });
   add('govern', COSTS.govern, () => app.afterCommand(cmdGovern(s, f, oid, rid)));
   add('hire', COSTS.hire, async () => {
     const targets = hireTargets(s, f, rid);
     const pick = await pickFromList(t('cmd.chooseTarget'), targets.map(x => ({ label: `${officerName(x.id)}${x.faction ? `（${t(`faction.${x.faction}`)} ${t('stat.loyalty')} ${Math.round(x.loyalty)}）` : ''}`, sub: traitsText(x.id), value: x.id })));
     if (pick) app.afterCommand(cmdHire(s, f, oid, rid, pick));
-  }, { disabled: hireTargets(s, f, rid).length === 0 });
+  }, { disabled: hireTargets(s, f, rid).length === 0, hidden: !adv });
   add('research', COSTS.research, async () => {
     const list = availableTechs(s, f);
     const pick = await pickFromList(t('cmd.chooseTarget'), list.map(id => ({ label: `${t(`tech.branch.${TECH_MAP[id].branch}`)}：${t(`tech.${id}.name`)}`, sub: `${t(`tech.${id}.desc`)}（${TECH_MAP[id].cost}）`, value: id })));
     if (pick) app.afterCommand(cmdResearch(s, f, oid, rid, pick));
-  }, { disabled: availableTechs(s, f).length === 0 });
+  }, { disabled: availableTechs(s, f).length === 0, hidden: !isUnlocked(s, 'tech') });
   add('reward', COSTS.rewardSmall, async () => {
     const targets = officersOf(s, f).filter(x => x.rank !== 'daimyo');
     const pick = await pickFromList(t('cmd.chooseTarget'), targets.map(x => ({ label: officerName(x.id), sub: `${t('stat.loyalty')} ${Math.round(x.loyalty)}`, value: x.id })));
@@ -205,7 +242,7 @@ function commandGrid(app: App, oid: string, rid: RegionId): HTMLElement {
     const size = await modal(t('cmd.reward'), '', [t('cmd.rewardSmall'), t('cmd.rewardLarge'), t('app.cancel')]);
     if (size === 2) return;
     app.afterCommand(cmdReward(s, f, oid, rid, pick, size === 1));
-  });
+  }, { hidden: !adv });
   const ownAdj = REGION_MAP[rid].adjacent.filter(a => s.regions[a].owner === f);
   add('move', 0, async () => {
     const pick = await pickFromList<RegionId>(t('cmd.chooseTarget'), ownAdj.map(a => ({ label: t(`region.${a}`), value: a })));
@@ -216,12 +253,12 @@ function commandGrid(app: App, oid: string, rid: RegionId): HTMLElement {
     if (!pick) return;
     const n = await askNumber(t('cmd.troopsToTransfer'), 0, totalTroops(s.regions[rid]), Math.round(totalTroops(s.regions[rid]) / 2));
     if (n) app.afterCommand(cmdTransfer(s, f, oid, rid, pick, n));
-  }, { disabled: ownAdj.length === 0 || totalTroops(s.regions[rid]) === 0 });
+  }, { disabled: ownAdj.length === 0 || totalTroops(s.regions[rid]) === 0, hidden: !adv });
   const targets = marchTargets(s, f, rid);
   add('march', 0, () => marchFlow(app, oid, rid), { disabled: targets.length === 0 || totalTroops(s.regions[rid]) < 300, danger: true });
   // 外交 / 忍者 捷徑
-  add('diplomacy', 0, () => { app.setTab('diplomacy'); });
-  add('ninja', 0, () => { app.setTab('ninja'); }, { disabled: s.factions[f].ninja.level === 0 });
+  add('diplomacy', 0, () => { app.setTab('diplomacy'); }, { hidden: !isUnlocked(s, 'diplomacy') });
+  add('ninja', 0, () => { app.setTab('ninja'); }, { disabled: s.factions[f].ninja.level === 0, hidden: !isUnlocked(s, 'ninja') });
   return h('div', { class: 'section' }, h('h3', null, `${t('cmd.title')}：${officerName(oid)}`), grid);
 }
 
@@ -390,7 +427,7 @@ function logPanel(app: App): HTMLElement {
 
 // ===== 勢力 =====
 function factionPanel(app: App): HTMLElement {
-  return h('div', null, factionOverview(app));
+  return h('div', null, advisorBox(app), factionOverview(app));
 }
 
 function factionOverview(app: App): HTMLElement {

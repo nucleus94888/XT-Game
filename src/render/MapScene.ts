@@ -1,34 +1,44 @@
 // ===== 戰略地圖（three.js，水墨風） =====
-// 地圖座標：pos.x 往東 → world x；pos.y 往北 → world -z。
+// 地形來自 data/geo.ts（真實日本輪廓合併成 19 區）。平面座標 (x, y) → world (x, 0, -y)。
+// 區域依領主上色；同一勢力之間的邊界淡化、不同勢力之間的邊界加粗，海岸線以墨筆描出。
 
 import * as THREE from 'three';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { GameState, RegionId } from '../core/types';
 import { REGIONS, REGION_MAP } from '../data/regions';
 import { FACTION_MAP } from '../data/factions';
+import { GEO_ARCS, GEO_BOUNDS, GEO_REGIONS } from '../data/geo';
+import { t } from '../i18n';
 import {
-  INK, PAPER_CREAM, addOutline, blobShape, disposeObject, ease, inkMaterial, kamonSprite,
+  INK, PAPER_CREAM, addOutline, disposeObject, ease, inkMaterial, kamonSprite,
   makePaperTexture, mixColor, mulberry32, mutedColor, setSpriteText, textSprite, Tweener,
 } from './ink';
 
-const NEUTRAL_COLOR = 0x8d8a82;
+const NEUTRAL_COLOR = 0x9a948a;
 const HIGHLIGHT_COLOR = 0xc0392b;
 const SELECT_COLOR = 0xa8281c;
+const SEA_TINT = 0xeaede8;      // 海面：把和紙微微染成青灰
+const LAND_H = 0.5;             // 陸地厚度
+const TOP_Y = LAND_H + 0.03;    // 邊界線所在高度
 const TAP_THRESHOLD_PX = 8;
-const ZOOM_MIN = 0.75;
-const ZOOM_MAX = 4;
-const CAMERA_PITCH = THREE.MathUtils.degToRad(56); // 與水平面的夾角
-const CAMERA_DIST = 120;
+const ZOOM_MIN = 0.7;
+const ZOOM_MAX = 4.5;
+const CAMERA_PITCH = THREE.MathUtils.degToRad(60);
+const CAMERA_DIST = 140;
+
+type Pt = [number, number];
 
 interface RegionNode {
   id: RegionId;
   group: THREE.Group;
-  mesh: THREE.Mesh;
+  meshes: THREE.Mesh[];
   material: THREE.MeshToonMaterial;
-  outline: THREE.Mesh;
-  selectOutline: THREE.Mesh;
   kamon: THREE.Sprite | null;
   kamonKey: string;
   label: THREE.Sprite;
+  castle: THREE.Group;
   baseColor: number;
   highlighted: boolean;
 }
@@ -39,6 +49,35 @@ function fmt(n: number): string {
 
 function hexStr(c: number): string {
   return '#' + c.toString(16).padStart(6, '0');
+}
+
+/** 射線法：點是否在多邊形內 */
+function pointInRing(x: number, y: number, ring: Pt[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function pointOnLand(x: number, y: number): boolean {
+  for (const g of Object.values(GEO_REGIONS)) for (const ring of g.polys) if (pointInRing(x, y, ring)) return true;
+  return false;
+}
+
+/** 多邊形外環 → THREE.Shape（shape y 經 rotateX(-90°) 後對應 world -z） */
+function ringShape(ring: Pt[]): THREE.Shape {
+  const s = new THREE.Shape();
+  s.moveTo(ring[0][0], ring[0][1]);
+  for (let i = 1; i < ring.length; i++) s.lineTo(ring[i][0], ring[i][1]);
+  s.closePath();
+  return s;
+}
+
+/** 折線 → LineSegments2 用的 [x1,y1,z1,x2,y2,z2,...] */
+function polylineSegments(pts: Pt[], y: number, out: number[]): void {
+  for (let i = 0; i < pts.length - 1; i++) out.push(pts[i][0], y, -pts[i][1], pts[i + 1][0], y, -pts[i + 1][1]);
 }
 
 export class MapScene {
@@ -52,17 +91,21 @@ export class MapScene {
   private target = new THREE.Vector3();
   private forward = new THREE.Vector3();
   private bounds = new THREE.Box3();
-  private baseView = { w: 100, h: 50 }; // zoom = 1 時的視野（世界單位）
+  private baseView = { w: 100, h: 50 };
   private regions = new Map<RegionId, RegionNode>();
   private regionMeshes: THREE.Mesh[] = [];
   private armyGroup = new THREE.Group();
+  private borderGroup = new THREE.Group();
+  private selectGroup = new THREE.Group();
+  private lineMaterials: LineMaterial[] = [];
+  private borderSignature = '';
   private selected: RegionId | null = null;
   private tween = new Tweener();
   private raycaster = new THREE.Raycaster();
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private resizeObs: ResizeObserver | null = null;
   private disposed = false;
-  private clock = new THREE.Clock();
+  private resolution = new THREE.Vector2(1, 1);
 
   // 指標狀態
   private pointers = new Map<number, { x: number; y: number }>();
@@ -77,7 +120,7 @@ export class MapScene {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.setClearColor(PAPER_CREAM, 1);
+    this.renderer.setClearColor(mixColor(PAPER_CREAM, SEA_TINT, 0.7), 1);
     const canvas = this.renderer.domElement;
     canvas.style.display = 'block';
     canvas.style.width = '100%';
@@ -87,14 +130,15 @@ export class MapScene {
     (canvas.style as unknown as Record<string, string>).webkitUserSelect = 'none';
     container.appendChild(canvas);
 
-    this.camera = new THREE.OrthographicCamera(-50, 50, 25, -25, 1, 400);
+    this.camera = new THREE.OrthographicCamera(-50, 50, 25, -25, 1, 500);
     this.forward.set(0, -Math.sin(CAMERA_PITCH), -Math.cos(CAMERA_PITCH)).normalize();
 
     this.buildLights();
-    this.buildPaper();
+    this.buildSea();
     this.buildRegions();
-    this.buildRoads();
-    this.scene.add(this.armyGroup);
+    this.buildCoast();
+    this.buildSeaRoutes();
+    this.scene.add(this.borderGroup, this.selectGroup, this.armyGroup);
 
     this.computeBounds();
     this.target.copy(this.bounds.getCenter(new THREE.Vector3()));
@@ -114,197 +158,240 @@ export class MapScene {
   // -------------------------------------------------------------------------
 
   private buildLights(): void {
-    const hemi = new THREE.HemisphereLight(0xfff6e3, 0x9c8a6c, 1.6);
+    const hemi = new THREE.HemisphereLight(0xfff6e3, 0x9c8a6c, 1.7);
     this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.4);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.3);
     dir.position.set(-30, 60, 20);
     this.scene.add(dir);
   }
 
-  private buildPaper(): void {
+  private buildSea(): void {
     const tex = makePaperTexture();
-    tex.repeat.set(7, 7);
-    const geom = new THREE.PlaneGeometry(420, 420);
+    tex.repeat.set(9, 9);
+    const geom = new THREE.PlaneGeometry(520, 520);
     geom.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({ map: tex });
+    const mat = new THREE.MeshBasicMaterial({ map: tex, color: SEA_TINT });
     const paper = new THREE.Mesh(geom, mat);
-    paper.position.set(48, -0.02, -20);
-    paper.name = 'paper';
+    const cx = (GEO_BOUNDS.minX + GEO_BOUNDS.maxX) / 2, cy = (GEO_BOUNDS.minY + GEO_BOUNDS.maxY) / 2;
+    paper.position.set(cx, -0.02, -cy);
+    paper.name = 'sea';
     this.scene.add(paper);
 
-    // 淡淡的海波墨線（暗示海面）
+    // 海波墨線：只畫在海上
     const rnd = mulberry32(7);
     const pts: number[] = [];
-    for (let i = 0; i < 70; i++) {
-      const x = -10 + rnd() * 116;
-      const z = 12 - rnd() * 64;
-      const len = 2 + rnd() * 4;
+    let tries = 0;
+    for (let i = 0; i < 160 && tries < 2000; tries++) {
+      const x = GEO_BOUNDS.minX - 12 + rnd() * (GEO_BOUNDS.maxX - GEO_BOUNDS.minX + 24);
+      const y = GEO_BOUNDS.minY - 10 + rnd() * (GEO_BOUNDS.maxY - GEO_BOUNDS.minY + 20);
+      const len = 2 + rnd() * 3.5;
+      if (pointOnLand(x, y) || pointOnLand(x + len, y)) continue;
+      i++;
       const segs = 6;
       for (let s = 0; s < segs; s++) {
-        const t0 = s / segs;
-        const t1 = (s + 1) / segs;
-        pts.push(x + t0 * len, 0.01, z + Math.sin(t0 * Math.PI * 2) * 0.25);
-        pts.push(x + t1 * len, 0.01, z + Math.sin(t1 * Math.PI * 2) * 0.25);
+        const t0 = s / segs, t1 = (s + 1) / segs;
+        pts.push(x + t0 * len, 0.01, -(y + Math.sin(t0 * Math.PI * 2) * 0.22));
+        pts.push(x + t1 * len, 0.01, -(y + Math.sin(t1 * Math.PI * 2) * 0.22));
       }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    const waves = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: INK, transparent: true, opacity: 0.1 }));
+    const waves = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: INK, transparent: true, opacity: 0.13 }));
     waves.name = 'waves';
     this.scene.add(waves);
   }
 
   private buildRegions(): void {
     REGIONS.forEach((def, idx) => {
+      const geo = GEO_REGIONS[def.id];
       const group = new THREE.Group();
-      group.position.set(def.pos.x, 0, -def.pos.y);
       group.name = `region:${def.id}`;
-
-      const shape = blobShape(def.size * 0.92, 1000 + idx * 17, 14);
-      const geom = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.6,
-        bevelEnabled: true,
-        bevelThickness: 0.08,
-        bevelSize: 0.12,
-        bevelSegments: 1,
-        curveSegments: 6,
-      });
-      geom.rotateX(-Math.PI / 2);
-      geom.computeBoundingSphere();
       const material = inkMaterial(mutedColor(NEUTRAL_COLOR));
-      const mesh = new THREE.Mesh(geom, material);
-      mesh.userData.regionId = def.id;
-      group.add(mesh);
+      const meshes: THREE.Mesh[] = [];
 
-      const outline = addOutline(mesh, 0.16);
-      // 描邊沿 y 稍微下壓，避免底部露出一圈
-      outline.position.y = -0.05;
+      for (const ring of geo.polys) {
+        if (ring.length < 3) continue;
+        const shape = ringShape(ring);
+        const geom = new THREE.ExtrudeGeometry(shape, { depth: LAND_H, bevelEnabled: false, curveSegments: 1 });
+        geom.rotateX(-Math.PI / 2);
+        geom.computeBoundingSphere();
+        const mesh = new THREE.Mesh(geom, material);
+        mesh.userData.regionId = def.id;
+        group.add(mesh);
+        meshes.push(mesh);
+        this.regionMeshes.push(mesh);
 
-      const selectOutline = addOutline(mesh, 0.75, SELECT_COLOR);
-      selectOutline.position.y = -0.05;
-      const selMat = selectOutline.material as THREE.MeshBasicMaterial;
-      selMat.transparent = true;
-      selMat.opacity = 0;
-      selectOutline.visible = false;
+        // 地面墨影（讓陸地像是浮在紙上）
+        const shadowGeom = new THREE.ShapeGeometry(shape, 1);
+        shadowGeom.rotateX(-Math.PI / 2);
+        const shadow = new THREE.Mesh(shadowGeom, new THREE.MeshBasicMaterial({ color: INK, transparent: true, opacity: 0.14, depthWrite: false }));
+        shadow.position.set(0.3, 0.0, 0.4);
+        shadow.raycast = () => {};
+        group.add(shadow);
+      }
 
-      // 地面墨影（讓島像是浮在紙上）
-      const shadowGeom = new THREE.ShapeGeometry(shape, 6);
-      shadowGeom.rotateX(-Math.PI / 2);
-      const shadow = new THREE.Mesh(shadowGeom, new THREE.MeshBasicMaterial({ color: INK, transparent: true, opacity: 0.12, depthWrite: false }));
-      shadow.position.set(0.35, 0.0, 0.45);
-      shadow.scale.setScalar(1.04);
-      shadow.raycast = () => {};
-      group.add(shadow);
+      if (def.terrain === 'mountain') this.addMountains(group, def.id, idx);
+      const castle = this.addCastle(group, geo.castle);
 
-      if (def.terrain === 'mountain') this.addMountains(group, def.size, idx);
-      this.addCastle(group);
-
-      const label = textSprite('0', 1.5);
-      label.position.set(0, 0.8, 3.8);
+      // 地名 + 兵力（城下方，一行）
+      const label = textSprite(t(`region.short.${def.id}`), 1.15);
+      label.position.set(geo.castle[0], TOP_Y + 0.35, -geo.castle[1] + 1.45);
       label.raycast = () => {};
       group.add(label);
 
       this.scene.add(group);
-      this.regionMeshes.push(mesh);
       this.regions.set(def.id, {
-        id: def.id, group, mesh, material, outline, selectOutline,
-        kamon: null, kamonKey: '', label, baseColor: material.color.getHex(), highlighted: false,
+        id: def.id, group, meshes, material, kamon: null, kamonKey: '', label, castle,
+        baseColor: material.color.getHex(), highlighted: false,
       });
     });
   }
 
-  private addMountains(group: THREE.Group, size: number, idx: number): void {
+  /** 山：在本體多邊形內均勻取樣幾個點（避開主城） */
+  private addMountains(group: THREE.Group, id: RegionId, idx: number): void {
+    const geo = GEO_REGIONS[id];
+    const ring = geo.polys[0];
     const rnd = mulberry32(500 + idx);
-    const n = 2 + Math.floor(rnd() * 2);
-    const mat = inkMaterial(0x5b5752);
-    for (let i = 0; i < n; i++) {
-      const h = 1.1 + rnd() * 1.1;
-      const geom = new THREE.ConeGeometry(0.8 + rnd() * 0.5, h, 4, 1);
+    const n = Math.max(2, Math.min(6, Math.round(geo.radius * 0.7)));
+    const mat = inkMaterial(0x8d877c);
+    let placed = 0, tries = 0;
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    for (const [x, y] of ring) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    while (placed < n && tries < 200) {
+      tries++;
+      const x = minX + rnd() * (maxX - minX), y = minY + rnd() * (maxY - minY);
+      if (!pointInRing(x, y, ring)) continue;
+      if (Math.hypot(x - geo.castle[0], y - geo.castle[1]) < 1.6) continue;
+      // 離海岸遠一點：四個方向都還在陸地內
+      if (!pointInRing(x + 0.7, y, ring) || !pointInRing(x - 0.7, y, ring) || !pointInRing(x, y + 0.7, ring) || !pointInRing(x, y - 0.7, ring)) continue;
+      const h = 1.0 + rnd() * 1.0;
+      const geom = new THREE.ConeGeometry(0.7 + rnd() * 0.4, h, 5, 1);
       geom.translate(0, h / 2, 0);
       const m = new THREE.Mesh(geom, mat);
-      const ang = rnd() * Math.PI * 2;
-      const r = size * (0.25 + rnd() * 0.3);
-      m.position.set(Math.cos(ang) * r, 0.62, Math.sin(ang) * r * 0.8);
+      m.position.set(x, LAND_H, -y);
       m.rotation.y = rnd() * Math.PI;
       m.raycast = () => {};
-      addOutline(m, 0.08);
+      addOutline(m, 0.05);
       group.add(m);
+      placed++;
     }
   }
 
-  private addCastle(group: THREE.Group): void {
+  private addCastle(group: THREE.Group, at: Pt): THREE.Group {
+    const g = new THREE.Group();
     const mat = inkMaterial(0x2a2622);
-    const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.9), mat);
-    base.position.set(0, 0.62 + 0.275, 0);
-    const roof = new THREE.ConeGeometry(0.8, 0.5, 4, 1);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.45, 0.7), mat);
+    base.position.set(0, LAND_H + 0.225, 0);
+    const roof = new THREE.ConeGeometry(0.62, 0.42, 4, 1);
     roof.rotateY(Math.PI / 4);
     const roofMesh = new THREE.Mesh(roof, mat);
-    roofMesh.position.set(0, 0.62 + 0.55 + 0.25, 0);
+    roofMesh.position.set(0, LAND_H + 0.45 + 0.21, 0);
     base.raycast = () => {};
     roofMesh.raycast = () => {};
-    addOutline(base, 0.06, 0x0e0d0b);
-    group.add(base, roofMesh);
+    addOutline(base, 0.05, 0x0e0d0b);
+    g.add(base, roofMesh);
+    g.position.set(at[0], 0, -at[1]);
+    group.add(g);
+    return g;
   }
 
-  private buildRoads(): void {
+  private makeLines(segments: number[], opts: { color: number; width: number; opacity?: number; dashed?: boolean; dash?: number; gap?: number }): LineSegments2 {
+    const geom = new LineSegmentsGeometry();
+    geom.setPositions(segments);
+    const mat = new LineMaterial({
+      color: opts.color, linewidth: opts.width, worldUnits: false,
+      transparent: true, opacity: opts.opacity ?? 1, depthWrite: false,
+      dashed: !!opts.dashed, dashSize: opts.dash ?? 0.6, gapSize: opts.gap ?? 0.4,
+    });
+    mat.resolution.copy(this.resolution);
+    this.lineMaterials.push(mat);
+    const lines = new LineSegments2(geom, mat);
+    lines.computeLineDistances();
+    lines.raycast = () => {};
+    return lines;
+  }
+
+  /** 海岸線：固定不變，先畫一道淡而寬的「暈」，再畫一道細而深的墨線 */
+  private buildCoast(): void {
+    const segs: number[] = [];
+    for (const arc of GEO_ARCS) if (!arc.b) polylineSegments(arc.pts, TOP_Y, segs);
+    this.scene.add(this.makeLines(segs, { color: INK, width: 4.2, opacity: 0.16 }));
+    this.scene.add(this.makeLines(segs, { color: INK, width: 1.7, opacity: 0.92 }));
+  }
+
+  /** 遊戲相鄰但沒有陸地邊界 → 畫成航路（虛線） */
+  private buildSeaRoutes(): void {
+    const land = new Set<string>();
+    for (const arc of GEO_ARCS) if (arc.b) land.add([arc.a, arc.b].sort().join('|'));
     const seen = new Set<string>();
-    const pts: number[] = [];
+    const segs: number[] = [];
     for (const r of REGIONS) {
       for (const adj of r.adjacent) {
         const key = [r.id, adj].sort().join('|');
-        if (seen.has(key)) continue;
+        if (seen.has(key) || land.has(key)) continue;
         seen.add(key);
-        const o = REGION_MAP[adj];
-        if (!o) continue;
-        // 把路線切成數段並略微抖動，像是手繪線
-        const rnd = mulberry32(key.length * 31 + key.charCodeAt(0) * 7 + key.charCodeAt(key.length - 1));
-        const segs = 5;
-        let px = r.pos.x, pz = -r.pos.y;
-        for (let s = 1; s <= segs; s++) {
-          const t = s / segs;
-          const jx = s === segs ? 0 : (rnd() - 0.5) * 0.9;
-          const jz = s === segs ? 0 : (rnd() - 0.5) * 0.9;
-          const nx = r.pos.x + (o.pos.x - r.pos.x) * t + jx;
-          const nz = -(r.pos.y + (o.pos.y - r.pos.y) * t) + jz;
-          pts.push(px, 0.78, pz, nx, 0.78, nz);
-          px = nx; pz = nz;
+        const a = GEO_REGIONS[r.id].castle, b = GEO_REGIONS[adj].castle;
+        // 從城邊緣出發，微彎
+        const dx = b[0] - a[0], dy = b[1] - a[1];
+        const len = Math.hypot(dx, dy);
+        const ux = dx / len, uy = dy / len;
+        const nx = -uy, ny = ux;
+        const pts: Pt[] = [];
+        const steps = 10;
+        for (let i = 0; i <= steps; i++) {
+          const tt = i / steps;
+          const bow = Math.sin(tt * Math.PI) * len * 0.12;
+          pts.push([a[0] + dx * tt + nx * bow, a[1] + dy * tt + ny * bow]);
         }
+        polylineSegments(pts, 0.03, segs);
       }
     }
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    const mat = new THREE.LineBasicMaterial({ color: INK, transparent: true, opacity: 0.4 });
-    const roads = new THREE.LineSegments(geom, mat);
-    roads.name = 'roads';
-    this.scene.add(roads);
+    if (segs.length) this.scene.add(this.makeLines(segs, { color: INK, width: 1.3, opacity: 0.35, dashed: true, dash: 0.7, gap: 0.5 }));
+  }
+
+  /** 依領主重建內部邊界 / 國境線 */
+  private rebuildBorders(state: GameState): void {
+    const sig = REGIONS.map(r => state.regions[r.id].owner ?? '-').join(',');
+    if (sig === this.borderSignature) return;
+    this.borderSignature = sig;
+    disposeObject(this.borderGroup);
+    this.borderGroup.clear();
+    const inner: number[] = [], frontier: number[] = [];
+    for (const arc of GEO_ARCS) {
+      if (!arc.b) continue;
+      const oa = state.regions[arc.a].owner, ob = state.regions[arc.b].owner;
+      polylineSegments(arc.pts, TOP_Y, oa && oa === ob ? inner : frontier);
+    }
+    if (inner.length) this.borderGroup.add(this.makeLines(inner, { color: INK, width: 0.9, opacity: 0.32, dashed: true, dash: 0.5, gap: 0.35 }));
+    if (frontier.length) {
+      this.borderGroup.add(this.makeLines(frontier, { color: INK, width: 3.6, opacity: 0.14 }));
+      this.borderGroup.add(this.makeLines(frontier, { color: INK, width: 1.5, opacity: 0.9 }));
+    }
   }
 
   private computeBounds(): void {
-    this.bounds.makeEmpty();
-    for (const r of REGIONS) {
-      const p = new THREE.Vector3(r.pos.x, 0, -r.pos.y);
-      this.bounds.expandByPoint(p.clone().add(new THREE.Vector3(r.size + 1.5, 0, r.size + 1.5)));
-      this.bounds.expandByPoint(p.clone().sub(new THREE.Vector3(r.size + 1.5, 0, r.size + 1.5)));
-    }
-    this.bounds.max.y = 3;
+    this.bounds.set(
+      new THREE.Vector3(GEO_BOUNDS.minX - 1.5, 0, -GEO_BOUNDS.maxY - 1.5),
+      new THREE.Vector3(GEO_BOUNDS.maxX + 1.5, 3, -GEO_BOUNDS.minY + 1.5),
+    );
   }
 
   // -------------------------------------------------------------------------
   // 公開 API
   // -------------------------------------------------------------------------
 
-  /** 依遊戲狀態更新顏色、家紋、兵力、軍團。 */
+  /** 依遊戲狀態更新顏色、家紋、兵力、軍團、邊界。 */
   update(state: GameState): void {
     for (const node of this.regions.values()) {
       const rs = state.regions[node.id];
       if (!rs) continue;
       const faction = rs.owner ? FACTION_MAP[rs.owner] : undefined;
-      const base = faction ? mutedColor(faction.color, 0.5) : mutedColor(NEUTRAL_COLOR, 0.45);
+      const base = faction ? mutedColor(faction.color, 0.38) : mutedColor(NEUTRAL_COLOR, 0.5);
       node.baseColor = base;
       this.applyColor(node);
 
       const troops = rs.troops.ashigaru + rs.troops.cavalry + rs.troops.gun;
-      setSpriteText(node.label, fmt(troops), 1.5);
+      setSpriteText(node.label, `${t(`region.short.${node.id}`)} ${fmt(troops)}`, 1.15);
 
       const kamonKey = faction ? `${faction.kamon}|${faction.color}` : '';
       if (kamonKey !== node.kamonKey) {
@@ -314,8 +401,9 @@ export class MapScene {
           node.kamon = null;
         }
         if (faction) {
-          const s = kamonSprite(faction.kamon, hexStr(mixColor(faction.color, INK, 0.45)), 2.4, { badge: '#f5eedc' });
-          s.position.set(0, 2.4, -1.0);
+          const at = GEO_REGIONS[node.id].castle;
+          const s = kamonSprite(faction.kamon, hexStr(mixColor(faction.color, INK, 0.45)), 1.7, { badge: '#f5eedc' });
+          s.position.set(at[0], LAND_H + 1.85, -at[1] - 0.15);
           s.raycast = () => {};
           node.group.add(s);
           node.kamon = s;
@@ -323,6 +411,7 @@ export class MapScene {
         node.kamonKey = kamonKey;
       }
     }
+    this.rebuildBorders(state);
     this.rebuildArmies(state);
   }
 
@@ -330,17 +419,18 @@ export class MapScene {
   select(id: RegionId | null): void {
     if (this.selected && this.selected !== id) {
       const prev = this.regions.get(this.selected);
-      if (prev) {
-        prev.selectOutline.visible = false;
-        prev.group.position.y = 0;
-      }
+      if (prev) prev.group.position.y = 0;
     }
+    disposeObject(this.selectGroup);
+    this.selectGroup.clear();
     this.selected = id;
     if (id) {
       const node = this.regions.get(id);
       if (node) {
-        node.selectOutline.visible = true;
-        node.group.position.y = 0.35;
+        node.group.position.y = 0.2;
+        const segs: number[] = [];
+        for (const ring of GEO_REGIONS[id].polys) polylineSegments([...ring, ring[0]], TOP_Y + 0.2, segs);
+        this.selectGroup.add(this.makeLines(segs, { color: SELECT_COLOR, width: 3.2, opacity: 0.9 }));
       }
     }
   }
@@ -356,10 +446,9 @@ export class MapScene {
 
   /** 把鏡頭移到該區域。 */
   focus(id: RegionId, animate = true, viewWidth?: number): void {
-    const def = REGION_MAP[id];
-    if (!def) return;
-    const to = new THREE.Vector3(def.pos.x, 0, -def.pos.y);
-    // viewWidth：希望畫面橫向顯示的世界單位寬度（例如 40 ≈ 主城附近 6〜8 區）
+    const geo = GEO_REGIONS[id];
+    if (!geo) return;
+    const to = new THREE.Vector3(geo.castle[0], 0, -geo.castle[1]);
     if (viewWidth) this.setZoom(Math.max(this.baseView.w / viewWidth, this.baseView.h / (viewWidth * 0.9)));
     if (!animate) {
       this.target.copy(to);
@@ -367,8 +456,8 @@ export class MapScene {
       return;
     }
     const from = this.target.clone();
-    void this.tween.run(450, (t) => {
-      this.target.lerpVectors(from, to, t);
+    void this.tween.run(450, (tt) => {
+      this.target.lerpVectors(from, to, tt);
       this.updateCamera();
     }, ease.inOut);
   }
@@ -377,6 +466,8 @@ export class MapScene {
     const w = Math.max(1, this.container.clientWidth);
     const h = Math.max(1, this.container.clientHeight);
     this.renderer.setSize(w, h, false);
+    this.resolution.set(w * this.renderer.getPixelRatio(), h * this.renderer.getPixelRatio());
+    for (const m of this.lineMaterials) m.resolution.copy(this.resolution);
     this.fitToBounds(w / h);
     this.updateCamera();
   }
@@ -404,53 +495,47 @@ export class MapScene {
   // -------------------------------------------------------------------------
 
   private applyColor(node: RegionNode): void {
-    const c = node.highlighted ? mixColor(node.baseColor, HIGHLIGHT_COLOR, 0.5) : node.baseColor;
+    const c = node.highlighted ? mixColor(node.baseColor, HIGHLIGHT_COLOR, 0.45) : node.baseColor;
     node.material.color.setHex(c);
-    const om = node.outline.material as THREE.MeshBasicMaterial;
-    om.color.setHex(node.highlighted ? 0x7a1f14 : INK);
   }
 
   private rebuildArmies(state: GameState): void {
     disposeObject(this.armyGroup);
     this.armyGroup.clear();
     for (const army of state.armies) {
-      const a = REGION_MAP[army.from];
-      const b = REGION_MAP[army.target];
+      const a = GEO_REGIONS[army.from];
+      const b = GEO_REGIONS[army.target];
       const faction = FACTION_MAP[army.faction];
       if (!a || !b || !faction) continue;
-      const from = new THREE.Vector3(a.pos.x, 0, -a.pos.y);
-      const to = new THREE.Vector3(b.pos.x, 0, -b.pos.y);
+      const from = new THREE.Vector3(a.castle[0], 0, -a.castle[1]);
+      const to = new THREE.Vector3(b.castle[0], 0, -b.castle[1]);
       const dir = to.clone().sub(from);
       const len = dir.length();
       dir.normalize();
-      const color = mixColor(faction.color, INK, 0.2);
+      const color = mixColor(faction.color, INK, 0.25);
 
-      // 虛線（從出發區邊緣到目標區邊緣）
-      const p0 = from.clone().addScaledVector(dir, Math.min(a.size * 0.6, len * 0.3));
-      const p1 = to.clone().addScaledVector(dir, -Math.min(b.size * 0.7, len * 0.3));
-      p0.y = p1.y = 1.0;
-      const lg = new THREE.BufferGeometry().setFromPoints([p0, p1]);
-      const line = new THREE.Line(lg, new THREE.LineDashedMaterial({ color, dashSize: 1.0, gapSize: 0.6, transparent: true, opacity: 0.9 }));
-      line.computeLineDistances();
-      this.armyGroup.add(line);
+      const p0 = from.clone().addScaledVector(dir, Math.min(1.2, len * 0.25));
+      const p1 = to.clone().addScaledVector(dir, -Math.min(1.4, len * 0.3));
+      p0.y = p1.y = TOP_Y + 0.5;
+      const segs = [p0.x, p0.y, p0.z, p1.x, p1.y, p1.z];
+      this.armyGroup.add(this.makeLines(segs, { color, width: 2.6, opacity: 0.95, dashed: true, dash: 0.8, gap: 0.45 }));
 
-      // 箭頭
-      const head = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.4, 3), new THREE.MeshBasicMaterial({ color }));
-      head.position.copy(p1).setY(1.0);
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.2, 3), new THREE.MeshBasicMaterial({ color }));
+      head.position.copy(p1);
       head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      head.raycast = () => {};
       this.armyGroup.add(head);
 
-      // 行軍標記：35% 處的家紋
-      const pos = from.clone().lerp(to, 0.35);
-      const marker = kamonSprite(faction.kamon, hexStr(color), 1.2, { badge: '#f5eedc' });
-      marker.position.set(pos.x, 1.4, pos.z);
+      const pos = from.clone().lerp(to, 0.4);
+      const marker = kamonSprite(faction.kamon, hexStr(color), 1.3, { badge: '#f5eedc' });
+      marker.position.set(pos.x, TOP_Y + 1.3, pos.z);
+      marker.raycast = () => {};
       this.armyGroup.add(marker);
     }
   }
 
   /** 讓整張地圖在目前長寬比下剛好放得進畫面（zoom = 1）。 */
   private fitToBounds(aspect: number): void {
-    // 把包圍盒八個角轉到相機空間，取 x/y 範圍
     const cam = new THREE.Matrix4().lookAt(new THREE.Vector3(), this.forward, new THREE.Vector3(0, 1, 0));
     const inv = cam.clone().invert();
     const center = this.bounds.getCenter(new THREE.Vector3());
@@ -465,7 +550,7 @@ export class MapScene {
       maxX = Math.max(maxX, Math.abs(v.x));
       maxY = Math.max(maxY, Math.abs(v.y));
     }
-    const pad = 1.06;
+    const pad = 1.05;
     let w = maxX * 2 * pad;
     let h = maxY * 2 * pad;
     if (w / h < aspect) w = h * aspect; else h = w / aspect;
@@ -478,7 +563,6 @@ export class MapScene {
   }
 
   private updateCamera(): void {
-    // 限制平移範圍
     const pad = 6;
     this.target.x = THREE.MathUtils.clamp(this.target.x, this.bounds.min.x - pad, this.bounds.max.x + pad);
     this.target.z = THREE.MathUtils.clamp(this.target.z, this.bounds.min.z - pad, this.bounds.max.z + pad);
@@ -507,7 +591,19 @@ export class MapScene {
   private pickRegion(x: number, y: number): RegionId | null {
     this.raycaster.setFromCamera(this.ndc(x, y), this.camera);
     const hits = this.raycaster.intersectObjects(this.regionMeshes, false);
-    return hits.length ? (hits[0].object.userData.regionId as RegionId) : null;
+    if (hits.length) return hits[0].object.userData.regionId as RegionId;
+    // 沒點到陸地：若落在某區主城附近（例如點到家紋）也算選中
+    const p = this.hitPlane(x, y);
+    if (p) {
+      let best: RegionId | null = null, bd = 2.2;
+      for (const r of REGIONS) {
+        const c = GEO_REGIONS[r.id].castle;
+        const d = Math.hypot(c[0] - p.x, -c[1] - p.z);
+        if (d < bd) { bd = d; best = r.id; }
+      }
+      return best;
+    }
+    return null;
   }
 
   // ---- 輸入 ----
@@ -573,7 +669,6 @@ export class MapScene {
       this.pressStart = null;
       this.pinchStart = null;
     } else if (this.pointers.size === 1) {
-      // 由雙指回到單指：重設平移錨點，避免跳動
       const [p] = [...this.pointers.values()];
       const hit = this.hitPlane(p.x, p.y);
       if (hit) this.panAnchor.copy(hit);
@@ -610,12 +705,9 @@ export class MapScene {
     if (this.disposed) return;
     const now = performance.now();
     this.tween.update(now);
-    const dt = this.clock.getDelta();
-    void dt;
     if (this.selected) {
-      const node = this.regions.get(this.selected);
-      if (node) {
-        const m = node.selectOutline.material as THREE.MeshBasicMaterial;
+      for (const o of this.selectGroup.children) {
+        const m = (o as LineSegments2).material as LineMaterial;
         m.opacity = 0.55 + 0.35 * Math.sin(now * 0.004);
       }
     }
