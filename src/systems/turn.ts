@@ -40,6 +40,7 @@ function advanceMonth(state: GameState) {
   for (const o of Object.values(state.officers)) {
     if (!o.acted) o.idleMonths += 1; else o.idleMonths = 0;
     o.acted = false;
+    o.lastCmd = undefined;
     if (o.injuredMonths > 0) o.injuredMonths -= 1;
   }
 }

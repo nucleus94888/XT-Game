@@ -415,6 +415,22 @@ export class MapScene {
     this.rebuildArmies(state);
   }
 
+  /** 在區域主城上方飄出一行字（指令結果回饋） */
+  floatText(id: RegionId, text: string, color = '#b23a2c'): void {
+    const geo = GEO_REGIONS[id];
+    if (!geo) return;
+    const sprite = textSprite(text, 1.5, { color, halo: 'rgba(241,231,208,0.95)' });
+    const x = geo.castle[0], z = -geo.castle[1];
+    sprite.position.set(x, LAND_H + 3.2, z);
+    sprite.raycast = () => {};
+    this.scene.add(sprite);
+    const mat = sprite.material;
+    void this.tween.run(1600, (tt) => {
+      sprite.position.y = LAND_H + 3.2 + tt * 2.4;
+      mat.opacity = tt < 0.6 ? 1 : 1 - (tt - 0.6) / 0.4;
+    }, ease.out).then(() => { this.scene.remove(sprite); mat.dispose(); });
+  }
+
   /** 選取區域（null 取消）：加上脈動描邊並微微抬高。 */
   select(id: RegionId | null): void {
     if (this.selected && this.selected !== id) {

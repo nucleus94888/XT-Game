@@ -83,7 +83,8 @@ function kamonImg(f: FactionId | null, size = 28): HTMLElement {
 export function officerCard(app: App, o: OfficerState, opts: { selectable?: boolean; onClick?: () => void; showRegion?: boolean } = {}): HTMLElement {
   const s = app.state!; const d = officerDef(o.id);
   const busy = o.acted || o.armyId || o.injuredMonths > 0;
-  const status = o.armyId ? t('stat.marching') : o.injuredMonths > 0 ? `${t('stat.injured')} ${o.injuredMonths}` : o.acted ? t('stat.acted') : t('stat.idle');
+  const cmdLabel = o.lastCmd && t(`cmd.${o.lastCmd}`) !== `cmd.${o.lastCmd}` ? t('stat.actedCmd', { cmd: t(`cmd.${o.lastCmd}`) }) : t('stat.acted');
+  const status = o.armyId ? t('stat.marching') : o.injuredMonths > 0 ? `${t('stat.injured')} ${o.injuredMonths}` : o.acted ? cmdLabel : t('stat.idle');
   return h('div', {
     class: `officer ${app.ui.officer === o.id ? 'selected' : ''} ${busy ? 'acted' : ''} ${app.ui.hintCmd && app.ui.officer === o.id ? 'hinted' : ''}`,
     onClick: opts.onClick,
@@ -156,6 +157,19 @@ function regionPanel(app: App): HTMLElement {
       h('div', { class: 'rowner' }, `${def.castle} ・ ${r.owner ? t('panel.ownerOf', { faction: r.owner }) : t('region.neutral')} ・ ${t(`terrain.${def.terrain}`)}${isSnowed(s, id) ? ' ・ ' + t('region.snowed') : ''}`),
       h('div', null, def.bonuses.map(b => h('span', { class: 'tag' }, t(`bonus.${b}`)))))));
 
+  // 進度列：領地 ▸ 武將 ▸ 指令（只在自己領地顯示）
+  if (mine) {
+    const step = app.ui.officer ? 2 : 1;
+    const crumb = (n: number, label: string, value: string | null, onClick?: () => void) => h('button', {
+      class: `crumb ${n < step ? 'done' : n === step ? 'now' : ''}`, onClick,
+    }, h('span', { class: 'n' }, `${n}`), h('span', null, label), h('span', { class: 'v' }, value ?? t('crumb.pick')));
+    wrap.appendChild(h('div', { class: 'crumbs' },
+      crumb(1, t('crumb.region'), t(`region.short.${id}`), () => { app.ui.officer = null; app.ui.hintCmd = null; app.renderPanel(); }),
+      crumb(2, t('crumb.officer'), app.ui.officer ? officerName(app.ui.officer) : null),
+      crumb(3, t('crumb.cmd'), app.ui.hintCmd ? t(`cmd.${app.ui.hintCmd}`) : null),
+    ));
+  }
+
   // 來襲 / 出征中
   for (const a of s.armies) {
     if (a.target === id && a.faction !== s.player && r.owner === s.player) wrap.appendChild(h('div', { class: 'incoming' }, t('panel.incoming', { faction: a.faction, n: totalTroops(a), target: a.target })));
@@ -165,14 +179,18 @@ function regionPanel(app: App): HTMLElement {
 
   // 數值
   const troops = totalTroops(r);
+  const prev = app.ui.lastStats && app.ui.lastStats.id === id ? app.ui.lastStats : null;
+  const cur = { id, kokudaka: r.kokudaka, commerce: r.commerce, troops, defense: r.defense, loyalty: r.loyalty, training: r.training };
+  const flash = (k: keyof typeof cur) => !!prev && prev[k] !== cur[k];
+  app.ui.lastStats = cur;
   const stats = h('div', { class: 'section' },
     h('div', { class: 'grid2' },
-      statRow(t('stat.kokudaka'), known ? `${r.kokudaka.toFixed(1)} 萬石` : t('panel.unknown')),
-      statRow(t('stat.commerce'), known ? `${r.commerce}` : t('panel.unknown')),
-      statRow(t('stat.troops'), known ? `${fmt(troops)}${mine ? ` / ${fmt(troopCap(s, id))}` : ''}` : `約 ${fmt(Math.round(troops / 5000) * 5000)}`),
-      statRow(t('stat.defense'), known ? `${r.defense} / ${mods.defenseCap}` : t('panel.unknown')),
-      statRow(t('stat.peopleLoyalty'), known ? `${r.loyalty}` : t('panel.unknown')),
-      statRow(t('stat.training'), known ? `${r.training}` : t('panel.unknown')),
+      statRow(t('stat.kokudaka'), known ? `${r.kokudaka.toFixed(1)} 萬石` : t('panel.unknown'), flash('kokudaka')),
+      statRow(t('stat.commerce'), known ? `${r.commerce}` : t('panel.unknown'), flash('commerce')),
+      statRow(t('stat.troops'), known ? `${fmt(troops)}${mine ? ` / ${fmt(troopCap(s, id))}` : ''}` : `約 ${fmt(Math.round(troops / 5000) * 5000)}`, flash('troops')),
+      statRow(t('stat.defense'), known ? `${r.defense} / ${mods.defenseCap}` : t('panel.unknown'), flash('defense')),
+      statRow(t('stat.peopleLoyalty'), known ? `${r.loyalty}` : t('panel.unknown'), flash('loyalty')),
+      statRow(t('stat.training'), known ? `${r.training}` : t('panel.unknown'), flash('training')),
     ),
     known ? h('div', { class: 'row small muted' }, `${t('stat.ashigaru')} ${fmt(r.troops.ashigaru)} ・ ${t('stat.cavalry')} ${fmt(r.troops.cavalry)} ・ ${t('stat.gun')} ${fmt(r.troops.gun)}`) : h('div', { class: 'muted' }, t('panel.intelHint')),
   );
@@ -210,8 +228,8 @@ function regionPanel(app: App): HTMLElement {
   return wrap;
 }
 
-function statRow(label: string, value: string): HTMLElement {
-  return h('div', { class: 'stat' }, h('span', { class: 'muted' }, label), h('b', null, value));
+function statRow(label: string, value: string, flash = false): HTMLElement {
+  return h('div', { class: `stat ${flash ? 'flash' : ''}` }, h('span', { class: 'muted' }, label), h('b', null, value));
 }
 
 // ===== 指令 =====

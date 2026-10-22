@@ -225,3 +225,24 @@ button { font-family: inherit; }
 #title .menu .btn .d { font-size: 12px; opacity: 0.75; font-weight: normal; }
 #title .credits { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--ink-faint); }
 #title .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 4px; }
+
+/* ===== 操作回饋 ===== */
+.crumbs { display: flex; gap: 4px; padding: 8px 12px; background: rgba(0,0,0,0.03); border-bottom: 1px dashed var(--ink-faint); }
+.crumb { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; border: 1.5px solid var(--ink-faint); border-radius: 3px; background: transparent; color: var(--ink-faint); font-size: 12px; line-height: 1.2; }
+.crumb .n { display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; font-size: 11px; line-height: 16px; }
+.crumb .v { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb.done { border-color: var(--green); color: var(--green); }
+.crumb.done .n { background: var(--green); color: #fff; border-color: var(--green); }
+.crumb.now { border-color: var(--vermilion); color: var(--ink); background: rgba(178,58,44,0.08); box-shadow: 0 0 0 2px rgba(178,58,44,0.25); }
+.crumb.now .n { background: var(--vermilion); color: #fff; border-color: var(--vermilion); }
+.crumb.now .v { color: var(--vermilion); font-weight: bold; }
+.stat.flash b { animation: statflash 1.6s ease-out; border-radius: 3px; }
+@keyframes statflash { 0% { background: rgba(184,146,58,0.0); } 15% { background: rgba(184,146,58,0.55); color: var(--ink); } 100% { background: transparent; } }
+.btn.end-turn.hinted { animation: pulse-red 1s ease-in-out infinite; box-shadow: 0 0 0 3px rgba(255,255,255,0.5); }
+@keyframes pulse-red { 50% { box-shadow: 0 0 0 7px rgba(255,255,255,0.08); } }
+.report .report-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(0,0,0,0.06); font-size: 15px; }
+.report .report-row b.up { color: var(--green); }
+.report .report-row b.down { color: var(--vermilion); }
+.report .report-events { margin: 10px 0 6px; font-size: 14px; line-height: 1.6; }
+.report .report-events .note { color: var(--vermilion); font-weight: bold; }
+.report .check { display: flex; align-items: center; gap: 6px; color: var(--ink-faint); margin-top: 6px; }

@@ -135,6 +135,8 @@ export interface OfficerState {
   loyalty: number;
   /** 本月是否已行動 */
   acted: boolean;
+  /** 本月執行的指令（cmd key 的尾段，如 commerce） */
+  lastCmd?: string;
   /** 連續閒置月數 */
   idleMonths: number;
   injuredMonths: number;

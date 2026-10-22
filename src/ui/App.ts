@@ -1,6 +1,6 @@
 // 應用程式控制器：畫面切換、HUD、回合流程、面板路由
 import type { GameState, FactionId, RegionId } from '../core/types';
-import { createGame, officersOf, regionsOf, factionTroops } from '../core/state';
+import { createGame, officersOf, regionsOf, factionTroops, totalTroops as factionTroopsOf } from '../core/state';
 import { endTurn, completeTurn } from '../systems/turn';
 import { finishBattle } from '../systems/battle';
 import { resolveEvent } from '../systems/events';
@@ -12,7 +12,7 @@ import { h, clear, fmt, toast, modal } from './dom';
 import { MapScene } from '../render/MapScene';
 import { renderPanel, type Tab, visibleTabs } from './panels';
 import { BattleView } from './BattleView';
-import { onPlayerAction, guideActive, advisorOf } from '../systems/advisor';
+import { onPlayerAction, guideActive, advisorOf, guideStep } from '../systems/advisor';
 import { createBattle } from '../systems/battle';
 import type { Army } from '../core/types';
 
@@ -22,7 +22,9 @@ export class App {
   selected: RegionId | null = null;
   tab: Tab = 'region';
   /** 面板內暫存（選中的武將等） */
-  ui: { officer: string | null; highlight: RegionId[]; hintCmd: string | null } = { officer: null, highlight: [], hintCmd: null };
+  ui: { officer: string | null; highlight: RegionId[]; hintCmd: string | null; lastStats: { id: RegionId; kokudaka: number; commerce: number; troops: number; defense: number; loyalty: number; training: number } | null } = { officer: null, highlight: [], hintCmd: null, lastStats: null };
+  /** 結束回合前的快照，給月報用 */
+  private report: { gold: number; rice: number; troops: number; regions: number } | null = null;
   private root: HTMLElement;
   private hud!: HTMLElement;
   private mapEl!: HTMLElement;
@@ -101,7 +103,7 @@ export class App {
   // ===== 遊戲畫面 =====
   startFrom(state: GameState): void {
     this.state = state;
-    this.selected = null; this.tab = 'region'; this.ui = { officer: null, highlight: [], hintCmd: null };
+    this.selected = null; this.tab = 'region'; this.ui = { officer: null, highlight: [], hintCmd: null, lastStats: null };
     clear(this.root);
     this.hud = h('div', { id: 'hud' });
     this.mapEl = h('div', { id: 'map' });
@@ -161,7 +163,7 @@ export class App {
       ),
       h('span', { class: 'spacer' }),
       h('button', { class: 'btn tiny', onClick: () => this.showMenu() }, t('app.menu')),
-      h('button', { class: 'btn end-turn', onClick: () => this.endTurn() }, t('app.endTurn')),
+      h('button', { class: `btn end-turn ${unacted === 0 && !s.gameOver ? 'hinted' : ''}`, onClick: () => this.endTurn() }, t('app.endTurn')),
     );
   }
 
@@ -185,8 +187,21 @@ export class App {
 
   /** 指令執行後統一刷新 */
   afterCommand(result: { ok: boolean; key: string; params?: Record<string, string | number> }): void {
-    toast(t(result.key, result.params), result.ok);
-    if (result.ok) { this.ui.officer = null; this.ui.hintCmd = null; onPlayerAction(this.state!, 'cmd', result.key); }
+    const s = this.state!;
+    const msg = t(result.key, result.params);
+    toast(msg, result.ok);
+    if (result.ok) {
+      // 記住這位武將做了什麼（武將卡顯示「已行動：振興商業」）
+      const oid = this.ui.officer;
+      const cmdName = result.key.replace('cmd.ok.', '').replace(/(Fail|Done|Refused|Hired|NoTarget)$/, '');
+      if (oid && s.officers[oid]?.acted) s.officers[oid].lastCmd = cmdName === 'ninjaFail' ? 'ninja' : cmdName;
+      // 地圖飄字
+      if (this.selected) this.map?.floatText(this.selected, msg.length > 14 ? msg.slice(0, 14) + '…' : msg);
+      const before = guideStep(s);
+      onPlayerAction(s, 'cmd', result.key);
+      if (guideActive(s) && guideStep(s) > before) setTimeout(() => toast(t('guide.stepDone')), 2300);
+      this.ui.officer = null; this.ui.hintCmd = null;
+    }
     this.refresh();
   }
 
@@ -201,6 +216,8 @@ export class App {
     }
     this.ui.officer = null; this.ui.highlight = []; this.ui.hintCmd = null;
     const wasGuide = guideActive(s);
+    const fs0 = s.factions[s.player];
+    this.report = { gold: fs0.gold, rice: fs0.rice, troops: factionTroops(s, s.player), regions: regionsOf(s, s.player).length };
     endTurn(s);
     onPlayerAction(s, 'endTurn');
     if (wasGuide && !guideActive(s)) toast(t('guide.done'));
@@ -230,9 +247,25 @@ export class App {
       resolveEvent(s, ev.id, ev.choices[idx]);
       this.refresh();
     }
-    // 重要事件提示
+    // 月報：金 / 糧 / 兵的增減 + 重要事件 + 敵軍動向
     const news = s.log.filter(l => l.important && l.turn === s.turn - 1 && (!l.faction || l.faction === s.player));
-    if (news.length) toast(t(news[news.length - 1].key, news[news.length - 1].params));
+    if (!s.gameOver && !s.flags.noReport && this.report) {
+      const fs = s.factions[s.player]; const r0 = this.report;
+      const delta = (a: number, b: number) => { const d = Math.round(b - a); return h('b', { class: d > 0 ? 'up' : d < 0 ? 'down' : '' }, d > 0 ? `+${fmt(d)}` : fmt(d)); };
+      const row = (label: string, a: number, b: number) => h('div', { class: 'report-row' }, h('span', null, label), h('span', null, `${fmt(a)} → ${fmt(b)}`), delta(a, b));
+      const incoming = s.armies.filter(a => a.faction !== s.player && s.regions[a.target].owner === s.player);
+      const noMore = h('input', { type: 'checkbox' });
+      const body = h('div', { class: 'report' },
+        row(t('app.gold'), r0.gold, fs.gold), row(t('app.rice'), r0.rice, fs.rice), row(t('app.troops'), r0.troops, factionTroops(s, s.player)),
+        h('div', { class: 'report-events' },
+          incoming.map(a => h('div', { class: 'note' }, t('panel.incoming', { faction: a.faction, n: factionTroopsOf(a), target: a.target }))),
+          news.length ? news.slice(-6).map(l => h('div', null, t(l.key, l.params))) : (incoming.length ? null : h('div', { class: 'muted' }, t('report.none')))),
+        h('label', { class: 'check small' }, noMore, t('report.noMore')),
+      );
+      await modal(t('report.title', { year: s.year, month: s.month }), body, [t('app.confirm')]);
+      if (noMore.checked) s.flags.noReport = true;
+    } else if (news.length) toast(t(news[news.length - 1].key, news[news.length - 1].params));
+    this.report = null;
     if (s.gameOver) {
       const key = s.gameOver.winner ? `app.victory.${s.gameOver.reason}` : `app.defeat.${s.gameOver.reason}`;
       await modal(t('app.gameOver'), t(key, { faction: s.player }), [t('app.toTitle')]);
