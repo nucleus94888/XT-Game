@@ -136,7 +136,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_set_block(true)
 				get_viewport().set_input_as_handled()
 				return
-			var joy_side: bool = (t.position.x > size.x * 0.4) if _lefty() else (t.position.x < size.x * 0.6)
+			# 搖桿區：左下角（寬 42%、下 62%）；上半部與右側是轉視角
+			var in_x: bool = (t.position.x > size.x * 0.58) if _lefty() else (t.position.x < size.x * 0.42)
+			var joy_side: bool = in_x and t.position.y > size.y * 0.38
 			if _joy_idx == -1 and joy_side:
 				_joy_idx = t.index
 				_joy_origin = t.position

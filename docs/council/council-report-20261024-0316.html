@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：升級系統該怎麼做？</title>
+<style>
+  :root{--ink:#1d2129;--muted:#5b6470;--line:#e3e6ea;--bg:#fff;--soft:#f6f7f9;
+    --c1:#c75c4c;--c2:#3c6fb0;--c3:#3a9a6e;--c4:#9a6bb8;--c5:#d08a2a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",Roboto,sans-serif;line-height:1.7;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 64px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:28px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:18px 0;background:#fff}
+  .card.q{background:var(--soft)}
+  .card h2{font-size:18px;margin:0 0 12px}
+  .verdict h3{font-size:16px;margin:20px 0 6px;padding-left:10px;border-left:4px solid var(--ink)}
+  .verdict p,.verdict li{margin:6px 0}
+  .first{background:#fff8e6;border:1px solid #f0d890;border-radius:8px;padding:14px 16px;margin-top:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+  .adv{border:1px solid var(--line);border-radius:8px;padding:12px;border-top:4px solid}
+  .adv .n{font-weight:700;font-size:14px}
+  .adv .p{font-size:13px;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft)}
+  td.y{color:#1f7a4d;font-weight:600} td.n{color:#a33b2d;font-weight:600} td.m{color:#8a6a12;font-weight:600}
+  details{border:1px solid var(--line);border-radius:8px;margin:10px 0}
+  summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;align-items:center;gap:10px}
+  summary::-webkit-details-marker{display:none}
+  summary .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  details .body{padding:0 18px 16px;color:#2a2f36}
+  .c1{border-color:var(--c1)} .c2{border-color:var(--c2)} .c3{border-color:var(--c3)} .c4{border-color:var(--c4)} .c5{border-color:var(--c5)}
+  .d1{background:var(--c1)} .d2{background:var(--c2)} .d3{background:var(--c3)} .d4{background:var(--c4)} .d5{background:var(--c5)}
+  .footer{color:var(--muted);font-size:13px;margin-top:36px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LLM Council 報告：升級系統該怎麼做？</h1>
+  <div class="sub">2026-10-24 03:16 · 五位顧問獨立回答 → 匿名互評 → 主席統整 · 逐字稿：council-transcript-20261024-0316.md</div>
+
+  <div class="card q">
+    <h2>提問</h2>
+    <p>使用者計畫加「升級系統」（攻擊力、血量、傷害、鉤繩長度之類）。議會要答：怎麼設計（升什麼、用什麼換、在哪升、怎麼呈現）才不破壞隻狼式技巧核心，也不變成手機常見的數值刷刷刷？此刻還有什麼該優化或不該做？</p>
+    <p style="color:var(--muted);font-size:14px;margin:0">現況：兩關完成有故事線、三～五關只有大綱；三段斬 12/14/28、彈反 220ms、玩家／敵人體幹、武士架刀第三刀反擊、「危」、手裡劍 5、鉤繩固定 12 公尺、口糧、檢查點；玩家 HP 100，足輕 40／武士 90／大將 120～150；bot 驗證連按 <30%、彈反 >70%。前三項操作修正（搖桿區、鉤繩長度、走速）已直接做掉。</p>
+  </div>
+
+  <div class="card verdict">
+    <h2>主席裁決</h2>
+    <h3>議會一致同意之處</h3>
+    <p>五位全部反對升「攻擊力／血量／傷害％／鉤繩長度」這類會改變刀數、路徑、bot 曲線的數字；全部反對可重複刷的資源、商店、等級數字與經驗條。成長感應該來自「選項」而非「數字變厚」，資源要跟潛行路線綁在一起、由關卡寫死。</p>
+    <h3>議會分歧之處</h3>
+    <ol>
+      <li><strong>要不要新「動詞」</strong>：擴張者與第一原理主張每關解鎖新招式；執行者與反方認為每個動詞都是新狀態機＋新觸控鍵＋新敵人反制，三～五關還沒做之前是第二個遊戲的份量。</li>
+      <li><strong>升級是「獎章」還是「卡關閥門」</strong>：局外人與評審五指出使用者想升攻血，真正訴求多半是「第三關更難，我想有退路」；其他四位全把它當成長感。</li>
+    </ol>
+    <h3>議會抓到的盲點</h3>
+    <ul>
+      <li>升級是存檔狀態，會把「每關獨立可驗證」變「帶狀態進關」，bot 至少要跑「全解鎖」一個組合。</li>
+      <li>iPhone Safari 的 user:// 可能被清，TestFlight 遷移前要先定存檔格式與版本號。</li>
+      <li>撿到卷軸後死亡未到檢查點算不算撿到；升級後重玩舊關、「影」評價會不會被稀釋。</li>
+      <li>最真的一句話：HP 100 打武士 90，輸了不知道為什麼被砍，升級再多也沒用。</li>
+    </ul>
+    <h3>建議</h3>
+    <p>使用者「想變強有退路」的願望是對的，但實作方式要改。攻擊力、血量、鉤繩長度三項只准一項，而且照隻狼規則做。</p>
+    <ol>
+      <li><strong>升什麼</strong>：「獎章層」每關忍殺大將得一枚念珠，固定 +10 最大 HP，五關共四枚（最多 140）；攻擊力不升；鉤繩永遠 12 公尺。「工具層」每關藏一卷卷軸在潛行路線深處，撿到立刻生效，三～五關各給一個看得見的玩具：手裡劍 5→7、口糧攜帶 1→2、鉤到人後可拉近自己。不做技能樹、不做新動詞。</li>
+      <li><strong>用什麼換</strong>：殺大將、撿卷軸，數量寫死，沒有貨幣，沒有刷點。</li>
+      <li><strong>在哪升</strong>：不升，撿到當下生效；檢查點只顯示「你有什麼」。</li>
+      <li><strong>怎麼呈現</strong>：撿到中央彈 1.5 秒文字；結算多兩行「念珠 1/1、卷軸 1/1」；沒有 Lv.、沒有經驗條。</li>
+      <li><strong>存檔</strong>：save_cfg 加 save_version、beads、scrolls；卷軸到檢查點才寫入；舊關重玩保留持有物但「影」評價只算首通。</li>
+      <li><strong>bot</strong>：只驗零升級與全升級兩個組合；全升級下連按 bot 仍須 <30%，不過就把念珠改成 +5。</li>
+      <li><strong>卡關閥門</strong>：同一檢查點連死三次，死亡畫面多一行死因，並標示最近卷軸位置。</li>
+    </ol>
+    <div class="first"><strong>第一件該做的事：</strong>不是升級。先做死因可讀性：死亡畫面顯示「被誰、用什麼、在哪個狀態（危／崩壞／被連打）」打死，半天工。接著回頭寫第三關本體，把念珠與卷軸當第三關的兩個關卡物件一起做。升級系統在第三關跑通之前，不開第二張票。</div>
+  </div>
+
+  <div class="card">
+    <h2>顧問立場一覽</h2>
+    <div class="grid">
+      <div class="adv c1"><div class="n">反方思考者</div><div class="p">順序顛倒；數值沒餘裕、bot 失效、鉤繩可變是關卡自殺；只准升選項。</div></div>
+      <div class="adv c2"><div class="n">第一原理</div><div class="p">問錯問題；完全不要數值升級；每關教一個新動詞，用故事事件換。</div></div>
+      <div class="adv c3"><div class="n">擴張者</div><div class="p">能力解鎖樹四條動詞線；卷軸／秘傳換；敵人也升級。</div></div>
+      <div class="adv c4"><div class="n">局外人</div><div class="p">升級是手殘玩家的退路；要看得見的玩具；不要刷、不要 Lv.；先讓我看懂為什麼被砍。</div></div>
+      <div class="adv c5"><div class="n">執行者</div><div class="p">改名裝備槽；手裡劍 7、口糧 2、閃步 0.7；每關一卷軸進 save_cfg；兩小時。</div></div>
+    </div>
+    <table>
+      <thead><tr><th>議題</th><th>反方</th><th>第一原理</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr></thead>
+      <tbody>
+        <tr><td>升攻擊力／血量／鉤繩長度</td><td class="n">反對</td><td class="n">反對</td><td class="n">反對</td><td class="n">反對（看不見）</td><td class="n">反對</td></tr>
+        <tr><td>新動詞／技能樹</td><td class="m">少量</td><td class="y">每關一個</td><td class="y">四條樹</td><td class="m">玩具即可</td><td class="n">不做</td></tr>
+        <tr><td>資源不可刷、關卡寫死</td><td class="y">是</td><td class="y">是</td><td class="y">是</td><td class="y">是</td><td class="y">是</td></tr>
+        <tr><td>卡關玩家的出路</td><td class="m">未提</td><td class="m">未提</td><td class="m">未提</td><td class="y">核心</td><td class="m">未提</td></tr>
+        <tr><td>先做第三關</td><td class="y">是</td><td class="y">是</td><td class="m">未提</td><td class="m">未提</td><td class="y">是</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>各顧問完整回答</h2>
+    <details class="c1"><summary><span class="dot d1"></span>反方思考者</summary><div class="body"><p>為什麼要做升級？因為「遊戲好像該有」。三個致命缺陷：數值空間沒餘裕（攻擊 +20% 讓足輕兩刀變一刀半、武士第三刀反擊節奏崩；隻狼攻擊力只在殺 Boss 給、為了後期不變海綿，你沒有後期）；bot 門檻對每個組合要重跑，單人不會做；鉤繩可變長度等於每關兩套路徑驗證。真要做只准升選項（新技能、工具、口糧上限），資源用忍殺武將掉的唯一物品、關卡寫死、不可刷。此刻更該做第三關。</p></div></details>
+    <details class="c2"><summary><span class="dot d2"></span>第一原理思考者</summary><div class="body"><p>問錯問題：真正的問題是玩家為什麼要繼續玩第三關。隻狼的變強 90% 來自玩家手上，真正的成長是義手忍具：新動詞新解法。戰鬥已是封閉、bot 驗證過的系統，任何數值升級都讓曲線失效。完全不要數值升級；成長感改給選項，每關用故事事件解鎖一個新動詞（煙玉、彈反後續、潛行規則），不用資源刷。此刻該做：三～五關大綱改成「每關教一個新動詞」。不該做：任何數字會變大的東西、商店介面。</p></div></details>
+    <details class="c3"><summary><span class="dot d3"></span>擴張者</summary><div class="body"><p>上行空間在動詞不在數值：能力解鎖樹，鉤繩系（落下斬、拉機關）、手裡劍系（打斷危、標記）、彈反系（見切）、潛行系（屋頂暗殺、水中潛伏、障子後拖人）。資源用影評價、隱藏卷軸、大將秘傳；升級點在神社／檢查點，手繪卷軸＋一秒演示。天然解決手機短遊玩，重玩追影評價等於內容倍增；第三關起敵人也升級。</p></div></details>
+    <details class="c4"><summary><span class="dot d4"></span>局外人</summary><div class="body"><p>我沒玩過隻狼，這遊戲在我眼裡是「打不贏就是我手殘」。升級對我只有一個意義：打不過時給一條不用變強手指的路。第三關被武士砍三次我就關掉再也不開。別升看不見的 +5%，要看得見的玩具（手裡劍 7、口糧多一個、鉤到人踹一腳）；資源是關卡裡藏的東西不是刷；在檢查點一句話講完；不要 Lv.、不要經驗條。最後：輸了不知道為什麼，升級再多也沒用。</p></div></details>
+    <details class="c5"><summary><span class="dot d5"></span>執行者</summary><div class="body"><p>把升級改名「裝備槽」，不碰 COMBO 與 MAX_HP。只升工具容量與選項：手裡劍 5→7、口糧 1→2、鉤到人後可拉近自己、閃步冷卻 0.8→0.7。每關一卷固定放置的卷軸，撿到即解鎖，無貨幣商店；level_base 加 scroll_found 進 save_cfg，兩小時。呈現：結算一行、撿到彈字，不做選單技能樹。不該做：攻擊力、血量、傷害百分比。真正該優化的是三～五關本體。</p></div></details>
+  </div>
+
+  <div class="card">
+    <h2>互評重點</h2>
+    <details><summary>五位評審的共同結論與全體盲點</summary><div class="body">
+      <p><strong>最強：</strong>反方（兩票，唯一把「不能升數字」算到可證偽）、執行者（兩票，唯一換算成存檔落點與工時）、第一原理（一票，退一層問「為何繼續玩第三關」）。</p>
+      <p><strong>最大盲點：</strong>擴張者（四票）——「bot 不失效」是錯的，四條動詞樹＋敵人升級是單人做不完的第二個遊戲，也沒講進度怎麼存；執行者（一票）迴避卡關玩家的出路。</p>
+      <p><strong>全體漏掉：</strong>五位都太快否定使用者，沒人問「想升攻血」背後是「想有退路」；升級是存檔狀態，帶狀態進關要驗「全解鎖」組合；Safari 存檔可能被清、要定版本號；卷軸撿到後死亡算不算；重玩舊關與「影」評價衝突；觸控 UI 每個新動詞要多一顆鍵；沒人把升級當「卡關閥門」；沒人談死亡原因可讀性。</p>
+    </div></details>
+  </div>
+
+  <div class="footer">產出時間 2026-10-24 03:16 · 議題：升級系統設計與下一步優化 · 逐字稿：council-transcript-20261024-0316.md</div>
+</div>
+</body>
+</html>

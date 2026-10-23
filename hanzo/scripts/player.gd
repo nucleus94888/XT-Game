@@ -18,7 +18,9 @@ signal weapon_changed(mode: int)
 
 enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE, BROKEN }
 
-const SPEED := 6.2
+const SPEED := 5.4
+## 鉤繩固定長度（公尺）；升級系統之後可加長
+var hook_range := 12.0
 const ACCEL := 34.0
 const DASH_SPEED := 17.0
 const DASH_TIME := 0.17
@@ -271,7 +273,7 @@ func _tick_aim(delta: float) -> void:
 	var pose := Vector3(-20.0, -60.0, 0.0) if aim_mode == AIM_SHURIKEN else Vector3(-70.0, 0.0, 0.0)
 	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(pose, 1.0 - exp(-20.0 * delta))
 	# 兩種瞄準共用：準心附近有敵人就默默鎖定（頭／身），畫面上不另外畫圈
-	var lock := _pick_enemy_ray(origin, dir, 0.992, 22.0)
+	var lock := _pick_enemy_ray(origin, dir, 0.992, hook_range if aim_mode == AIM_HOOK else 22.0)
 	_aim_target = lock.target
 	_aim_head = lock.head
 	aim_status = "lock" if _aim_target else ""
@@ -338,10 +340,10 @@ func _pick_enemy_ray(origin: Vector3, dir: Vector3, min_dot: float, max_dist: fl
 ## 鉤繩落點（準心射線）：打到頂面直接落在那裡（可上可下，不能同高度平移）；打到牆面就往上找牆頂
 func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	var space := get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * 30.0, 1)
+	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * hook_range, 1)
 	q.exclude = [get_rid()]
 	var hit := space.intersect_ray(q)
-	var fail := {"ok": false, "pos": origin + dir * 8.0}
+	var fail := {"ok": false, "pos": origin + dir * hook_range}
 	if hit.is_empty():
 		return fail
 	var p: Vector3 = hit.position
@@ -361,7 +363,7 @@ func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	var flat_d := Vector2(top.x - global_position.x, top.z - global_position.z).length()
 	# 鉤不到時繩子飛到實際打到的點再收回（不是飛去算出來的牆頂）
 	fail.pos = p
-	if absf(dy) < 0.8 or dy > 8.0 or dy < -10.0 or flat_d < 1.0 or global_position.distance_to(top) > 22.0:
+	if absf(dy) < 0.8 or dy > 8.0 or dy < -10.0 or flat_d < 1.0 or global_position.distance_to(top) > hook_range:
 		return fail
 	# 關卡範圍外（外牆頂、牆外地面）不能鉤
 	if hook_bounds.size != Vector3.ZERO and not hook_bounds.has_point(top):
