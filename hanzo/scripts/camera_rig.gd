@@ -43,6 +43,7 @@ func set_target(t: Node3D) -> void:
 
 ## 滑動視角：delta 為螢幕像素位移。瞄準中靈敏度較低、可上下抬頭低頭。
 func look(delta: Vector2) -> void:
+	delta *= Feel.get_p("look_sens")
 	if aiming:
 		yaw -= delta.x * 0.0032
 		aim_pitch = clampf(aim_pitch + delta.y * 0.0024, -0.75, 0.8)

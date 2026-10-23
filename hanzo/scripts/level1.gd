@@ -40,6 +40,10 @@ var _kills := 0
 var _alert_count := 0
 var _exit_beacon: Node3D
 var _lanterns: Array = []
+## 檢查點：走過就記住，死亡從最近的檢查點重生（敵人全部重置）
+const CHECKPOINTS := [Vector3(0.0, 0.0, 29.0), Vector3(0.0, 0.0, 19.0), Vector3(0.0, 0.0, 5.0), Vector3(0.0, 0.0, -5.0)]
+var _checkpoint := Vector3(0.0, 0.1, 29.0)
+var _cp_index := 0
 var _shot_dir := ""
 var _walk := false
 var _walk_t := 0.0
@@ -128,6 +132,15 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	# 檢查點
+	for i in range(_cp_index + 1, CHECKPOINTS.size()):
+		var cp: Vector3 = CHECKPOINTS[i]
+		var d := player.global_position - cp
+		d.y = 0.0
+		if d.length() < 2.5:
+			_cp_index = i
+			_checkpoint = cp + Vector3(0.0, 0.1, 0.0)
+			hud.say("記住了此處", Color(0.7, 0.85, 1.0))
 	# 玩家是否站在燈光下（敵人視野據此縮放）
 	var lit := false
 	for l in _lanterns:
@@ -333,9 +346,32 @@ func _on_player_died() -> void:
 	hud.say("敗北…", Color(0.9, 0.3, 0.3))
 	get_tree().create_timer(1.0).timeout.connect(func() -> void:
 		hud.show_overlay("敗北", ["時間 %s　擊破 %d　被擊中 %d 次" % [_fmt_time(_time), _kills, _hits_taken]],
-			[["再來一次", func() -> void: get_tree().reload_current_scene()],
+			[["從檢查點再來", func() -> void: _respawn()],
+			 ["整關重來", func() -> void: get_tree().reload_current_scene()],
 			 ["回標題", func() -> void: get_tree().change_scene_to_file("res://scenes/title.tscn")]],
 			Color(0.95, 0.3, 0.3)))
+
+
+## 從最近檢查點重生：半藏復活、敵人全部重置（目標已死則不重生）
+func _respawn() -> void:
+	for e in _enemies:
+		if is_instance_valid(e):
+			e.queue_free()
+	_enemies.clear()
+	for n in get_tree().get_nodes_in_group("enemies"):
+		n.queue_free()
+	for a in get_children():
+		if a is Arrow or a is Shuriken or a is Ration:
+			a.queue_free()
+	_spawn_enemies()
+	if _target_dead and is_instance_valid(_target):
+		_target.queue_free()
+		_enemies.erase(_target)
+	player.global_position = _checkpoint
+	player.revive()
+	_dead = false
+	_alert_count = 0
+	hud.say("再起", Color(0.9, 0.9, 0.95))
 
 
 func _finish() -> void:

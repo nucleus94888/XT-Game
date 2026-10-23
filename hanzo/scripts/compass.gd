@@ -64,6 +64,9 @@ func _draw() -> void:
 				continue
 			if e.state == e.State.DEAD:
 				continue
+			# 只顯示曾經發現你的敵人（潛行的資訊不對稱）
+			if not e.get("alerted_once"):
+				continue
 			var d: Vector3 = e.global_position - player.global_position
 			d.y = 0.0
 			var dist := d.length()

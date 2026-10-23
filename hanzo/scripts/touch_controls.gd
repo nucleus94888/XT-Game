@@ -50,28 +50,37 @@ func _ready() -> void:
 
 
 func _joy_home() -> Vector2:
-	return Vector2(150.0, size.y - 150.0)
+	return _mx(Vector2(150.0, size.y - 150.0))
 
 
 ## 鍵位離角落稍遠一點，拇指自然彎曲就按得到，也避開 iPhone 圓角與手勢區
 func _atk_center() -> Vector2:
-	return Vector2(size.x - 140.0, size.y - 140.0)
+	return _mx(Vector2(size.x - 140.0, size.y - 140.0))
 
 
 func _dash_center() -> Vector2:
-	return Vector2(size.x - 290.0, size.y - 92.0)
+	return _mx(Vector2(size.x - 290.0, size.y - 92.0))
 
 
 func _block_center() -> Vector2:
-	return Vector2(size.x - 130.0, size.y - 300.0)
+	return _mx(Vector2(size.x - 130.0, size.y - 300.0))
 
 
 func _hook_center() -> Vector2:
-	return Vector2(size.x - 315.0, size.y - 255.0)
+	return _mx(Vector2(size.x - 315.0, size.y - 255.0))
 
 
 func _swap_center() -> Vector2:
-	return Vector2(size.x - 44.0, size.y - 218.0)
+	return _mx(Vector2(size.x - 70.0, size.y - 235.0))
+
+
+## 左撇子：左右鏡像（搖桿到右、按鍵到左）
+func _lefty() -> bool:
+	return Feel.get_p("lefty") >= 0.5
+
+
+func _mx(p: Vector2) -> Vector2:
+	return Vector2(size.x - p.x, p.y) if _lefty() else p
 
 
 func _blocked(pos: Vector2) -> bool:
@@ -124,13 +133,14 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_set_block(true)
 				get_viewport().set_input_as_handled()
 				return
-			if _joy_idx == -1 and t.position.x < size.x * 0.6:
+			var joy_side: bool = (t.position.x > size.x * 0.4) if _lefty() else (t.position.x < size.x * 0.6)
+			if _joy_idx == -1 and joy_side:
 				_joy_idx = t.index
 				_joy_origin = t.position
 				_joy_pos = t.position
 				move_vector = Vector2.ZERO
 				get_viewport().set_input_as_handled()
-			elif _look_idx == -1 and t.position.x >= size.x * 0.6:
+			elif _look_idx == -1 and not joy_side:
 				_look_idx = t.index
 				_look_last = t.position
 				get_viewport().set_input_as_handled()

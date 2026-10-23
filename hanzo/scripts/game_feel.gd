@@ -16,6 +16,9 @@ const SAVE_PATH := "user://feel.cfg"
 ## key: [顯示名稱, 最小, 最大, 步進, 預設]
 const PARAMS := {
 	"ui_scale": ["介面大小", 0.8, 2.4, 0.05, 1.0],
+	"look_sens": ["視角靈敏度", 0.4, 2.0, 0.05, 1.0],
+	"volume": ["音量", 0.0, 1.0, 0.05, 1.0],
+	"lefty": ["左撇子（0/1）", 0.0, 1.0, 1.0, 0.0],
 	"windup_ms": ["出刀前置 ms", 20.0, 400.0, 5.0, 140.0],
 	"active_ms": ["命中窗 ms", 40.0, 250.0, 5.0, 120.0],
 	"recovery_ms": ["收刀硬直 ms", 60.0, 600.0, 5.0, 260.0],
@@ -79,6 +82,9 @@ func _apply_ui_scale() -> void:
 	var root := get_tree().root
 	if root:
 		root.content_scale_factor = get_p("ui_scale")
+	var v := get_p("volume")
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(v, 0.0001)))
+	AudioServer.set_bus_mute(0, v <= 0.001)
 
 
 func get_p(k: String) -> float:
@@ -99,10 +105,13 @@ func set_p(k: String, v: float) -> void:
 func apply_preset(preset_name: String) -> void:
 	if not PRESETS.has(preset_name):
 		return
-	var keep_ui := get_p("ui_scale")
+	var keep := {}
+	for k in ["ui_scale", "look_sens", "volume", "lefty"]:
+		keep[k] = get_p(k)
 	for k in PARAMS:
 		p[k] = PARAMS[k][4]
-	p["ui_scale"] = keep_ui
+	for k in keep:
+		p[k] = keep[k]
 	var over: Dictionary = PRESETS[preset_name]
 	for k in over:
 		p[k] = over[k]

@@ -13,6 +13,8 @@ extends CanvasLayer
 @onready var gear: Button = $GearBtn
 @onready var panel: Control = $TuningPanel
 @onready var touch: Control = $TouchControls
+@onready var pause_btn: Button = $PauseBtn
+@onready var debug_tap: Control = $DebugTap
 
 var hits := 0
 var combo := 0
@@ -30,6 +32,10 @@ var _cam: Node3D
 var _compass_target := Vector3.ZERO
 var _has_compass_target := false
 var _stam_tw: Tween
+var _obj_tw: Tween
+var _debug := false
+var _tap_times: Array = []
+var _paused_by_menu := false
 
 
 func _ready() -> void:
@@ -38,7 +44,10 @@ func _ready() -> void:
 	Feel.flash_requested.connect(_on_flash)
 	gear.pressed.connect(toggle_panel)
 	panel.visible = false
-	var blockers: Array[Control] = [panel, gear]
+	pause_btn.pressed.connect(show_pause)
+	debug_tap.mouse_filter = Control.MOUSE_FILTER_STOP
+	debug_tap.gui_input.connect(_on_debug_tap)
+	var blockers: Array[Control] = [panel, gear, pause_btn, debug_tap]
 	touch.blockers = blockers
 	_refresh()
 
@@ -75,11 +84,117 @@ func attach(player: Node, cam_rig: Node) -> void:
 
 func toggle_panel() -> void:
 	panel.visible = not panel.visible
-	gear.visible = not panel.visible
+	gear.visible = _debug and not panel.visible
 
 
 func _process_panel_state() -> void:
-	gear.visible = not panel.visible and _overlay == null
+	gear.visible = _debug and not panel.visible and _overlay == null
+	pause_btn.visible = _overlay == null
+
+
+## 連點羅盤三下：顯示／隱藏除錯資訊（統計、fps、手感鈕）
+func _on_debug_tap(ev: InputEvent) -> void:
+	if (ev is InputEventScreenTouch and ev.pressed) or (ev is InputEventMouseButton and ev.pressed):
+		var now := Time.get_ticks_msec()
+		_tap_times.append(now)
+		_tap_times = _tap_times.filter(func(t: int) -> bool: return now - t < 900)
+		if _tap_times.size() >= 3:
+			_tap_times.clear()
+			_debug = not _debug
+			stats.visible = _debug
+			fps.visible = _debug
+			gear.visible = _debug
+			say("除錯 開" if _debug else "除錯 關", Color(0.8, 0.8, 0.8))
+
+
+## 暫停選單
+func show_pause() -> void:
+	if _overlay != null:
+		return
+	show_overlay("暫停", [], [
+		["繼續", func() -> void: pass],
+		["設定", func() -> void: show_settings()],
+		["重來", func() -> void: get_tree().reload_current_scene()],
+		["回標題", func() -> void: get_tree().change_scene_to_file("res://scenes/title.tscn")],
+	])
+
+
+## 設定：音量、視角靈敏度、介面大小、左撇子；進階＝手感調校面板
+func show_settings() -> void:
+	hide_overlay()
+	_overlay = Control.new()
+	_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.62)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var box := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.09, 0.11, 0.96)
+	sb.set_content_margin_all(24.0)
+	box.add_theme_stylebox_override("panel", sb)
+	center.add_child(box)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	vb.custom_minimum_size = Vector2(520, 0)
+	box.add_child(vb)
+	var t := Label.new()
+	t.text = "設定"
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t.add_theme_font_size_override("font_size", 40)
+	vb.add_child(t)
+	for key in ["volume", "look_sens", "ui_scale"]:
+		var spec: Array = Feel.PARAMS[key]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		vb.add_child(row)
+		var l := Label.new()
+		l.text = spec[0]
+		l.custom_minimum_size.x = 150
+		l.add_theme_font_size_override("font_size", 22)
+		row.add_child(l)
+		var s := HSlider.new()
+		s.min_value = spec[1]
+		s.max_value = spec[2]
+		s.step = spec[3]
+		s.value = Feel.get_p(key)
+		s.custom_minimum_size = Vector2(240, 40)
+		s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		s.value_changed.connect(func(v: float) -> void:
+			Feel.set_p(key, v))
+		row.add_child(s)
+	var lefty := CheckButton.new()
+	lefty.text = "左撇子（搖桿在右、按鍵在左）"
+	lefty.button_pressed = Feel.get_p("lefty") >= 0.5
+	lefty.add_theme_font_size_override("font_size", 22)
+	lefty.toggled.connect(func(on: bool) -> void:
+		Feel.set_p("lefty", 1.0 if on else 0.0))
+	vb.add_child(lefty)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	hb.add_theme_constant_override("separation", 14)
+	vb.add_child(hb)
+	for b in [["進階：手感調校", func() -> void:
+			panel.visible = true],
+		["返回", func() -> void: pass]]:
+		var btn := Button.new()
+		btn.text = str(b[0])
+		btn.custom_minimum_size = Vector2(200, 58)
+		btn.add_theme_font_size_override("font_size", 24)
+		var cb: Callable = b[1]
+		btn.pressed.connect(func() -> void:
+			Feel.save_cfg()
+			hide_overlay()
+			cb.call())
+		hb.add_child(btn)
+	add_child(_overlay)
+	touch.blockers.append(_overlay)
+	get_tree().paused = true
 
 
 func add_hit(heavy: bool) -> void:
@@ -128,9 +243,17 @@ func clear_compass_target() -> void:
 	_has_compass_target = false
 
 
+## 目標文字：顯示 4 秒後淡出；再次設定時重新出現
 func set_objective(text: String) -> void:
 	objective.text = text
+	objective.modulate = Color(1, 1, 1, 1)
 	_pop(objective, 1.15)
+	if _obj_tw and _obj_tw.is_valid():
+		_obj_tw.kill()
+	_obj_tw = objective.create_tween()
+	_obj_tw.set_ignore_time_scale(true)
+	_obj_tw.tween_interval(4.0)
+	_obj_tw.tween_property(objective, "modulate:a", 0.0, 0.8)
 
 
 func say(text: String, color: Color = Color.WHITE) -> void:
