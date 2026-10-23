@@ -95,7 +95,8 @@ func add_hit(heavy: bool) -> void:
 func add_kill(text: String = "擊破！", color: Color = Color(1.0, 0.85, 0.4)) -> void:
 	kills += 1
 	_refresh()
-	say(text, color)
+	if text != "":
+		say(text, color)
 
 
 func set_hp(v: int) -> void:

@@ -314,9 +314,7 @@ func _on_enemy_died(e: Enemy, stealth: bool) -> void:
 		r.global_position = e.global_position
 	if stealth:
 		_stealth_kills += 1
-		hud.add_kill("暗殺", Color(0.85, 0.85, 0.95))
-	else:
-		hud.add_kill()
+	hud.add_kill("")
 	if e == _target and not _target_dead:
 		_target_dead = true
 		_exit_beacon.visible = true

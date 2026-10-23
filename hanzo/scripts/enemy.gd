@@ -642,7 +642,6 @@ func assassinate(info: Dictionary) -> void:
 	Feel.hitstop(2.0)
 	Feel.shake(0.7)
 	Feel.flash(Color(0.0, 0.0, 0.0, 0.5), 0.5)
-	Fx.damage_number(info.pos, int(spec.hp), true)
 	particles.global_position = info.pos
 	particles.restart()
 	_die(true)
@@ -770,7 +769,6 @@ func _break_posture() -> void:
 
 func _execute(info: Dictionary, dir: Vector3) -> void:
 	hp = 0
-	Fx.damage_number(info.pos, int(spec.hp), true)
 	Feel.hitstop(2.4)
 	Feel.shake(1.5)
 	Feel.kick(dir, 0.5)
@@ -820,27 +818,15 @@ func _update_visual(delta: float) -> void:
 	if state in [State.ALERT] and kind != Kind.ARCHER:
 		var target_rot := Vector3(-1.3, 0.3, -0.2) if _guard else Vector3.ZERO
 		weapon.rotation = weapon.rotation.lerp(target_rot, 1.0 - exp(-18.0 * delta))
-	# 頭上條
-	var ratio := 0.0
-	var color := Color(1, 1, 1)
-	match state:
-		State.SUSPICIOUS, State.SEARCH:
-			ratio = _detect
-			color = Color(1.0, 1.0, 1.0)
-		State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN:
-			ratio = posture / float(spec.posture)
-			color = Color(1.0, 0.2, 0.15) if state == State.BROKEN else Color(1.0, 0.75 - 0.5 * ratio, 0.2)
-		_:
-			ratio = _detect
-	bar.visible = ratio > 0.01 or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]
+	# 頭上只顯示血條：受過傷或戰鬥中才出現；體幹崩壞時血條閃紅白
+	var ratio := clampf(float(hp) / float(spec.hp), 0.0, 1.0)
+	bar.visible = hp < int(spec.hp) or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]
 	bar_fill.scale.x = maxf(ratio, 0.001)
 	bar_fill.position.x = -0.62 * (1.0 - ratio)
 	bar_fill.visible = ratio > 0.001
-	bar_mat.albedo_color = color
-	var sr := stamina / 100.0
-	stam_fill.visible = state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]
-	stam_fill.scale.x = maxf(sr, 0.001)
-	stam_fill.position.x = -0.62 * (1.0 - sr)
+	var blink := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.02)
+	bar_mat.albedo_color = Color(1.0, 0.3 + 0.7 * blink, 0.3 + 0.7 * blink) if state == State.BROKEN else Color(0.9, 0.2, 0.18)
+	stam_fill.visible = false
 	if state in [State.SUSPICIOUS, State.SEARCH] and not mark.visible:
 		_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
 	elif not state in [State.SUSPICIOUS, State.SEARCH] and mark.text == "？":
