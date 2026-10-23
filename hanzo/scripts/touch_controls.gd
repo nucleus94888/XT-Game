@@ -35,6 +35,7 @@ var _joy_idx := -1
 var _joy_origin := Vector2.ZERO
 var _joy_pos := Vector2.ZERO
 var _btn_touch := {}
+var _btn_last := {}
 var _atk_flash := 0.0
 var _dash_flash := 0.0
 var _hook_flash := 0.0
@@ -100,6 +101,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				return
 			if t.position.distance_to(_atk_center()) < ATK_R * 1.25:
 				_btn_touch[t.index] = "attack"
+				_btn_last[t.index] = t.position
 				_atk_flash = 1.0
 				attack_down.emit()
 				get_viewport().set_input_as_handled()
@@ -112,6 +114,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				return
 			if t.position.distance_to(_hook_center()) < HOOK_R * 1.4:
 				_btn_touch[t.index] = "hook"
+				_btn_last[t.index] = t.position
 				_hook_flash = 1.0
 				hook_down.emit()
 				get_viewport().set_input_as_handled()
@@ -145,6 +148,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			elif role == "hook":
 				hook_up.emit()
 			_btn_touch.erase(t.index)
+			_btn_last.erase(t.index)
 	elif ev is InputEventScreenDrag:
 		var d := ev as InputEventScreenDrag
 		if d.index == _joy_idx and aiming:
@@ -168,6 +172,12 @@ func _unhandled_input(ev: InputEvent) -> void:
 		elif d.index == _look_idx:
 			look_delta.emit(d.position - _look_last)
 			_look_last = d.position
+			get_viewport().set_input_as_handled()
+		elif aiming and _btn_touch.get(d.index, "") in ["hook", "attack"]:
+			# 右手按著鉤／手裡劍不放，同一根手指拖曳＝調整瞄準角度
+			var last: Vector2 = _btn_last.get(d.index, d.position)
+			look_delta.emit(d.position - last)
+			_btn_last[d.index] = d.position
 			get_viewport().set_input_as_handled()
 		elif _btn_touch.get(d.index, "") == "block":
 			# 手指滑出格擋鍵太遠就視為放開
@@ -195,7 +205,7 @@ func _draw() -> void:
 	var knob := _joy_pos if _joy_idx != -1 else jc
 	draw_circle(knob, 28.0, Color(jcol, 0.55 if _joy_idx != -1 else 0.22))
 	if aiming and font:
-		draw_string(font, jc + Vector2(-JOY_R - 30.0, -JOY_R - 10.0), "拖曳瞄準", HORIZONTAL_ALIGNMENT_CENTER, JOY_R * 2.0 + 60.0, 22, Color(1.0, 0.9, 0.5, 0.9))
+		draw_string(font, jc + Vector2(-JOY_R - 30.0, -JOY_R - 10.0), "瞄準中", HORIZONTAL_ALIGNMENT_CENTER, JOY_R * 2.0 + 60.0, 22, Color(1.0, 0.9, 0.5, 0.9))
 	# 準心（瞄準中畫在畫面正中央）
 	if aiming:
 		var c := size / 2.0
