@@ -53,13 +53,18 @@ func attach(player: Node, cam_rig: Node) -> void:
 	touch.look_delta.connect(cam_rig.look)
 	player.stamina_changed.connect(set_stamina)
 	player.exhausted.connect(flash_stamina)
-	touch.attack_pressed.connect(player.request_attack)
+	touch.attack_down.connect(player.on_attack_down)
+	touch.attack_up.connect(player.on_attack_up)
+	touch.hook_down.connect(player.on_hook_down)
+	touch.hook_up.connect(player.on_hook_up)
+	touch.weapon_toggle.connect(player.toggle_weapon)
+	player.weapon_changed.connect(func(m: int) -> void:
+		touch.weapon_label = "劍" if m == 1 else "刀")
 	touch.dash_pressed.connect(player.request_dash)
 	touch.block_changed.connect(player.set_block)
-	touch.throw_pressed.connect(player.request_throw)
 	player.shuriken_changed.connect(func(n: int) -> void:
-		touch.throw_count = n)
-	touch.throw_count = player.shuriken
+		touch.shuriken_count = n)
+	touch.shuriken_count = player.shuriken
 	cam_rig.set_target(player)
 	player.hit_landed.connect(func(info: Dictionary) -> void:
 		add_hit(bool(info.heavy)))
@@ -242,7 +247,7 @@ func _process(delta: float) -> void:
 			_cam.look(Vector2(turn * 420.0 * delta, 0.0))
 		compass.cam_yaw = _cam.yaw
 	if _player:
-		touch.throw_label = "鉤" if _player.get("grapple_target") != null else "投"
+		touch.aiming = _player.aim_mode != 0
 	compass.has_target = _has_compass_target and _player != null
 	if compass.has_target:
 		var d := _compass_target - _player.global_position

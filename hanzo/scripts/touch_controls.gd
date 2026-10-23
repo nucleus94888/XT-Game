@@ -1,12 +1,16 @@
 extends Control
 ## 觸控操作
-## 左：常駐淡白色搖桿圓圈（左下），手指落在左 60% 畫面任意處即以落點為中心；拖超出半徑時圓圈跟著走。
-## 右：「攻擊」（紅，大）、「閃」（藍）、「格擋」（綠，按住生效）。桌機以滑鼠模擬觸控，另有鍵盤。
+## 左：常駐淡白色搖桿圓圈（左下），手指落在左 60% 畫面任意處即以落點為中心；瞄準中搖桿變成瞄準方向。
+## 右：「攻擊」（刀模式＝按下即斬；手裡劍模式＝按住瞄準、放開射出）、「閃」、「格擋」（按住）、
+##     「鉤」（按住瞄準牆頂／屋頂、放開射出鉤繩）、武器切換小鍵「刀／劍」。右側空白處拖曳轉視角。
 
-signal attack_pressed
+signal attack_down
+signal attack_up
 signal dash_pressed
 signal block_changed(on: bool)
-signal throw_pressed
+signal hook_down
+signal hook_up
+signal weapon_toggle
 ## 右側空白處拖曳：轉視角（螢幕像素位移）
 signal look_delta(delta: Vector2)
 
@@ -14,11 +18,16 @@ const JOY_R := 78.0
 const ATK_R := 70.0
 const DASH_R := 50.0
 const BLOCK_R := 50.0
-const THROW_R := 44.0
+const HOOK_R := 44.0
+const SWAP_R := 30.0
 
 var move_vector := Vector2.ZERO
 ## 這些控制項可見且覆蓋到的區域，不會觸發搖桿（例如手感面板）
 var blockers: Array[Control] = []
+## HUD 每幀更新：目前武器（"刀"/"劍"）、手裡劍數、是否瞄準中
+var weapon_label := "刀"
+var shuriken_count := 0
+var aiming := false
 
 var _joy_idx := -1
 var _joy_origin := Vector2.ZERO
@@ -26,11 +35,8 @@ var _joy_pos := Vector2.ZERO
 var _btn_touch := {}
 var _atk_flash := 0.0
 var _dash_flash := 0.0
+var _hook_flash := 0.0
 var _block_on := false
-var _throw_flash := 0.0
-## 第四鍵顯示文字（投＝手裡劍，鉤＝鉤繩）與剩餘手裡劍數
-var throw_label := "投"
-var throw_count := 0
 var _look_idx := -1
 var _look_last := Vector2.ZERO
 
@@ -57,8 +63,12 @@ func _block_center() -> Vector2:
 	return Vector2(size.x - 130.0, size.y - 300.0)
 
 
-func _throw_center() -> Vector2:
-	return Vector2(size.x - 300.0, size.y - 235.0)
+func _hook_center() -> Vector2:
+	return Vector2(size.x - 315.0, size.y - 255.0)
+
+
+func _swap_center() -> Vector2:
+	return Vector2(size.x - 232.0, size.y - 190.0)
 
 
 func _blocked(pos: Vector2) -> bool:
@@ -81,10 +91,15 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if t.pressed:
 			if _blocked(t.position):
 				return
-			if t.position.distance_to(_atk_center()) < ATK_R * 1.3:
+			if t.position.distance_to(_swap_center()) < SWAP_R * 1.4:
+				_btn_touch[t.index] = "swap"
+				weapon_toggle.emit()
+				get_viewport().set_input_as_handled()
+				return
+			if t.position.distance_to(_atk_center()) < ATK_R * 1.25:
 				_btn_touch[t.index] = "attack"
 				_atk_flash = 1.0
-				attack_pressed.emit()
+				attack_down.emit()
 				get_viewport().set_input_as_handled()
 				return
 			if t.position.distance_to(_dash_center()) < DASH_R * 1.45:
@@ -93,10 +108,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 				dash_pressed.emit()
 				get_viewport().set_input_as_handled()
 				return
-			if t.position.distance_to(_throw_center()) < THROW_R * 1.4:
-				_btn_touch[t.index] = "throw"
-				_throw_flash = 1.0
-				throw_pressed.emit()
+			if t.position.distance_to(_hook_center()) < HOOK_R * 1.4:
+				_btn_touch[t.index] = "hook"
+				_hook_flash = 1.0
+				hook_down.emit()
 				get_viewport().set_input_as_handled()
 				return
 			if t.position.distance_to(_block_center()) < BLOCK_R * 1.45:
@@ -120,8 +135,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 				move_vector = Vector2.ZERO
 			if t.index == _look_idx:
 				_look_idx = -1
-			if _btn_touch.get(t.index, "") == "block":
+			var role: String = _btn_touch.get(t.index, "")
+			if role == "block":
 				_set_block(false)
+			elif role == "attack":
+				attack_up.emit()
+			elif role == "hook":
+				hook_up.emit()
 			_btn_touch.erase(t.index)
 	elif ev is InputEventScreenDrag:
 		var d := ev as InputEventScreenDrag
@@ -150,39 +170,52 @@ func _unhandled_input(ev: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_atk_flash = maxf(_atk_flash - delta * 5.0, 0.0)
 	_dash_flash = maxf(_dash_flash - delta * 5.0, 0.0)
-	_throw_flash = maxf(_throw_flash - delta * 5.0, 0.0)
+	_hook_flash = maxf(_hook_flash - delta * 5.0, 0.0)
 	queue_redraw()
 
 
 func _draw() -> void:
 	var font: Font = Fx.ui_font
-	# 搖桿：閒置時停在左下，按住時跟著手指
+	# 搖桿：閒置時停在左下，按住時跟著手指；瞄準中改為黃色
 	var jc := _joy_origin if _joy_idx != -1 else _joy_home()
-	draw_circle(jc, JOY_R, Color(1, 1, 1, 0.10 if _joy_idx != -1 else 0.07))
-	draw_arc(jc, JOY_R, 0.0, TAU, 48, Color(1, 1, 1, 0.42 if _joy_idx != -1 else 0.28), 2.5, true)
+	var jcol := Color(1.0, 0.9, 0.5) if aiming else Color(1, 1, 1)
+	draw_circle(jc, JOY_R, Color(jcol, 0.10 if _joy_idx != -1 else 0.07))
+	draw_arc(jc, JOY_R, 0.0, TAU, 48, Color(jcol, 0.42 if _joy_idx != -1 else 0.28), 2.5, true)
 	var knob := _joy_pos if _joy_idx != -1 else jc
-	draw_circle(knob, 28.0, Color(1, 1, 1, 0.55 if _joy_idx != -1 else 0.22))
-	# 攻擊
+	draw_circle(knob, 28.0, Color(jcol, 0.55 if _joy_idx != -1 else 0.22))
+	if aiming and font:
+		draw_string(font, jc + Vector2(-JOY_R, -JOY_R - 10.0), "瞄準", HORIZONTAL_ALIGNMENT_CENTER, JOY_R * 2.0, 22, Color(1.0, 0.9, 0.5, 0.9))
+	# 攻擊（刀＝紅；手裡劍＝紫，顯示數量）
 	var ac := _atk_center()
-	draw_circle(ac, ATK_R, Color(0.72, 0.14, 0.12, 0.55 + 0.4 * _atk_flash))
+	var shuriken := weapon_label == "劍"
+	var acol := Color(0.45, 0.3, 0.6, 0.6 + 0.35 * _atk_flash) if shuriken else Color(0.72, 0.14, 0.12, 0.55 + 0.4 * _atk_flash)
+	draw_circle(ac, ATK_R, acol)
 	draw_arc(ac, ATK_R, 0.0, TAU, 64, Color(1, 0.92, 0.85, 0.9), 3.0, true)
 	if font:
-		draw_string(font, ac + Vector2(-ATK_R, 13.0), "攻擊", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 36, Color(1, 1, 1, 0.95))
+		if shuriken:
+			draw_string(font, ac + Vector2(-ATK_R, 8.0), "手裡劍", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 30, Color(1, 1, 1, 0.95))
+			draw_string(font, ac + Vector2(-ATK_R, 34.0), "×%d" % shuriken_count, HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 18, Color(1, 1, 1, 0.85))
+		else:
+			draw_string(font, ac + Vector2(-ATK_R, 13.0), "攻擊", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 36, Color(1, 1, 1, 0.95))
+	# 武器切換小鍵
+	var sc := _swap_center()
+	draw_circle(sc, SWAP_R, Color(0.2, 0.2, 0.25, 0.8))
+	draw_arc(sc, SWAP_R, 0.0, TAU, 32, Color(0.9, 0.9, 0.9, 0.8), 2.0, true)
+	if font:
+		draw_string(font, sc + Vector2(-SWAP_R, 9.0), "劍" if shuriken else "刀", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0, 24, Color(1, 1, 1, 0.95))
+		draw_string(font, sc + Vector2(-SWAP_R - 10.0, SWAP_R + 16.0), "切換", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0 + 20.0, 13, Color(1, 1, 1, 0.6))
 	# 閃
 	var dc := _dash_center()
 	draw_circle(dc, DASH_R, Color(0.2, 0.3, 0.55, 0.5 + 0.4 * _dash_flash))
 	draw_arc(dc, DASH_R, 0.0, TAU, 48, Color(0.85, 0.9, 1, 0.85), 2.5, true)
 	if font:
 		draw_string(font, dc + Vector2(-DASH_R, 12.0), "閃", HORIZONTAL_ALIGNMENT_CENTER, DASH_R * 2.0, 34, Color(1, 1, 1, 0.95))
-	# 投／鉤
-	var tc := _throw_center()
-	var grapple := throw_label == "鉤"
-	draw_circle(tc, THROW_R, (Color(0.9, 0.75, 0.25, 0.75 + 0.25 * _throw_flash) if grapple else Color(0.45, 0.3, 0.6, 0.5 + 0.4 * _throw_flash)))
-	draw_arc(tc, THROW_R, 0.0, TAU, 48, Color(1, 0.95, 0.85, 0.9), 2.5, true)
+	# 鉤繩（按住瞄準）
+	var hc := _hook_center()
+	draw_circle(hc, HOOK_R, Color(0.75, 0.6, 0.2, 0.55 + 0.4 * _hook_flash))
+	draw_arc(hc, HOOK_R, 0.0, TAU, 48, Color(1, 0.95, 0.8, 0.9), 2.5, true)
 	if font:
-		draw_string(font, tc + Vector2(-THROW_R, 10.0), throw_label, HORIZONTAL_ALIGNMENT_CENTER, THROW_R * 2.0, 30, Color(1, 1, 1, 0.95))
-		if not grapple:
-			draw_string(font, tc + Vector2(-THROW_R, 30.0), str(throw_count), HORIZONTAL_ALIGNMENT_CENTER, THROW_R * 2.0, 14, Color(1, 1, 1, 0.8))
+		draw_string(font, hc + Vector2(-HOOK_R, 11.0), "鉤", HORIZONTAL_ALIGNMENT_CENTER, HOOK_R * 2.0, 32, Color(1, 1, 1, 0.95))
 	# 格擋（按住時亮起）
 	var bc := _block_center()
 	draw_circle(bc, BLOCK_R, Color(0.18, 0.5, 0.32, 0.9 if _block_on else 0.5))

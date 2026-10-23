@@ -199,6 +199,7 @@ func _setup_input_map() -> void:
 	_add_action("dash", [KEY_K, KEY_SHIFT])
 	_add_action("block", [KEY_L, KEY_CTRL])
 	_add_action("throw", [KEY_U, KEY_F])
+	_add_action("weapon_toggle", [KEY_R])
 	_add_action("look_left", [KEY_Q])
 	_add_action("look_right", [KEY_E])
 	_add_action("toggle_panel", [KEY_P, KEY_TAB])

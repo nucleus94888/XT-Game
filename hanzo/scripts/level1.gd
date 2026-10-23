@@ -94,13 +94,14 @@ func _process(delta: float) -> void:
 			cam_rig.yaw = -PI / 2.0
 		if _walk_t > 1.7 and not _auto_done.has("grapple"):
 			_auto_done["grapple"] = true
-			player.request_throw()
+			player.request_hook()
 		if _walk_t > 2.4 and not _auto_done.has("shot_grapple"):
 			_auto_done["shot_grapple"] = true
 			_shot("grapple")
 		if _walk_t > 3.2 and not _auto_done.has("throw"):
 			_auto_done["throw"] = true
 			cam_rig.yaw = PI
+			player.toggle_weapon()
 			player.request_throw()
 		if _walk_t > 3.5 and not _auto_done.has("shot_throw"):
 			_auto_done["shot_throw"] = true
@@ -203,9 +204,6 @@ func _build_world() -> void:
 
 	# 屋頂與鉤繩點（立體路線）
 	_slab(0.0, -18.0, 6.8, 5.6, 2.75)
-	_grapple(Vector3(0.0, 3.05, -16.3))
-	_grapple(Vector3(8.75, 2.95, 18.8))
-	_grapple(Vector3(-8.0, 2.95, 3.2))
 
 	# 撤離點信標（暗殺後才亮）
 	_exit_beacon = Node3D.new()
@@ -262,10 +260,6 @@ func _slab(cx: float, cz: float, sx: float, sz: float, y: float) -> void:
 	sb.position = Vector3(cx, y, cz)
 
 
-func _grapple(p: Vector3) -> void:
-	var g := GrapplePoint.new()
-	add_child(g)
-	g.global_position = p
 
 
 # ---------------------------------------------------------------- 敵人

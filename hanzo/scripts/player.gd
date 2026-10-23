@@ -11,6 +11,7 @@ signal damaged(amount: int)
 signal stamina_changed(v: float, max_v: float)
 signal exhausted
 signal shuriken_changed(n: int)
+signal weapon_changed(mode: int)
 
 enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE }
 
@@ -46,8 +47,22 @@ var _stam_delay := 0.0
 var _exhausted := false
 ## 手裡劍數量
 var shuriken := 8
-## 目前可鉤的鉤繩點（HUD 用來切換第四鍵文字）
-var grapple_target: Node3D = null
+## 武器模式與瞄準
+const WEAPON_SWORD := 0
+const WEAPON_SHURIKEN := 1
+const AIM_NONE := 0
+const AIM_SHURIKEN := 1
+const AIM_HOOK := 2
+var weapon_mode := WEAPON_SWORD
+var aim_mode := AIM_NONE
+var aim_dir := Vector3.FORWARD
+var _aim_t := 0.0
+var _aim_target: Node3D = null
+var _hook_ok := false
+var _hook_pos := Vector3.ZERO
+var _reticle: Node3D
+var _reticle_mat: StandardMaterial3D
+var _reticle_label: Label3D
 ## 是否站在燈光下（關卡每幀更新；敵人視野據此縮放）
 var in_light := true
 var _grapple_t := 0.0
@@ -102,6 +117,7 @@ func _ready() -> void:
 	_sfx_deflect = Sfx.player(self, "deflect", -2.0, 1.05, 1.08)
 	add_to_group("player")
 	_build_spark()
+	_build_reticle()
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -116,18 +132,52 @@ func _ready() -> void:
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev.is_action_pressed("attack"):
-		request_attack()
+		on_attack_down()
+	elif ev.is_action_released("attack"):
+		on_attack_up()
 	elif ev.is_action_pressed("dash"):
 		request_dash()
 	elif ev.is_action_pressed("throw"):
-		request_throw()
+		on_hook_down()
+	elif ev.is_action_released("throw"):
+		on_hook_up()
+	elif ev.is_action_pressed("weapon_toggle"):
+		toggle_weapon()
 	elif ev.is_action_pressed("block"):
 		set_block(true)
 	elif ev.is_action_released("block"):
 		set_block(false)
 
 
-## 攻擊鍵：空閒/閃步中立刻出刀；攻擊中則排隊，收刀到一半自動接下一段。
+## 攻擊鍵：刀模式按下即斬；手裡劍模式按住瞄準、放開射出
+func on_attack_down() -> void:
+	if weapon_mode == WEAPON_SHURIKEN:
+		_begin_aim(AIM_SHURIKEN)
+	else:
+		request_attack()
+
+
+func on_attack_up() -> void:
+	if aim_mode == AIM_SHURIKEN:
+		_release_aim()
+
+
+## 鉤繩鍵：按住瞄準牆頂／屋頂，放開射出
+func on_hook_down() -> void:
+	_begin_aim(AIM_HOOK)
+
+
+func on_hook_up() -> void:
+	if aim_mode == AIM_HOOK:
+		_release_aim()
+
+
+func toggle_weapon() -> void:
+	weapon_mode = WEAPON_SHURIKEN if weapon_mode == WEAPON_SWORD else WEAPON_SWORD
+	weapon_changed.emit(weapon_mode)
+
+
+## 刀：空閒/閃步中立刻出刀；攻擊中則排隊，收刀到一半自動接下一段。
 func request_attack() -> void:
 	if state == State.FREE and not is_on_floor() and _try_plunge():
 		return
@@ -139,18 +189,170 @@ func request_attack() -> void:
 				_start_attack()
 
 
-## 第四鍵：有鉤繩點就鉤，否則投手裡劍
+## 自動試玩用：快速丟手裡劍／快速鉤（瞄準鏡頭正前方）
 func request_throw() -> void:
-	if grapple_target != null and state in [State.FREE, State.BLOCK, State.DASH]:
-		_start_grapple(grapple_target)
-	else:
-		_throw()
+	_begin_aim(AIM_SHURIKEN)
+	_release_aim()
 
 
-## 手裡劍：自動瞄準鏡頭前方最近的敵人，沒有就往面向丟
-func _throw() -> void:
-	if not state in [State.FREE, State.BLOCK, State.DASH]:
+func request_hook() -> void:
+	_begin_aim(AIM_HOOK)
+	_release_aim()
+
+
+# ---------------------------------------------------------------- 瞄準
+
+func _begin_aim(kind: int) -> void:
+	if not state in [State.FREE, State.BLOCK]:
 		return
+	if kind == AIM_SHURIKEN and shuriken <= 0:
+		exhausted.emit()
+		return
+	if state == State.BLOCK:
+		state = State.FREE
+	aim_mode = kind
+	_aim_t = 0.0
+	_aim_target = null
+	_hook_ok = false
+	_reticle.visible = true
+	_tick_aim(0.0)
+
+
+## 瞄準中：搖桿＝瞄準方向（不推＝鏡頭正前方），人物停下並面向瞄準方向
+func _tick_aim(delta: float) -> void:
+	_aim_t += delta
+	velocity.x = move_toward(velocity.x, 0.0, 40.0 * delta)
+	velocity.z = move_toward(velocity.z, 0.0, 40.0 * delta)
+	var v2 := Vector2.ZERO
+	if touch != null:
+		v2 = touch.move_vector
+	var kb := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if kb.length_squared() > v2.length_squared():
+		v2 = kb
+	var cam_f: Vector3 = cam_rig.forward() if cam_rig != null and cam_rig.has_method("forward") else _forward()
+	var yaw: float = cam_rig.yaw if cam_rig != null else 0.0
+	aim_dir = Vector3(v2.x, 0.0, v2.y).rotated(Vector3.UP, yaw).normalized() if v2.length() > 0.2 else cam_f
+	_facing = atan2(-aim_dir.x, -aim_dir.z)
+	visual.rotation.y = _facing
+	var pose := Vector3(-20.0, -60.0, 0.0) if aim_mode == AIM_SHURIKEN else Vector3(-70.0, 0.0, 0.0)
+	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(pose, 1.0 - exp(-20.0 * delta))
+	if aim_mode == AIM_SHURIKEN:
+		_aim_target = _pick_enemy(aim_dir, 0.75, 16.0)
+		if _aim_target:
+			_reticle_set(_aim_target.global_position + Vector3(0.0, 1.1, 0.0), Color(1.0, 0.85, 0.3), "鎖定")
+		else:
+			_reticle_set(global_position + Vector3(0.0, 1.2, 0.0) + aim_dir * 7.0, Color(1.0, 1.0, 1.0, 0.8), "")
+	else:
+		var r := _hook_probe(aim_dir)
+		_hook_ok = r.ok
+		_hook_pos = r.pos
+		_reticle_set(r.pos, Color(0.5, 1.0, 0.6) if r.ok else Color(1.0, 0.3, 0.3), "鉤" if r.ok else "✕")
+
+
+func _release_aim() -> void:
+	var kind := aim_mode
+	aim_mode = AIM_NONE
+	_reticle.visible = false
+	if state != State.FREE:
+		return
+	if kind == AIM_SHURIKEN:
+		_throw(aim_dir, _aim_target)
+	elif kind == AIM_HOOK:
+		if _hook_ok:
+			_start_grapple_to(_hook_pos)
+		else:
+			exhausted.emit()
+	_aim_target = null
+
+
+## 瞄準方向上角度最小、距離最近的活敵人
+func _pick_enemy(dir: Vector3, min_dot: float, max_dist: float) -> Node3D:
+	var best: Node3D = null
+	var best_score := INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node3D) or e.get("state") == null or e.state == e.State.DEAD:
+			continue
+		var d: Vector3 = e.global_position - global_position
+		d.y = 0.0
+		var dist := d.length()
+		if dist < 0.5 or dist > max_dist:
+			continue
+		var dot := dir.dot(d.normalized())
+		if dot < min_dot:
+			continue
+		var score := dist * (2.0 - dot)
+		if score < best_score:
+			best = e
+			best_score = score
+	return best
+
+
+## 鉤繩落點探測：水平射線打到牆 → 從牆頂上方往下找站得住的平面
+func _hook_probe(dir: Vector3) -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
+	for h in [1.4, 2.75, 0.6]:
+		var from := global_position + Vector3(0.0, h, 0.0)
+		var q := PhysicsRayQueryParameters3D.create(from, from + flat * 13.0, 1)
+		q.exclude = [get_rid()]
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			continue
+		var p: Vector3 = hit.position
+		var top_from := p + flat * 0.7 + Vector3(0.0, 9.0, 0.0)
+		var q2 := PhysicsRayQueryParameters3D.create(top_from, top_from + Vector3(0.0, -10.0, 0.0), 1)
+		q2.exclude = [get_rid()]
+		var h2 := space.intersect_ray(q2)
+		if h2.is_empty():
+			continue
+		var top: Vector3 = h2.position
+		var dy := top.y - global_position.y
+		if dy < 0.8 or dy > 7.0 or (h2.normal as Vector3).y < 0.7:
+			continue
+		return {"ok": true, "pos": top + Vector3(0.0, 0.05, 0.0)}
+	return {"ok": false, "pos": global_position + flat * 4.0 + Vector3(0.0, 1.5, 0.0)}
+
+
+func _build_reticle() -> void:
+	_reticle = Node3D.new()
+	_reticle.top_level = true
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.32
+	tm.outer_radius = 0.46
+	_reticle_mat = StandardMaterial3D.new()
+	_reticle_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_reticle_mat.albedo_color = Color(1, 1, 1, 0.8)
+	_reticle_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_reticle_mat.no_depth_test = true
+	_reticle_mat.render_priority = 5
+	ring.mesh = tm
+	ring.material_override = _reticle_mat
+	ring.rotation.x = PI / 2.0
+	_reticle.add_child(ring)
+	_reticle_label = Label3D.new()
+	_reticle_label.font = Fx.ui_font
+	_reticle_label.font_size = 56
+	_reticle_label.pixel_size = 0.012
+	_reticle_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_reticle_label.no_depth_test = true
+	_reticle_label.outline_size = 10
+	_reticle_label.position = Vector3(0.0, 0.7, 0.0)
+	_reticle.add_child(_reticle_label)
+	_reticle.visible = false
+	add_child(_reticle)
+
+
+func _reticle_set(pos: Vector3, color: Color, text: String) -> void:
+	_reticle.global_position = pos
+	_reticle_mat.albedo_color = color
+	_reticle_label.text = text
+	_reticle_label.modulate = color
+	_reticle_label.visible = text != ""
+
+
+## 手裡劍：往瞄準方向射出；有鎖定目標就射向目標胸口
+func _throw(dir: Vector3, target: Node3D) -> void:
 	if shuriken <= 0:
 		exhausted.emit()
 		return
@@ -159,31 +361,17 @@ func _throw() -> void:
 	shuriken -= 1
 	shuriken_changed.emit(shuriken)
 	var from := global_position + Vector3(0.0, 1.3, 0.0)
-	var dir := _forward()
-	var cam_f: Vector3 = cam_rig.forward() if cam_rig != null and cam_rig.has_method("forward") else _forward()
-	var best: Node3D = null
-	var best_d := 15.0
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if not (e is Node3D) or e.get("state") == null or e.state == e.State.DEAD:
-			continue
-		var d: Vector3 = e.global_position - global_position
-		d.y = 0.0
-		var dist := d.length()
-		if dist < best_d and dist > 0.5 and (cam_f.dot(d.normalized()) > 0.35 or _forward().dot(d.normalized()) > 0.5):
-			best = e
-			best_d = dist
-	if best:
-		dir = ((best.global_position + Vector3(0.0, 1.1, 0.0)) - from).normalized()
-	else:
-		dir = cam_f
-	var flat := Vector3(dir.x, 0.0, dir.z)
+	var d := dir
+	if target:
+		d = ((target.global_position + Vector3(0.0, 1.1, 0.0)) - from).normalized()
+	var flat := Vector3(d.x, 0.0, d.z)
 	if flat.length() > 0.01:
 		_facing = atan2(-flat.x, -flat.z)
 		visual.rotation.y = _facing
 	var s := Shuriken.new()
 	s.src = self
 	get_tree().current_scene.add_child(s)
-	s.launch(from + dir * 0.6, dir)
+	s.launch(from + d * 0.6, d)
 	sfx_swing.set_meta("sfx_base", 1.35)
 	Sfx.play(sfx_swing)
 	sfx_swing.set_meta("sfx_base", 1.0)
@@ -193,15 +381,15 @@ func _throw() -> void:
 	sword_pivot.rotation_degrees = Vector3(-30.0, -40.0, 0.0)
 	_guard_tw = create_tween()
 	_guard_tw.set_ignore_time_scale(true)
-	_guard_tw.tween_property(sword_pivot, "rotation_degrees", GUARD_ROT if state == State.BLOCK else Vector3.ZERO, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_guard_tw.tween_property(sword_pivot, "rotation_degrees", Vector3.ZERO, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
-## 鉤繩：往鉤繩點飛一道弧線（0.5 秒，無敵），落在點的落點
-func _start_grapple(p: Node3D) -> void:
+## 鉤繩：往落點飛一道弧線（0.5 秒，無敵）
+func _start_grapple_to(dest: Vector3) -> void:
 	state = State.GRAPPLE
 	_grapple_t = 0.0
 	_grapple_from = global_position
-	_grapple_to = p.landing() if p.has_method("landing") else p.global_position
+	_grapple_to = dest
 	_invuln = true
 	_queued = false
 	trail.visible = false
@@ -268,29 +456,6 @@ func _try_plunge() -> bool:
 func heal(v: int) -> void:
 	hp = mini(hp + v, MAX_HP)
 	hp_changed.emit(hp)
-
-
-## 找鏡頭前方、比自己高的最近鉤繩點
-func _find_grapple() -> void:
-	var cam_f: Vector3 = cam_rig.forward() if cam_rig != null and cam_rig.has_method("forward") else _forward()
-	var best: Node3D = null
-	var best_d := 12.0
-	for p in get_tree().get_nodes_in_group("grapple"):
-		if not (p is Node3D):
-			continue
-		var d: Vector3 = p.global_position - global_position
-		var dy := d.y
-		d.y = 0.0
-		var dist := d.length()
-		if dy > 0.8 and dist < best_d and dist > 1.0 and cam_f.dot(d.normalized()) > 0.1:
-			best = p
-			best_d = dist
-	if best != grapple_target:
-		if grapple_target and grapple_target.get("highlight") != null:
-			grapple_target.highlight = false
-		grapple_target = best
-		if grapple_target and grapple_target.get("highlight") != null:
-			grapple_target.highlight = true
 
 
 ## 體力：攻擊、閃步、普通格擋都要花；耗盡會「疲憊」，回到 35 以上才解除
@@ -390,12 +555,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0.0
 	move_and_slide()
-	if state in [State.FREE, State.BLOCK, State.DASH]:
-		_find_grapple()
-	elif grapple_target != null:
-		if grapple_target.get("highlight") != null:
-			grapple_target.highlight = false
-		grapple_target = null
+	if aim_mode != AIM_NONE and state != State.FREE:
+		aim_mode = AIM_NONE
+		_reticle.visible = false
 	if state != State.ATTACK and _combo_window > 0.0:
 		_combo_window -= delta
 		if _combo_window <= 0.0:
@@ -427,6 +589,9 @@ func _face_input(input: Vector3, snap: bool) -> void:
 
 
 func _tick_free(delta: float, input: Vector3) -> void:
+	if aim_mode != AIM_NONE:
+		_tick_aim(delta)
+		return
 	var dir := input
 	velocity.x = move_toward(velocity.x, dir.x * SPEED, ACCEL * delta)
 	velocity.z = move_toward(velocity.z, dir.z * SPEED, ACCEL * delta)
