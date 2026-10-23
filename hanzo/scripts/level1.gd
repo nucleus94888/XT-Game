@@ -39,10 +39,12 @@ var _stealth_kills := 0
 var _kills := 0
 var _alert_count := 0
 var _exit_beacon: Node3D
+var _lanterns: Array = []
 var _shot_dir := ""
 var _walk := false
 var _walk_t := 0.0
 var _walk_shots := 0
+var _auto_done := {}
 
 
 func _ready() -> void:
@@ -84,19 +86,40 @@ func _process(delta: float) -> void:
 	if not _finished and not _dead:
 		_time += delta
 	if _walk:
-		# 自動試玩：走進第一院 → 停下讓敵人發現 → 揮三刀 → 每 2 秒截一張
+		# 自動試玩：走到東側牆頂鉤繩點下方 → 轉鏡頭朝東 → 鉤上牆頂 → 投手裡劍 → 每段截圖
 		_walk_t += delta
-		hud.touch.move_vector = Vector2(0.0, -1.0) if _walk_t < 3.2 else Vector2.ZERO
-		if _walk_t > 5.5 and _walk_shots < 1:
-			player.request_attack()
-		if _walk_t > 2.0 * (_walk_shots + 1) and _walk_shots < 5:
-			_walk_shots += 1
-			_shot("walk%d" % _walk_shots)
-		if _walk_t > 11.5:
+		hud.touch.move_vector = Vector2(0.0, -1.0) if _walk_t < 1.3 else Vector2.ZERO
+		if _walk_t > 1.35 and not _auto_done.has("look"):
+			_auto_done["look"] = true
+			cam_rig.yaw = -PI / 2.0
+		if _walk_t > 1.7 and not _auto_done.has("grapple"):
+			_auto_done["grapple"] = true
+			player.request_throw()
+		if _walk_t > 2.4 and not _auto_done.has("shot_grapple"):
+			_auto_done["shot_grapple"] = true
+			_shot("grapple")
+		if _walk_t > 3.2 and not _auto_done.has("throw"):
+			_auto_done["throw"] = true
+			cam_rig.yaw = PI
+			player.request_throw()
+		if _walk_t > 3.5 and not _auto_done.has("shot_throw"):
+			_auto_done["shot_throw"] = true
+			_shot("throw")
+		if _walk_t > 6.0 and not _auto_done.has("shot_end"):
+			_auto_done["shot_end"] = true
+			_shot("end")
+		if _walk_t > 6.5:
 			get_tree().quit()
 
 
 func _physics_process(_delta: float) -> void:
+	# 玩家是否站在燈光下（敵人視野據此縮放）
+	var lit := false
+	for l in _lanterns:
+		if l.lights(player.global_position):
+			lit = true
+			break
+	player.in_light = lit
 	if _target_dead and not _finished and not _dead:
 		var d := player.global_position - EXIT_POS
 		d.y = 0.0
@@ -173,7 +196,16 @@ func _build_world() -> void:
 
 	# 燈籠
 	for p in LANTERNS:
-		_lantern(p)
+		var l := Lantern.new()
+		add_child(l)
+		l.global_position = p
+		_lanterns.append(l)
+
+	# 屋頂與鉤繩點（立體路線）
+	_slab(0.0, -18.0, 6.8, 5.6, 2.75)
+	_grapple(Vector3(0.0, 3.05, -16.3))
+	_grapple(Vector3(8.75, 2.95, 18.8))
+	_grapple(Vector3(-8.0, 2.95, 3.2))
 
 	# 撤離點信標（暗殺後才亮）
 	_exit_beacon = Node3D.new()
@@ -208,33 +240,32 @@ func _build_world() -> void:
 	region.bake_navigation_mesh(false)
 
 
-func _lantern(p: Vector3) -> void:
-	var post := MeshInstance3D.new()
+## 可站立的平板（屋頂）
+func _slab(cx: float, cz: float, sx: float, sz: float, y: float) -> void:
+	var sb := StaticBody3D.new()
+	sb.collision_layer = 1
+	sb.collision_mask = 0
+	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
-	bm.size = Vector3(0.18, 2.2, 0.18)
-	var pmat := StandardMaterial3D.new()
-	pmat.albedo_color = Color(0.25, 0.2, 0.15)
-	post.mesh = bm
-	post.material_override = pmat
-	post.position = p + Vector3(0, 1.1, 0)
-	add_child(post)
-	var lamp := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.28
-	sm.height = 0.56
-	var lmat := StandardMaterial3D.new()
-	lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	lmat.albedo_color = Color(1.0, 0.8, 0.5)
-	lamp.mesh = sm
-	lamp.material_override = lmat
-	lamp.position = p + Vector3(0, 2.35, 0)
-	add_child(lamp)
-	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.78, 0.5)
-	light.light_energy = 2.2
-	light.omni_range = 11.0
-	light.position = p + Vector3(0, 2.4, 0)
-	add_child(light)
+	bm.size = Vector3(sx, 0.3, sz)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.22, 0.18, 0.16)
+	mi.mesh = bm
+	mi.material_override = mat
+	sb.add_child(mi)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = bm.size
+	cs.shape = bs
+	sb.add_child(cs)
+	add_child(sb)
+	sb.position = Vector3(cx, y, cz)
+
+
+func _grapple(p: Vector3) -> void:
+	var g := GrapplePoint.new()
+	add_child(g)
+	g.global_position = p
 
 
 # ---------------------------------------------------------------- 敵人
@@ -268,6 +299,11 @@ func _on_enemy_alerted(_e: Enemy) -> void:
 
 func _on_enemy_died(e: Enemy, stealth: bool) -> void:
 	_kills += 1
+	# 忍者口糧：目標必掉，其他 35% 機率
+	if e == _target or randf() < 0.35:
+		var r := Ration.new()
+		add_child(r)
+		r.global_position = e.global_position
 	if stealth:
 		_stealth_kills += 1
 		hud.add_kill("暗殺", Color(0.85, 0.85, 0.95))

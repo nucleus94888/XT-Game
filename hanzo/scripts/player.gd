@@ -10,8 +10,9 @@ signal parried
 signal damaged(amount: int)
 signal stamina_changed(v: float, max_v: float)
 signal exhausted
+signal shuriken_changed(n: int)
 
-enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD }
+enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE }
 
 const SPEED := 6.2
 const ACCEL := 34.0
@@ -43,6 +44,15 @@ var hp := MAX_HP
 var stamina := MAX_STAM
 var _stam_delay := 0.0
 var _exhausted := false
+## 手裡劍數量
+var shuriken := 8
+## 目前可鉤的鉤繩點（HUD 用來切換第四鍵文字）
+var grapple_target: Node3D = null
+## 是否站在燈光下（關卡每幀更新；敵人視野據此縮放）
+var in_light := true
+var _grapple_t := 0.0
+var _grapple_from := Vector3.ZERO
+var _grapple_to := Vector3.ZERO
 
 var _facing := 0.0
 var _combo_idx := 0
@@ -109,6 +119,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		request_attack()
 	elif ev.is_action_pressed("dash"):
 		request_dash()
+	elif ev.is_action_pressed("throw"):
+		request_throw()
 	elif ev.is_action_pressed("block"):
 		set_block(true)
 	elif ev.is_action_released("block"):
@@ -117,12 +129,168 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 ## 攻擊鍵：空閒/閃步中立刻出刀；攻擊中則排隊，收刀到一半自動接下一段。
 func request_attack() -> void:
+	if state == State.FREE and not is_on_floor() and _try_plunge():
+		return
 	match state:
 		State.ATTACK:
 			_queued = true
 		State.FREE, State.DASH, State.BLOCK:
 			if _spend(STAM_ATTACK[_combo_idx]):
 				_start_attack()
+
+
+## 第四鍵：有鉤繩點就鉤，否則投手裡劍
+func request_throw() -> void:
+	if grapple_target != null and state in [State.FREE, State.BLOCK, State.DASH]:
+		_start_grapple(grapple_target)
+	else:
+		_throw()
+
+
+## 手裡劍：自動瞄準鏡頭前方最近的敵人，沒有就往面向丟
+func _throw() -> void:
+	if not state in [State.FREE, State.BLOCK, State.DASH]:
+		return
+	if shuriken <= 0:
+		exhausted.emit()
+		return
+	if not _spend(8.0):
+		return
+	shuriken -= 1
+	shuriken_changed.emit(shuriken)
+	var from := global_position + Vector3(0.0, 1.3, 0.0)
+	var dir := _forward()
+	var cam_f: Vector3 = cam_rig.forward() if cam_rig != null and cam_rig.has_method("forward") else _forward()
+	var best: Node3D = null
+	var best_d := 15.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node3D) or e.get("state") == null or e.state == e.State.DEAD:
+			continue
+		var d: Vector3 = e.global_position - global_position
+		d.y = 0.0
+		var dist := d.length()
+		if dist < best_d and dist > 0.5 and (cam_f.dot(d.normalized()) > 0.35 or _forward().dot(d.normalized()) > 0.5):
+			best = e
+			best_d = dist
+	if best:
+		dir = ((best.global_position + Vector3(0.0, 1.1, 0.0)) - from).normalized()
+	else:
+		dir = cam_f
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	if flat.length() > 0.01:
+		_facing = atan2(-flat.x, -flat.z)
+		visual.rotation.y = _facing
+	var s := Shuriken.new()
+	s.src = self
+	get_tree().current_scene.add_child(s)
+	s.launch(from + dir * 0.6, dir)
+	sfx_swing.set_meta("sfx_base", 1.35)
+	Sfx.play(sfx_swing)
+	sfx_swing.set_meta("sfx_base", 1.0)
+	# 投擲手勢：刀臂往前一甩再回位
+	if _guard_tw and _guard_tw.is_valid():
+		_guard_tw.kill()
+	sword_pivot.rotation_degrees = Vector3(-30.0, -40.0, 0.0)
+	_guard_tw = create_tween()
+	_guard_tw.set_ignore_time_scale(true)
+	_guard_tw.tween_property(sword_pivot, "rotation_degrees", GUARD_ROT if state == State.BLOCK else Vector3.ZERO, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+## 鉤繩：往鉤繩點飛一道弧線（0.5 秒，無敵），落在點的落點
+func _start_grapple(p: Node3D) -> void:
+	state = State.GRAPPLE
+	_grapple_t = 0.0
+	_grapple_from = global_position
+	_grapple_to = p.landing() if p.has_method("landing") else p.global_position
+	_invuln = true
+	_queued = false
+	trail.visible = false
+	var flat := _grapple_to - _grapple_from
+	flat.y = 0.0
+	if flat.length() > 0.01:
+		_facing = atan2(-flat.x, -flat.z)
+		visual.rotation.y = _facing
+	sword_pivot.rotation_degrees = Vector3.ZERO
+	Sfx.play(sfx_dash)
+	Feel.kick(flat.normalized(), 0.25)
+
+
+func _tick_grapple(delta: float) -> void:
+	_grapple_t = minf(_grapple_t + delta / 0.5, 1.0)
+	var k := _grapple_t
+	var e := 1.0 - pow(1.0 - k, 2.0)
+	var p := _grapple_from.lerp(_grapple_to, e)
+	p.y += sin(k * PI) * 1.6
+	global_position = p
+	velocity = Vector3.ZERO
+	body.rotation.x = -0.5
+	if fmod(_grapple_t, 0.12) < delta / 0.5:
+		Fx.afterimage(body, Color(0.6, 0.8, 1.0, 0.3), 0.2)
+	if _grapple_t >= 1.0:
+		global_position = _grapple_to
+		_invuln = false
+		body.rotation.x = 0.0
+		state = _after_action()
+		Feel.shake(0.25)
+
+
+## 落下忍殺：空中按攻擊，對正下方附近未察覺的敵人一擊必殺
+func _try_plunge() -> bool:
+	var best: Node3D = null
+	var best_d := 2.4
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node3D) or not e.has_method("can_be_assassinated"):
+			continue
+		var d: Vector3 = e.global_position - global_position
+		var dy := -d.y
+		d.y = 0.0
+		if dy > 1.0 and d.length() < best_d and e.can_be_assassinated(self):
+			best = e
+			best_d = d.length()
+	if best == null:
+		return false
+	var back: Vector3 = global_position - best.global_position
+	back.y = 0.0
+	back = back.normalized() if back.length() > 0.01 else -_forward()
+	global_position = best.global_position + back * 0.8 + Vector3(0.0, 0.1, 0.0)
+	velocity = Vector3.ZERO
+	_facing = atan2(back.x, back.z)
+	visual.rotation.y = _facing
+	var info := {"dmg": 999, "dir": -back, "kb": 2.0, "heavy": true, "pos": best.global_position + Vector3(0.0, 1.4, 0.0), "src": self}
+	best.assassinate(info)
+	Feel.shake(0.9)
+	Feel.kick(-back, 0.5)
+	hit_landed.emit(info)
+	sword_pivot.rotation_degrees = Vector3(70.0, 0.0, 0.0)
+	return true
+
+
+func heal(v: int) -> void:
+	hp = mini(hp + v, MAX_HP)
+	hp_changed.emit(hp)
+
+
+## 找鏡頭前方、比自己高的最近鉤繩點
+func _find_grapple() -> void:
+	var cam_f: Vector3 = cam_rig.forward() if cam_rig != null and cam_rig.has_method("forward") else _forward()
+	var best: Node3D = null
+	var best_d := 12.0
+	for p in get_tree().get_nodes_in_group("grapple"):
+		if not (p is Node3D):
+			continue
+		var d: Vector3 = p.global_position - global_position
+		var dy := d.y
+		d.y = 0.0
+		var dist := d.length()
+		if dy > 0.8 and dist < best_d and dist > 1.0 and cam_f.dot(d.normalized()) > 0.1:
+			best = p
+			best_d = dist
+	if best != grapple_target:
+		if grapple_target and grapple_target.get("highlight") != null:
+			grapple_target.highlight = false
+		grapple_target = best
+		if grapple_target and grapple_target.get("highlight") != null:
+			grapple_target.highlight = true
 
 
 ## 體力：攻擊、閃步、普通格擋都要花；耗盡會「疲憊」，回到 35 以上才解除
@@ -212,12 +380,22 @@ func _physics_process(delta: float) -> void:
 		State.DEAD:
 			velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
 			velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
+		State.GRAPPLE:
+			_tick_grapple(delta)
 	_tick_stamina(delta)
-	if not is_on_floor():
+	if state == State.GRAPPLE:
+		velocity = Vector3.ZERO
+	elif not is_on_floor():
 		velocity.y -= 20.0 * delta
 	else:
 		velocity.y = 0.0
 	move_and_slide()
+	if state in [State.FREE, State.BLOCK, State.DASH]:
+		_find_grapple()
+	elif grapple_target != null:
+		if grapple_target.get("highlight") != null:
+			grapple_target.highlight = false
+		grapple_target = null
 	if state != State.ATTACK and _combo_window > 0.0:
 		_combo_window -= delta
 		if _combo_window <= 0.0:

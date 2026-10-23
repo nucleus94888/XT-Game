@@ -39,14 +39,14 @@ func _get_label() -> Label3D:
 	return l
 
 
-func damage_number(pos: Vector3, dmg: int, heavy: bool) -> void:
+func damage_number(pos: Vector3, dmg: int, heavy: bool, color: Color = Color(0, 0, 0, 0), text: String = "") -> void:
 	var l := _get_label()
 	if l == null:
 		return
-	l.text = str(dmg)
+	l.text = text if text != "" else str(dmg)
 	l.font_size = 96 if heavy else 64
 	l.pixel_size = 0.012 * Feel.get_p("dmg_scale")
-	l.modulate = Color(1.0, 0.82, 0.35) if heavy else Color(1.0, 1.0, 1.0)
+	l.modulate = color if color.a > 0.0 else (Color(1.0, 0.82, 0.35) if heavy else Color(1.0, 1.0, 1.0))
 	l.global_position = pos + Vector3(randf_range(-0.25, 0.25), 0.2, 0.0)
 	l.scale = Vector3.ONE * (1.8 if heavy else 1.5)
 	l.visible = true

@@ -6,6 +6,7 @@ extends Control
 signal attack_pressed
 signal dash_pressed
 signal block_changed(on: bool)
+signal throw_pressed
 ## 右側空白處拖曳：轉視角（螢幕像素位移）
 signal look_delta(delta: Vector2)
 
@@ -13,6 +14,7 @@ const JOY_R := 78.0
 const ATK_R := 70.0
 const DASH_R := 50.0
 const BLOCK_R := 50.0
+const THROW_R := 44.0
 
 var move_vector := Vector2.ZERO
 ## 這些控制項可見且覆蓋到的區域，不會觸發搖桿（例如手感面板）
@@ -25,6 +27,10 @@ var _btn_touch := {}
 var _atk_flash := 0.0
 var _dash_flash := 0.0
 var _block_on := false
+var _throw_flash := 0.0
+## 第四鍵顯示文字（投＝手裡劍，鉤＝鉤繩）與剩餘手裡劍數
+var throw_label := "投"
+var throw_count := 0
 var _look_idx := -1
 var _look_last := Vector2.ZERO
 
@@ -49,6 +55,10 @@ func _dash_center() -> Vector2:
 
 func _block_center() -> Vector2:
 	return Vector2(size.x - 130.0, size.y - 300.0)
+
+
+func _throw_center() -> Vector2:
+	return Vector2(size.x - 300.0, size.y - 235.0)
 
 
 func _blocked(pos: Vector2) -> bool:
@@ -81,6 +91,12 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_btn_touch[t.index] = "dash"
 				_dash_flash = 1.0
 				dash_pressed.emit()
+				get_viewport().set_input_as_handled()
+				return
+			if t.position.distance_to(_throw_center()) < THROW_R * 1.4:
+				_btn_touch[t.index] = "throw"
+				_throw_flash = 1.0
+				throw_pressed.emit()
 				get_viewport().set_input_as_handled()
 				return
 			if t.position.distance_to(_block_center()) < BLOCK_R * 1.45:
@@ -134,6 +150,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_atk_flash = maxf(_atk_flash - delta * 5.0, 0.0)
 	_dash_flash = maxf(_dash_flash - delta * 5.0, 0.0)
+	_throw_flash = maxf(_throw_flash - delta * 5.0, 0.0)
 	queue_redraw()
 
 
@@ -157,6 +174,15 @@ func _draw() -> void:
 	draw_arc(dc, DASH_R, 0.0, TAU, 48, Color(0.85, 0.9, 1, 0.85), 2.5, true)
 	if font:
 		draw_string(font, dc + Vector2(-DASH_R, 12.0), "閃", HORIZONTAL_ALIGNMENT_CENTER, DASH_R * 2.0, 34, Color(1, 1, 1, 0.95))
+	# 投／鉤
+	var tc := _throw_center()
+	var grapple := throw_label == "鉤"
+	draw_circle(tc, THROW_R, (Color(0.9, 0.75, 0.25, 0.75 + 0.25 * _throw_flash) if grapple else Color(0.45, 0.3, 0.6, 0.5 + 0.4 * _throw_flash)))
+	draw_arc(tc, THROW_R, 0.0, TAU, 48, Color(1, 0.95, 0.85, 0.9), 2.5, true)
+	if font:
+		draw_string(font, tc + Vector2(-THROW_R, 10.0), throw_label, HORIZONTAL_ALIGNMENT_CENTER, THROW_R * 2.0, 30, Color(1, 1, 1, 0.95))
+		if not grapple:
+			draw_string(font, tc + Vector2(-THROW_R, 30.0), str(throw_count), HORIZONTAL_ALIGNMENT_CENTER, THROW_R * 2.0, 14, Color(1, 1, 1, 0.8))
 	# 格擋（按住時亮起）
 	var bc := _block_center()
 	draw_circle(bc, BLOCK_R, Color(0.18, 0.5, 0.32, 0.9 if _block_on else 0.5))

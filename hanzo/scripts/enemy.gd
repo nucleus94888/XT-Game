@@ -10,7 +10,7 @@ signal died(enemy: Enemy, stealth: bool)
 signal alerted(enemy: Enemy)
 
 enum Kind { ASHIGARU, ARCHER, SAMURAI, TARGET }
-enum State { IDLE, PATROL, SUSPICIOUS, ALERT, ATTACK, STAGGER, BROKEN, DEAD }
+enum State { IDLE, PATROL, SUSPICIOUS, ALERT, ATTACK, STAGGER, BROKEN, DEAD, SEARCH }
 
 const SPEC := {
 	Kind.ASHIGARU: {"name": "足輕", "hp": 40, "posture": 60.0, "speed": 4.0, "color": Color(0.36, 0.42, 0.55), "reach": 2.1, "dmg": 12, "windup": 0.45, "strike": 0.14, "cd": 1.5, "weapon": "spear", "view": 7.0},
@@ -39,6 +39,10 @@ var _player: Node3D
 var _facing := 0.0
 var _detect := 0.0
 var _lost_t := 0.0
+## 搜索：最後看到／聽到的位置
+var _last_known := Vector3.ZERO
+var _search_t := 0.0
+var _search_look := 0.0
 var _patrol_i := 0
 var _wait_t := 0.0
 var _attack_cd := 1.0
@@ -301,6 +305,8 @@ func _physics_process(delta: float) -> void:
 			_do_patrol(delta)
 		State.SUSPICIOUS:
 			_stop()
+		State.SEARCH:
+			_do_search(delta)
 		State.ALERT:
 			_do_alert(delta)
 		State.ATTACK:
@@ -370,32 +376,73 @@ func _perceive(delta: float) -> void:
 	var to := _player.global_position - global_position
 	to.y = 0.0
 	var dist := to.length()
+	# 玩家不在燈光下 → 視野縮短（熄燈籠就是為了這個）
+	var view := float(spec.view) * (1.0 if _player_lit() else 0.6)
 	if state == State.ALERT:
-		if dist < float(spec.view) * 1.6 and _los():
+		if dist < view * 1.6 and _los():
 			_lost_t = 0.0
+			_last_known = _player.global_position
 		else:
 			_lost_t += delta
-			if _lost_t > 7.0:
+			if _lost_t > 2.5:
 				_lost_t = 0.0
-				_detect = 0.3
 				_guard = false
-				state = State.PATROL if patrol.size() > 0 else State.IDLE
+				_start_search(_last_known)
 		return
 	var sees := false
-	if dist < float(spec.view):
+	if dist < view:
 		if _forward().dot(to.normalized()) > VIEW_COS or dist < 1.6:
 			sees = _los()
 	if sees:
-		_detect = minf(_detect + delta * (2.4 if dist < 3.5 else 1.1), 1.0)
+		var rate := 2.4 if dist < 3.5 else 1.1
+		if state == State.SEARCH:
+			rate *= 2.0
+		_detect = minf(_detect + delta * rate, 1.0)
 		_facing = lerp_angle(_facing, _yaw_to(to), 1.0 - exp(-6.0 * delta))
 		if _detect >= 1.0:
 			_go_alert()
-		elif state != State.SUSPICIOUS:
+		elif state != State.SUSPICIOUS and state != State.SEARCH:
 			state = State.SUSPICIOUS
 	else:
 		_detect = maxf(_detect - delta * 0.5, 0.0)
 		if state == State.SUSPICIOUS and _detect <= 0.0:
 			state = State.PATROL if patrol.size() > 0 else State.IDLE
+
+
+func _player_lit() -> bool:
+	if _player == null:
+		return true
+	var v = _player.get("in_light")
+	return true if v == null else bool(v)
+
+
+## 搜索：走到最後看到／聽到的位置，左右張望幾秒，沒發現就回巡邏
+func _start_search(pos: Vector3) -> void:
+	if state in [State.DEAD, State.ATTACK, State.STAGGER, State.BROKEN]:
+		return
+	state = State.SEARCH
+	_last_known = pos
+	_search_t = 0.0
+	_search_look = 0.0
+	_detect = maxf(_detect, 0.5)
+	_guard = false
+	_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
+
+
+func _do_search(delta: float) -> void:
+	_search_t += delta
+	var d := _last_known - global_position
+	d.y = 0.0
+	if d.length() > 1.2 and _search_t < 10.0:
+		_move_to(_last_known, float(spec.speed) * 0.75, delta)
+		return
+	_stop()
+	_search_look += delta
+	_facing += sin(_search_look * 1.6) * delta * 1.4
+	if _search_look > 5.0:
+		_detect = 0.0
+		mark.visible = false
+		state = State.PATROL if patrol.size() > 0 else State.IDLE
 
 
 func _go_alert() -> void:
@@ -412,17 +459,18 @@ func _go_alert() -> void:
 
 
 func hear_shout(pos: Vector3) -> void:
-	if state in [State.IDLE, State.PATROL, State.SUSPICIOUS] and global_position.distance_to(pos) < SHOUT_RANGE:
+	if state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH] and global_position.distance_to(pos) < SHOUT_RANGE:
 		_go_alert()
 
 
+## 聽到聲響：未警戒 → 走過去查看（引開用）；警戒中 → 更新最後已知位置
 func hear_noise(pos: Vector3, radius: float) -> void:
-	if state in [State.IDLE, State.PATROL] and global_position.distance_to(pos) < radius:
-		_detect = maxf(_detect, 0.55)
-		state = State.SUSPICIOUS
-		var to := pos - global_position
-		to.y = 0.0
-		_facing = _yaw_to(to)
+	if global_position.distance_to(pos) >= radius:
+		return
+	if state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]:
+		_start_search(pos)
+	elif state == State.ALERT:
+		_last_known = pos
 
 
 func _show_mark(text: String, color: Color, dur: float) -> void:
@@ -575,9 +623,12 @@ func _shoot() -> void:
 
 # ---------------------------------------------------------------- 受擊
 
+## 暗殺條件：未警戒（巡邏／起疑／搜索中）且在背後，或從上方落下
 func can_be_assassinated(by: Node3D) -> bool:
 	if state in [State.DEAD, State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]:
 		return false
+	if by.global_position.y - global_position.y > 1.0:
+		return true
 	var to := by.global_position - global_position
 	to.y = 0.0
 	return _forward().dot(to.normalized()) < -0.15
@@ -630,7 +681,13 @@ func take_hit(info: Dictionary) -> void:
 		if posture >= float(spec.posture):
 			_break_posture()
 		return
-	if not alerted_once or state in [State.IDLE, State.PATROL, State.SUSPICIOUS]:
+	# 手裡劍打斷弓兵拉弓
+	if info.get("shuriken", false) and state == State.ATTACK and kind == Kind.ARCHER and not _struck:
+		state = State.STAGGER
+		_stun_t = 0.6
+		weapon.rotation = Vector3.ZERO
+		_set_emission(Color(1, 1, 1), 0.0)
+	if not alerted_once or state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]:
 		_go_alert()
 	hp -= int(info.dmg)
 	posture += 16.0 if heavy else 8.0
@@ -767,7 +824,7 @@ func _update_visual(delta: float) -> void:
 	var ratio := 0.0
 	var color := Color(1, 1, 1)
 	match state:
-		State.SUSPICIOUS:
+		State.SUSPICIOUS, State.SEARCH:
 			ratio = _detect
 			color = Color(1.0, 1.0, 1.0)
 		State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN:
@@ -784,7 +841,7 @@ func _update_visual(delta: float) -> void:
 	stam_fill.visible = state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]
 	stam_fill.scale.x = maxf(sr, 0.001)
 	stam_fill.position.x = -0.62 * (1.0 - sr)
-	if state == State.SUSPICIOUS and not mark.visible:
+	if state in [State.SUSPICIOUS, State.SEARCH] and not mark.visible:
 		_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
-	elif state != State.SUSPICIOUS and mark.text == "？":
+	elif not state in [State.SUSPICIOUS, State.SEARCH] and mark.text == "？":
 		mark.visible = false
