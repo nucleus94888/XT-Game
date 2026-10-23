@@ -68,7 +68,6 @@ func attach(player: Node, cam_rig: Node) -> void:
 	player.posture_broken.connect(func() -> void:
 		say("體幹崩壞", Color(1.0, 0.55, 0.2))
 		flash_posture())
-	player.denied.connect(touch.deny)
 	touch.attack_down.connect(player.on_attack_down)
 	touch.attack_up.connect(player.on_attack_up)
 	touch.hook_down.connect(player.on_hook_down)
@@ -419,6 +418,8 @@ func _process(delta: float) -> void:
 	if _player:
 		touch.aiming = _player.aim_mode != 0
 		touch.aim_status = _player.aim_status
+		touch.dash_cd = maxf(_player._dash_lock_t, 0.0)
+		touch.hook_cd = maxf(_player._hook_cd, 0.0)
 	compass.has_target = _has_compass_target and _player != null
 	if compass.has_target:
 		var d := _compass_target - _player.global_position

@@ -688,23 +688,34 @@ func can_be_hooked() -> bool:
 	return state != State.DEAD and _hook_immune_t <= 0.0
 
 
-func hooked(dest: Vector3, dmg: int, headshot: bool, by: Node3D) -> void:
+func hooked(dest: Vector3, dmg: int, headshot: bool, by: Node3D, pull_dur: float = 0.45) -> void:
 	if state == State.DEAD:
 		return
 	_hook_immune_t = 6.0
 	var dir: Vector3 = dest - global_position
 	dir.y = 0.0
 	dir = dir.normalized()
-	var tw := create_tween()
-	tw.tween_property(self, "global_position", Vector3(dest.x, global_position.y, dest.z), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	state = State.STAGGER
-	_stun_t = 0.45
+	_stun_t = pull_dur + 0.45
 	_guard = false
 	weapon.rotation = Vector3.ZERO
 	take_hit({"dmg": dmg, "dir": -dir, "kb": 0.0, "heavy": false, "pos": global_position + Vector3(0.0, 1.5 if headshot else 1.1, 0.0), "src": by, "headshot": headshot, "hook": true})
-	if state != State.DEAD and state != State.BROKEN:
+	if state == State.DEAD:
+		return
+	# 被拖過來：身體往後仰、腳在地上拖，拖到面前才站穩
+	_kb = Vector3.ZERO
+	if _react_tw and _react_tw.is_valid():
+		_react_tw.kill()
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(self, "global_position", Vector3(dest.x, global_position.y, dest.z), pull_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(visual, "rotation:x", -0.5, 0.1)
+	tw.tween_property(visual, "scale", Vector3(0.95, 1.08, 0.95), 0.1)
+	tw.chain().tween_property(visual, "rotation:x", 0.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(visual, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	if state != State.BROKEN:
 		state = State.STAGGER
-		_stun_t = 0.45
+		_stun_t = pull_dur + 0.45
 		_facing = _yaw_to(-dir)
 
 

@@ -93,11 +93,10 @@ var _aim_head := false
 var _rope: MeshInstance3D
 var _rope_to := Vector3.ZERO
 var _rope_t := 0.0
-var _reticle: Node3D
-var _reticle_mat: StandardMaterial3D
-var _reticle_label: Label3D
 ## 是否站在燈光下（關卡每幀更新；敵人視野據此縮放）
 var in_light := true
+## 鉤繩可到達的範圍（關卡設定；size 為零＝不限制）
+var hook_bounds := AABB()
 var _grapple_t := 0.0
 var _grapple_from := Vector3.ZERO
 var _grapple_to := Vector3.ZERO
@@ -150,7 +149,6 @@ func _ready() -> void:
 	_sfx_deflect = Sfx.player(self, "deflect", -2.0, 1.05, 1.08)
 	add_to_group("player")
 	_build_spark()
-	_build_reticle()
 	_build_rope()
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -250,7 +248,6 @@ func _begin_aim(kind: int) -> void:
 	_aim_target = null
 	_hook_ok = false
 	aim_status = ""
-	_reticle.visible = true
 	if cam_rig != null:
 		cam_rig.aiming = true
 	_tick_aim(0.0)
@@ -273,38 +270,21 @@ func _tick_aim(delta: float) -> void:
 	visual.rotation.y = lerp_angle(visual.rotation.y, _facing, 1.0 - exp(-20.0 * delta))
 	var pose := Vector3(-20.0, -60.0, 0.0) if aim_mode == AIM_SHURIKEN else Vector3(-70.0, 0.0, 0.0)
 	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(pose, 1.0 - exp(-20.0 * delta))
-	# 兩種瞄準共用：準心附近有敵人就鎖定（頭／身）
+	# 兩種瞄準共用：準心附近有敵人就默默鎖定（頭／身），畫面上不另外畫圈
 	var lock := _pick_enemy_ray(origin, dir, 0.992, 22.0)
 	_aim_target = lock.target
 	_aim_head = lock.head
-	if _aim_target:
-		var pos: Vector3 = _aim_target.global_position + (Vector3(0.0, 1.68, 0.0) if _aim_head else Vector3(0.0, 1.1, 0.0))
-		# 鉤繩拉人：冷卻中或這個敵人剛被拉過 → 準心灰、不可拉
-		if aim_mode == AIM_HOOK and not _can_hook_pull(_aim_target):
-			aim_status = "wait"
-			_reticle_set(pos, Color(0.7, 0.7, 0.7), "待")
-		else:
-			aim_status = "lock"
-			_reticle_set(pos, Color(1.0, 0.55, 0.2) if _aim_head else Color(1.0, 0.85, 0.3), "頭" if _aim_head else "鎖定")
-		_reticle.visible = true
-		return
-	if aim_mode == AIM_SHURIKEN:
-		aim_status = ""
-		_reticle.visible = false
-	else:
+	aim_status = "lock" if _aim_target else ""
+	if aim_mode == AIM_HOOK and _aim_target == null:
 		var r := _hook_probe_ray(origin, dir)
 		_hook_ok = r.ok
 		_hook_pos = r.pos
-		aim_status = "ok" if r.ok else "bad"
-		_reticle.visible = true
-		_reticle_set(r.pos, Color(0.5, 1.0, 0.6) if r.ok else Color(1.0, 0.3, 0.3), "鉤" if r.ok else "✕")
 
 
 func _release_aim() -> void:
 	var kind := aim_mode
 	aim_mode = AIM_NONE
 	aim_status = ""
-	_reticle.visible = false
 	if cam_rig != null:
 		cam_rig.aiming = false
 	if state != State.FREE:
@@ -314,13 +294,13 @@ func _release_aim() -> void:
 	elif kind == AIM_HOOK:
 		if _aim_target:
 			if _can_hook_pull(_aim_target):
-				_hook_enemy(_aim_target, _aim_head)
+				_hook_launch("pull", _aim_target.global_position + Vector3(0.0, 1.68 if _aim_head else 1.1, 0.0), _aim_target, _aim_head)
 			else:
-				denied.emit("hook")
+				_hook_launch("miss", _aim_target.global_position + Vector3(0.0, 1.1, 0.0))
 		elif _hook_ok:
-			_start_grapple_to(_hook_pos)
+			_hook_launch("grapple", _hook_pos)
 		else:
-			denied.emit("hook")
+			_hook_launch("miss", _hook_pos)
 	_aim_target = null
 
 
@@ -375,40 +355,88 @@ func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 		q2.exclude = [get_rid()]
 		var h2 := space.intersect_ray(q2)
 		if h2.is_empty() or (h2.normal as Vector3).y < 0.7:
-			fail.pos = p
 			return fail
 		top = h2.position
 	var dy := top.y - global_position.y
 	var flat_d := Vector2(top.x - global_position.x, top.z - global_position.z).length()
+	# 鉤不到時繩子飛到實際打到的點再收回（不是飛去算出來的牆頂）
+	fail.pos = p
 	if absf(dy) < 0.8 or dy > 8.0 or dy < -10.0 or flat_d < 1.0 or global_position.distance_to(top) > 22.0:
-		fail.pos = top
+		return fail
+	# 關卡範圍外（外牆頂、牆外地面）不能鉤
+	if hook_bounds.size != Vector3.ZERO and not hook_bounds.has_point(top):
 		return fail
 	return {"ok": true, "pos": top + Vector3(0.0, 0.05, 0.0)}
 
 
-## 鉤繩鉤敵人：把對方拉到面前，造成些微傷害並硬直；爆頭傷害更高。
-## 冷卻 4 秒；同一敵人 6 秒內不能再拉（瞄準時間本身就是成本）
-func _hook_enemy(e: Node3D, head: bool) -> void:
-	_hook_cd = HOOK_PULL_CD
-	var to := e.global_position - global_position
-	to.y = 0.0
-	var dist := to.length()
-	var dir := to.normalized() if dist > 0.01 else _forward()
-	_facing = atan2(-dir.x, -dir.z)
-	visual.rotation.y = _facing
-	var dest := global_position + dir * 1.6
-	_rope_show(e.global_position + Vector3(0.0, 1.2, 0.0), 0.35)
+## 鉤繩：繩子先飛出去（看得到鉤頭飛行），到了再決定：
+##   pull    → 鉤住敵人，把他拖過來（0.45 秒拖行，繩子一直連著）
+##   grapple → 鉤住牆頂／屋頂，人飛過去
+##   miss    → 鉤不到，繩子收回來
+const HOOK_PULL_TIME := 0.45
+var _hook_job := {}
+
+
+func _hook_launch(kind: String, to: Vector3, target: Node3D = null, head: bool = false) -> void:
+	var flat := to - global_position
+	flat.y = 0.0
+	if flat.length() > 0.01:
+		_facing = atan2(-flat.x, -flat.z)
+		visual.rotation.y = _facing
+	var dist := global_position.distance_to(to)
+	_hook_job = {"kind": kind, "t": 0.0, "dur": clampf(0.08 + dist * 0.008, 0.1, 0.26), "to": to, "target": target, "head": head}
+	_lock_t = maxf(_lock_t, float(_hook_job.dur) + 0.05)
 	Sfx.play(sfx_dash)
-	Feel.kick(dir, 0.3)
-	if e.has_method("hooked"):
-		e.hooked(dest, 15 if head else 6, head, self)
-	# 拉人姿勢
+	# 甩繩姿勢
 	if _guard_tw and _guard_tw.is_valid():
 		_guard_tw.kill()
 	sword_pivot.rotation_degrees = Vector3(-40.0, 30.0, 0.0)
 	_guard_tw = create_tween()
 	_guard_tw.set_ignore_time_scale(true)
 	_guard_tw.tween_property(sword_pivot, "rotation_degrees", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _tick_hook_job(delta: float) -> void:
+	if _hook_job.is_empty():
+		return
+	_hook_job.t += delta
+	var k := clampf(float(_hook_job.t) / float(_hook_job.dur), 0.0, 1.0)
+	var hand := global_position + Vector3(0.0, 1.3, 0.0)
+	var to: Vector3 = _hook_job.to
+	match String(_hook_job.kind):
+		"pull", "grapple", "miss":
+			# 鉤頭飛出去
+			_rope_show(hand.lerp(to, k), 0.05)
+			if k < 1.0:
+				return
+			var kind := String(_hook_job.kind)
+			var target: Node3D = _hook_job.target
+			if kind == "grapple":
+				_hook_job = {}
+				_start_grapple_to(to)
+			elif kind == "pull" and is_instance_valid(target) and target.has_method("hooked") and target.get("state") != target.State.DEAD:
+				_hook_cd = HOOK_PULL_CD
+				var dir := _forward()
+				var dest := global_position + dir * 1.6
+				target.hooked(dest, 15 if bool(_hook_job.head) else 6, bool(_hook_job.head), self, HOOK_PULL_TIME)
+				Feel.kick(dir, 0.3)
+				_hook_job = {"kind": "pulling", "t": 0.0, "dur": HOOK_PULL_TIME + 0.05, "to": to, "target": target, "head": false}
+				_lock_t = maxf(_lock_t, 0.25)
+			else:
+				# 鉤不到：收繩
+				_hook_job = {"kind": "back", "t": 0.0, "dur": 0.2, "to": to, "target": null, "head": false}
+		"pulling":
+			# 繩子連在敵人身上，跟著他被拖過來
+			var target: Node3D = _hook_job.target
+			if is_instance_valid(target):
+				_rope_show(target.global_position + Vector3(0.0, 1.2, 0.0), 0.05)
+			if k >= 1.0:
+				_hook_job = {}
+		"back":
+			_rope_show(to.lerp(hand, k), 0.05)
+			if k >= 1.0:
+				_hook_job = {}
+				_rope_t = 0.0
 
 
 func _rope_show(to: Vector3, dur: float) -> void:
@@ -441,44 +469,6 @@ func _build_rope() -> void:
 	_rope.material_override = m
 	_rope.visible = false
 	add_child(_rope)
-
-
-func _build_reticle() -> void:
-	_reticle = Node3D.new()
-	_reticle.top_level = true
-	var ring := MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.32
-	tm.outer_radius = 0.46
-	_reticle_mat = StandardMaterial3D.new()
-	_reticle_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_reticle_mat.albedo_color = Color(1, 1, 1, 0.8)
-	_reticle_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_reticle_mat.no_depth_test = true
-	_reticle_mat.render_priority = 5
-	ring.mesh = tm
-	ring.material_override = _reticle_mat
-	ring.rotation.x = PI / 2.0
-	_reticle.add_child(ring)
-	_reticle_label = Label3D.new()
-	_reticle_label.font = Fx.ui_font
-	_reticle_label.font_size = 56
-	_reticle_label.pixel_size = 0.012
-	_reticle_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_reticle_label.no_depth_test = true
-	_reticle_label.outline_size = 10
-	_reticle_label.position = Vector3(0.0, 0.7, 0.0)
-	_reticle.add_child(_reticle_label)
-	_reticle.visible = false
-	add_child(_reticle)
-
-
-func _reticle_set(pos: Vector3, color: Color, text: String) -> void:
-	_reticle.global_position = pos
-	_reticle_mat.albedo_color = color
-	_reticle_label.text = text
-	_reticle_label.modulate = color
-	_reticle_label.visible = text != ""
 
 
 ## 手裡劍：往瞄準方向射出；有鎖定目標就射向目標胸口。一次只能有一枚在空中。
@@ -702,7 +692,6 @@ func _release_aim_silent() -> void:
 	aim_mode = AIM_NONE
 	aim_status = ""
 	_aim_target = null
-	_reticle.visible = false
 	if cam_rig != null:
 		cam_rig.aiming = false
 
@@ -789,6 +778,7 @@ func _physics_process(delta: float) -> void:
 	_lock_t -= delta
 	_dash_lock_t -= delta
 	_hook_cd -= delta
+	_tick_hook_job(delta)
 	_rope_t -= delta
 	_rope_update()
 	if state == State.GRAPPLE:
@@ -799,11 +789,10 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 	move_and_slide()
 	if aim_mode != AIM_NONE and state != State.FREE:
-		aim_mode = AIM_NONE
-		aim_status = ""
-		_reticle.visible = false
-		if cam_rig != null:
-			cam_rig.aiming = false
+		_release_aim_silent()
+	if not _hook_job.is_empty() and state in [State.HURT, State.DEAD, State.BROKEN]:
+		_hook_job = {}
+		_rope_t = 0.0
 	if state != State.ATTACK and _combo_window > 0.0:
 		_combo_window -= delta
 		if _combo_window <= 0.0:

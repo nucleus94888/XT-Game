@@ -9,9 +9,9 @@ const WALL_H := 2.6
 const EXIT_POS := Vector3(0.0, 0.0, 29.0)
 const TARGET_POS := Vector3(0.0, 0.0, -18.0)
 
-## [中心x, 中心z, 寬x, 長z]
+## [中心x, 中心z, 寬x, 長z, (高度)]；外牆 12 公尺高，鉤繩鉤不上去（不然會跑出地圖）
 const WALLS := [
-	[-13.0, 4.5, 1.0, 58.0], [13.0, 4.5, 1.0, 58.0], [0.0, -23.5, 27.0, 1.0], [0.0, 32.5, 27.0, 1.0],
+	[-13.0, 4.5, 1.0, 58.0, 12.0], [13.0, 4.5, 1.0, 58.0, 12.0], [0.0, -23.5, 27.0, 1.0, 12.0], [0.0, 32.5, 27.0, 1.0, 12.0],
 	[-8.75, 24.0, 7.5, 12.0], [8.75, 24.0, 7.5, 12.0],
 	[-8.0, 4.0, 10.0, 1.0], [8.0, 4.0, 10.0, 1.0],
 	[-8.0, -1.0, 10.0, 10.0], [8.0, -1.0, 10.0, 10.0],
@@ -166,7 +166,6 @@ func _physics_process(_delta: float) -> void:
 			_cp_index = i
 			_checkpoint = cp + Vector3(0.0, 0.1, 0.0)
 			player.refill_shuriken()
-			hud.say("記住了此處", Color(0.7, 0.85, 1.0))
 	# 玩家是否站在燈光下（敵人視野據此縮放）
 	var lit := false
 	for l in _lanterns:
@@ -236,7 +235,8 @@ func _build_world() -> void:
 		sb.collision_mask = 0
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(w[2], WALL_H, w[3])
+		var h: float = float(w[4]) if w.size() > 4 else WALL_H
+		bm.size = Vector3(w[2], h, w[3])
 		mi.mesh = bm
 		mi.material_override = wall_mesh_mat
 		sb.add_child(mi)
@@ -245,8 +245,10 @@ func _build_world() -> void:
 		bs.size = bm.size
 		cs.shape = bs
 		sb.add_child(cs)
-		sb.position = Vector3(w[0], WALL_H / 2.0, w[1])
+		sb.position = Vector3(w[0], h / 2.0, w[1])
 		region.add_child(sb)
+	# 鉤繩只能到外牆以內
+	player.hook_bounds = AABB(Vector3(-12.4, -1.0, -22.9), Vector3(24.8, 20.0, 54.8))
 
 	# 燈籠
 	for p in LANTERNS:
