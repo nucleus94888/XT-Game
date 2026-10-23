@@ -82,10 +82,17 @@ jobs:
             -derivedDataPath build/ios/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             ONLY_ACTIVE_ARCH=NO \
-            build | tee build/ios/xcodebuild.log | grep -E "error:|warning: .*deprecated|BUILD SUCCEEDED|BUILD FAILED" || true
-          grep -q "BUILD SUCCEEDED" build/ios/xcodebuild.log
+            build > build/ios/xcodebuild.log 2>&1 || true
+          grep -E "BUILD SUCCEEDED|BUILD FAILED" build/ios/xcodebuild.log || true
+          if ! grep -q "BUILD SUCCEEDED" build/ios/xcodebuild.log; then
+            echo "::group::錯誤摘要"
+            grep -nE "error:|ld: |Undefined symbols|not found|No such file|unsupported|incompatible" -B2 -A6 build/ios/xcodebuild.log | tail -150
+            echo "::endgroup::"
+            exit 1
+          fi
 
       - name: 打包模擬器 .app
+        if: success()
         run: |
           set -euo pipefail
           APP=$(find build/ios/DerivedData/Build/Products -name "${APP_NAME}.app" -type d | head -n 1)
@@ -93,6 +100,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$APP" "build/ios/${APP_NAME}-simulator.app.zip"
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ${{ env.APP_NAME }}-ios-simulator
           path: |
