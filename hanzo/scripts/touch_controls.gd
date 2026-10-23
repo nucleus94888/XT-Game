@@ -151,14 +151,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_btn_last.erase(t.index)
 	elif ev is InputEventScreenDrag:
 		var d := ev as InputEventScreenDrag
-		if d.index == _joy_idx and aiming:
-			# 瞄準中（右手按著鉤／手裡劍）：左手拖曳＝轉視角瞄準
-			look_delta.emit(d.position - _joy_pos)
-			_joy_pos = d.position
-			_joy_origin = d.position
-			move_vector = Vector2.ZERO
-			get_viewport().set_input_as_handled()
-		elif d.index == _joy_idx:
+		if d.index == _joy_idx:
 			_joy_pos = d.position
 			var v := _joy_pos - _joy_origin
 			var l := v.length()
@@ -187,8 +180,6 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	if aiming and move_vector != Vector2.ZERO:
-		move_vector = Vector2.ZERO
 	_atk_flash = maxf(_atk_flash - delta * 5.0, 0.0)
 	_dash_flash = maxf(_dash_flash - delta * 5.0, 0.0)
 	_hook_flash = maxf(_hook_flash - delta * 5.0, 0.0)
@@ -204,8 +195,6 @@ func _draw() -> void:
 	draw_arc(jc, JOY_R, 0.0, TAU, 48, Color(jcol, 0.42 if _joy_idx != -1 else 0.28), 2.5, true)
 	var knob := _joy_pos if _joy_idx != -1 else jc
 	draw_circle(knob, 28.0, Color(jcol, 0.55 if _joy_idx != -1 else 0.22))
-	if aiming and font:
-		draw_string(font, jc + Vector2(-JOY_R - 30.0, -JOY_R - 10.0), "瞄準中", HORIZONTAL_ALIGNMENT_CENTER, JOY_R * 2.0 + 60.0, 22, Color(1.0, 0.9, 0.5, 0.9))
 	# 準心（瞄準中畫在畫面正中央）
 	if aiming:
 		var c := size / 2.0

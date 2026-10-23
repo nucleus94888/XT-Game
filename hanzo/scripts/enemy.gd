@@ -653,11 +653,32 @@ func _hit_dir_set(info: Dictionary) -> Vector3:
 	return dir.normalized()
 
 
+## 被鉤繩拉過來：拖到 dest、小傷害、硬直；會驚動
+func hooked(dest: Vector3, dmg: int, headshot: bool, by: Node3D) -> void:
+	if state == State.DEAD:
+		return
+	var dir: Vector3 = dest - global_position
+	dir.y = 0.0
+	dir = dir.normalized()
+	var tw := create_tween()
+	tw.tween_property(self, "global_position", Vector3(dest.x, global_position.y, dest.z), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	state = State.STAGGER
+	_stun_t = 0.9
+	_guard = false
+	weapon.rotation = Vector3.ZERO
+	take_hit({"dmg": dmg, "dir": -dir, "kb": 0.0, "heavy": false, "pos": global_position + Vector3(0.0, 1.5 if headshot else 1.1, 0.0), "src": by, "headshot": headshot, "hook": true})
+	if state != State.DEAD and state != State.BROKEN:
+		state = State.STAGGER
+		_stun_t = 0.9
+		_facing = _yaw_to(-dir)
+
+
 func take_hit(info: Dictionary) -> void:
 	if state == State.DEAD:
 		return
 	var dir := _hit_dir_set(info)
 	var heavy: bool = info.get("heavy", false)
+	var headshot: bool = info.get("headshot", false)
 	if state == State.BROKEN:
 		_execute(info, dir)
 		return
@@ -699,7 +720,10 @@ func take_hit(info: Dictionary) -> void:
 	particles.global_position = info.pos
 	particles.direction = dir + Vector3(0, 0.6, 0)
 	particles.restart()
-	Fx.damage_number(info.pos, int(info.dmg), heavy)
+	if headshot:
+		Fx.damage_number(info.pos, int(info.dmg), true, Color(1.0, 0.55, 0.2))
+	else:
+		Fx.damage_number(info.pos, int(info.dmg), heavy)
 	_react(dir, heavy)
 	if hp <= 0:
 		_die(false)

@@ -82,7 +82,9 @@ func _on_area(a: Area3D) -> void:
 		Feel.shake(0.15)
 		_finish()
 	elif t.is_in_group("enemies") and t.has_method("take_hit"):
-		t.take_hit({"dmg": dmg, "dir": dir, "kb": 1.0, "heavy": false, "pos": global_position, "src": src, "shuriken": true})
+		# 命中高度超過 1.45m = 頭部，傷害 2.5 倍
+		var headshot: bool = global_position.y - (t as Node3D).global_position.y > 1.45
+		t.take_hit({"dmg": int(dmg * 2.5) if headshot else dmg, "dir": dir, "kb": 1.0, "heavy": false, "pos": global_position, "src": src, "shuriken": true, "headshot": headshot})
 		_finish()
 
 

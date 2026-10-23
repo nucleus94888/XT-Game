@@ -62,6 +62,10 @@ var _aim_t := 0.0
 var _aim_target: Node3D = null
 var _hook_ok := false
 var _hook_pos := Vector3.ZERO
+var _aim_head := false
+var _rope: MeshInstance3D
+var _rope_to := Vector3.ZERO
+var _rope_t := 0.0
 var _reticle: Node3D
 var _reticle_mat: StandardMaterial3D
 var _reticle_label: Label3D
@@ -120,6 +124,7 @@ func _ready() -> void:
 	add_to_group("player")
 	_build_spark()
 	_build_reticle()
+	_build_rope()
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -240,14 +245,19 @@ func _tick_aim(delta: float) -> void:
 	visual.rotation.y = lerp_angle(visual.rotation.y, _facing, 1.0 - exp(-20.0 * delta))
 	var pose := Vector3(-20.0, -60.0, 0.0) if aim_mode == AIM_SHURIKEN else Vector3(-70.0, 0.0, 0.0)
 	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(pose, 1.0 - exp(-20.0 * delta))
+	# 兩種瞄準共用：準心附近有敵人就鎖定（頭／身）
+	var lock := _pick_enemy_ray(origin, dir, 0.992, 22.0)
+	_aim_target = lock.target
+	_aim_head = lock.head
+	if _aim_target:
+		aim_status = "lock"
+		var pos: Vector3 = _aim_target.global_position + (Vector3(0.0, 1.68, 0.0) if _aim_head else Vector3(0.0, 1.1, 0.0))
+		_reticle_set(pos, Color(1.0, 0.55, 0.2) if _aim_head else Color(1.0, 0.85, 0.3), "頭" if _aim_head else "鎖定")
+		_reticle.visible = true
+		return
 	if aim_mode == AIM_SHURIKEN:
-		_aim_target = _pick_enemy_ray(origin, dir, 0.992, 22.0)
-		if _aim_target:
-			aim_status = "lock"
-			_reticle_set(_aim_target.global_position + Vector3(0.0, 1.1, 0.0), Color(1.0, 0.85, 0.3), "鎖定")
-		else:
-			aim_status = ""
-			_reticle.visible = false
+		aim_status = ""
+		_reticle.visible = false
 	else:
 		var r := _hook_probe_ray(origin, dir)
 		_hook_ok = r.ok
@@ -267,37 +277,44 @@ func _release_aim() -> void:
 	if state != State.FREE:
 		return
 	if kind == AIM_SHURIKEN:
-		_throw(aim_dir, _aim_target)
+		_throw(aim_dir, _aim_target, _aim_head)
 	elif kind == AIM_HOOK:
-		if _hook_ok:
+		if _aim_target:
+			_hook_enemy(_aim_target, _aim_head)
+		elif _hook_ok:
 			_start_grapple_to(_hook_pos)
 		else:
 			exhausted.emit()
 	_aim_target = null
 
 
-## 準心附近的敵人（與射線夾角最小者）
-func _pick_enemy_ray(origin: Vector3, dir: Vector3, min_dot: float, max_dist: float) -> Node3D:
+## 準心附近的敵人（與射線夾角最小者）；準心更靠近頭部時回報 head=true
+func _pick_enemy_ray(origin: Vector3, dir: Vector3, min_dot: float, max_dist: float) -> Dictionary:
 	var best: Node3D = null
 	var best_dot := min_dot
+	var head := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not (e is Node3D) or e.get("state") == null or e.state == e.State.DEAD:
 			continue
-		var to: Vector3 = (e.global_position + Vector3(0.0, 1.1, 0.0)) - origin
-		var dist := to.length()
+		var chest: Vector3 = (e.global_position + Vector3(0.0, 1.1, 0.0)) - origin
+		var dist := chest.length()
 		if dist < 1.0 or dist > max_dist:
 			continue
-		var dot := dir.dot(to / dist)
+		var dot_c := dir.dot(chest / dist)
+		var hv: Vector3 = (e.global_position + Vector3(0.0, 1.68, 0.0)) - origin
+		var dot_h := dir.dot(hv / hv.length())
+		var dot := maxf(dot_c, dot_h)
 		if dot > best_dot:
 			best = e
 			best_dot = dot
-	return best
+			head = dot_h > dot_c and dot_h > 0.9975
+	return {"target": best, "head": head}
 
 
-## 鉤繩落點（準心射線）：打到牆頂／屋頂直接用；打到牆面就往上找牆頂
+## 鉤繩落點（準心射線）：打到頂面直接落在那裡（可上可下，不能同高度平移）；打到牆面就往上找牆頂
 func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	var space := get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * 28.0, 1)
+	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * 30.0, 1)
 	q.exclude = [get_rid()]
 	var hit := space.intersect_ray(q)
 	var fail := {"ok": false, "pos": origin + dir * 8.0}
@@ -309,9 +326,8 @@ func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	flat = flat.normalized() if flat.length() > 0.01 else _forward()
 	var top := p
 	if n.y < 0.7:
-		# 牆面：從牆內側上方往下找站得住的頂面
 		var top_from := p + flat * 0.7 + Vector3(0.0, 9.0, 0.0)
-		var q2 := PhysicsRayQueryParameters3D.create(top_from, top_from + Vector3(0.0, -10.0, 0.0), 1)
+		var q2 := PhysicsRayQueryParameters3D.create(top_from, top_from + Vector3(0.0, -12.0, 0.0), 1)
 		q2.exclude = [get_rid()]
 		var h2 := space.intersect_ray(q2)
 		if h2.is_empty() or (h2.normal as Vector3).y < 0.7:
@@ -319,10 +335,68 @@ func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 			return fail
 		top = h2.position
 	var dy := top.y - global_position.y
-	if dy < 0.8 or dy > 7.0 or global_position.distance_to(top) > 16.0:
+	var flat_d := Vector2(top.x - global_position.x, top.z - global_position.z).length()
+	if absf(dy) < 0.8 or dy > 8.0 or dy < -10.0 or flat_d < 1.0 or global_position.distance_to(top) > 22.0:
 		fail.pos = top
 		return fail
 	return {"ok": true, "pos": top + Vector3(0.0, 0.05, 0.0)}
+
+
+## 鉤繩鉤敵人：把對方拉到面前，造成些微傷害並硬直；爆頭傷害更高
+func _hook_enemy(e: Node3D, head: bool) -> void:
+	if not _spend(10.0):
+		return
+	var to := e.global_position - global_position
+	to.y = 0.0
+	var dist := to.length()
+	var dir := to.normalized() if dist > 0.01 else _forward()
+	_facing = atan2(-dir.x, -dir.z)
+	visual.rotation.y = _facing
+	var dest := global_position + dir * 1.6
+	_rope_show(e.global_position + Vector3(0.0, 1.2, 0.0), 0.35)
+	Sfx.play(sfx_dash)
+	Feel.kick(dir, 0.3)
+	if e.has_method("hooked"):
+		e.hooked(dest, 15 if head else 6, head, self)
+	# 拉人姿勢
+	if _guard_tw and _guard_tw.is_valid():
+		_guard_tw.kill()
+	sword_pivot.rotation_degrees = Vector3(-40.0, 30.0, 0.0)
+	_guard_tw = create_tween()
+	_guard_tw.set_ignore_time_scale(true)
+	_guard_tw.tween_property(sword_pivot, "rotation_degrees", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _rope_show(to: Vector3, dur: float) -> void:
+	_rope_to = to
+	_rope_t = dur
+
+
+func _rope_update() -> void:
+	if _rope_t <= 0.0:
+		_rope.visible = false
+		return
+	_rope.visible = true
+	var from := global_position + Vector3(0.0, 1.3, 0.0)
+	var im: ImmediateMesh = _rope.mesh
+	im.clear_surfaces()
+	im.surface_begin(Mesh.PRIMITIVE_LINES)
+	im.surface_add_vertex(from)
+	im.surface_add_vertex(_rope_to)
+	im.surface_end()
+
+
+func _build_rope() -> void:
+	_rope = MeshInstance3D.new()
+	_rope.top_level = true
+	_rope.mesh = ImmediateMesh.new()
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(0.85, 0.8, 0.6)
+	m.no_depth_test = true
+	_rope.material_override = m
+	_rope.visible = false
+	add_child(_rope)
 
 
 func _build_reticle() -> void:
@@ -364,7 +438,7 @@ func _reticle_set(pos: Vector3, color: Color, text: String) -> void:
 
 
 ## 手裡劍：往瞄準方向射出；有鎖定目標就射向目標胸口
-func _throw(dir: Vector3, target: Node3D) -> void:
+func _throw(dir: Vector3, target: Node3D, head: bool = false) -> void:
 	if shuriken <= 0:
 		exhausted.emit()
 		return
@@ -375,7 +449,7 @@ func _throw(dir: Vector3, target: Node3D) -> void:
 	var from := global_position + Vector3(0.0, 1.3, 0.0)
 	var d := dir
 	if target:
-		d = ((target.global_position + Vector3(0.0, 1.1, 0.0)) - from).normalized()
+		d = ((target.global_position + (Vector3(0.0, 1.68, 0.0) if head else Vector3(0.0, 1.1, 0.0))) - from).normalized()
 	elif cam_rig != null and cam_rig.has_method("aim_ray"):
 		# 準心射線打到的點（或 35 公尺外），手裡劍從手上飛向那一點
 		var r: Array = cam_rig.aim_ray()
@@ -420,6 +494,7 @@ func _start_grapple_to(dest: Vector3) -> void:
 		_facing = atan2(-flat.x, -flat.z)
 		visual.rotation.y = _facing
 	sword_pivot.rotation_degrees = Vector3.ZERO
+	_rope_show(dest + Vector3(0.0, 0.5, 0.0), 0.5)
 	Sfx.play(sfx_dash)
 	Feel.kick(flat.normalized(), 0.25)
 
@@ -569,6 +644,8 @@ func _physics_process(delta: float) -> void:
 		State.GRAPPLE:
 			_tick_grapple(delta)
 	_tick_stamina(delta)
+	_rope_t -= delta
+	_rope_update()
 	if state == State.GRAPPLE:
 		velocity = Vector3.ZERO
 	elif not is_on_floor():
