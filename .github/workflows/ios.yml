@@ -59,7 +59,8 @@ jobs:
           "$HOME/godot-cache/Godot.app/Contents/MacOS/Godot" --version
 
       - name: 匯入資源
-        run: "$GODOT" --headless --path hanzo --import || true
+        run: |
+          "$GODOT" --headless --path hanzo --import || true
 
       - name: 匯出 Xcode 專案
         run: |
@@ -187,7 +188,8 @@ jobs:
           grep -E "team_id|provisioning_profile_(uuid|specifier)_release|code_sign_identity_release" "$f"
 
       - name: 匯入資源
-        run: "$GODOT" --headless --path hanzo --import || true
+        run: |
+          "$GODOT" --headless --path hanzo --import || true
 
       - name: 匯出 Xcode 專案
         run: |
