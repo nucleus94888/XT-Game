@@ -28,7 +28,8 @@ func _ready() -> void:
 			_shot("parry"))
 	player.hit_landed.connect(_on_hit_landed)
 	player.died.connect(func() -> void:
-		hud.say("敗北…", Color(0.9, 0.3, 0.3)))
+		hud.say("敗北…", Color(0.9, 0.3, 0.3))
+		get_tree().create_timer(1.8).timeout.connect(player.revive))
 	dummy.destroyed.connect(hud.add_kill)
 	dummy.posture_broken.connect(func() -> void:
 		hud.say("體幹崩壞", Color(1.0, 0.55, 0.2)))

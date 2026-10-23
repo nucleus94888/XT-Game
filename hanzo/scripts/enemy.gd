@@ -508,7 +508,6 @@ func _start_attack() -> void:
 	_struck = false
 	_guard = false
 	_stop()
-	_show_mark("！", Color(1.0, 0.25, 0.2), 0.0)
 	_set_emission(Color(1.0, 0.2, 0.15), 0.8)
 	_flash_t = 0.0
 
@@ -529,7 +528,6 @@ func _do_attack(delta: float) -> void:
 			weapon.rotation.y = lerpf(0.0, 0.8, k)
 	elif not _struck:
 		_struck = true
-		mark.visible = false
 		_set_emission(Color(1, 1, 1), 0.0)
 		if kind == Kind.ARCHER:
 			_shoot()

@@ -11,7 +11,7 @@ signal damaged(amount: int)
 signal stamina_changed(v: float, max_v: float)
 signal exhausted
 
-enum State { FREE, ATTACK, DASH, HURT, BLOCK }
+enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD }
 
 const SPEED := 6.2
 const ACCEL := 34.0
@@ -209,6 +209,9 @@ func _physics_process(delta: float) -> void:
 			_tick_hurt(delta)
 		State.BLOCK:
 			_tick_block(delta, input)
+		State.DEAD:
+			velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
+			velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
 	_tick_stamina(delta)
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
@@ -429,7 +432,7 @@ func _tick_dash(delta: float) -> void:
 
 ## 被稻草人反擊打到（閃步中無敵）
 func take_hit(info: Dictionary) -> void:
-	if _invuln or state == State.HURT:
+	if _invuln or state == State.HURT or state == State.DEAD:
 		return
 	if state == State.BLOCK and _forward().dot(-(info.dir as Vector3)) > 0.2:
 		_blocked_hit(info)
@@ -456,9 +459,41 @@ func take_hit(info: Dictionary) -> void:
 	Feel.shake(1.6)
 	Feel.flash(Color(0.8, 0.1, 0.1, 0.35), 0.25)
 	if hp <= 0:
+		_die(dir)
 		died.emit()
-		hp = MAX_HP
-		hp_changed.emit(hp)
+
+
+## 敗北：往受擊方向倒下，刀落地；由關卡決定重來或由道場 revive()
+func _die(dir: Vector3) -> void:
+	state = State.DEAD
+	_block_held = false
+	trail.visible = false
+	velocity.x = dir.x * 3.0
+	velocity.z = dir.z * 3.0
+	_facing = atan2(dir.x, dir.z)   # 面向攻擊來源，往後倒
+	visual.rotation.y = _facing
+	if _jolt_tw and _jolt_tw.is_valid():
+		_jolt_tw.kill()
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(visual, "rotation:x", 1.5, 0.55).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(visual, "position:y", -0.25, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(sword_pivot, "rotation_degrees", Vector3(40.0, 70.0, 20.0), 0.5)
+	tw.tween_property(body, "rotation:x", 0.0, 0.3)
+
+
+## 道場用：原地復活
+func revive() -> void:
+	hp = MAX_HP
+	stamina = MAX_STAM
+	_exhausted = false
+	hp_changed.emit(hp)
+	stamina_changed.emit(stamina, MAX_STAM)
+	visual.rotation = Vector3(0.0, _facing, 0.0)
+	visual.position = Vector3.ZERO
+	sword_pivot.rotation_degrees = Vector3.ZERO
+	sword_pivot.position = PIVOT_HOME
+	state = State.FREE
 
 
 ## 格擋（隻狼式）
