@@ -1,4 +1,4 @@
-[gd_scene load_steps=40 format=3]
+[gd_scene load_steps=34 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="s_main"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="s_player"]
@@ -7,12 +7,6 @@
 [ext_resource type="Script" path="res://scripts/hud.gd" id="s_hud"]
 [ext_resource type="Script" path="res://scripts/touch_controls.gd" id="s_touch"]
 [ext_resource type="Script" path="res://scripts/tuning_panel.gd" id="s_panel"]
-[ext_resource type="AudioStreamWAV" path="res://audio/swing.wav" id="a_swing"]
-[ext_resource type="AudioStreamWAV" path="res://audio/hit.wav" id="a_hit"]
-[ext_resource type="AudioStreamWAV" path="res://audio/heavy.wav" id="a_heavy"]
-[ext_resource type="AudioStreamWAV" path="res://audio/dash.wav" id="a_dash"]
-[ext_resource type="AudioStreamWAV" path="res://audio/hurt.wav" id="a_hurt"]
-[ext_resource type="AudioStreamWAV" path="res://audio/break.wav" id="a_break"]
 [ext_resource type="FontFile" path="res://fonts/ui.otf" id="f_ui"]
 
 [sub_resource type="Environment" id="env"]
@@ -199,23 +193,18 @@ shape = SubResource("hitbox_shape")
 cast_shadow = 0
 
 [node name="SfxSwing" type="AudioStreamPlayer" parent="Player"]
-stream = ExtResource("a_swing")
 volume_db = -8.0
 
 [node name="SfxHit" type="AudioStreamPlayer" parent="Player"]
-stream = ExtResource("a_hit")
 volume_db = -3.0
 
 [node name="SfxHeavy" type="AudioStreamPlayer" parent="Player"]
-stream = ExtResource("a_heavy")
 volume_db = -1.0
 
 [node name="SfxDash" type="AudioStreamPlayer" parent="Player"]
-stream = ExtResource("a_dash")
 volume_db = -10.0
 
 [node name="SfxHurt" type="AudioStreamPlayer" parent="Player"]
-stream = ExtResource("a_hurt")
 volume_db = -4.0
 
 [node name="Dummy" type="CharacterBody3D" parent="."]
@@ -297,7 +286,6 @@ scale_amount_min = 0.5
 scale_amount_max = 1.2
 
 [node name="SfxBreak" type="AudioStreamPlayer" parent="Dummy"]
-stream = ExtResource("a_break")
 volume_db = -2.0
 
 [node name="CameraRig" type="Node3D" parent="."]

@@ -36,7 +36,7 @@ C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --path hanzo
 # 自動試玩 + 截圖（AI 用來看畫面）
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --path hanzo ++ --shot=C:/Users/Win/Desktop/XT-Game/build/shots --autoplay
 
-# 重新產生音效 / 圖示 / 字型子集（全部程式產生，不靠素材網站）
+# 重新產生圖示 / 字型子集
 npm run assets
 ```
 
@@ -46,7 +46,7 @@ npm run assets
 hanzo/            Godot 專案（遊戲本體）
   scenes/main.tscn
   scripts/        game_feel.gd（手感參數中心）、player.gd、dummy.gd、camera_rig.gd、touch_controls.gd、hud.gd、tuning_panel.gd、fx.gd
-  audio/          程式合成音效（tools/sfx/gen.mjs）
+  audio/kenney/   Kenney CC0 音效（刀揮、打擊、木頭碎裂），sfx.gd 隨機變化
   icons/          程式繪製圖示（tools/icons/gen.mjs）
   fonts/ui.otf    Noto Sans TC 子集（tools/fonts/subset.py）
   export_presets.cfg  Web 與 iOS 匯出設定

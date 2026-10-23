@@ -33,9 +33,16 @@ var _react_tw: Tween
 @onready var sfx_break: AudioStreamPlayer = $SfxBreak
 
 
+var _sfx_crack: AudioStreamPlayer
+var _sfx_sweep: AudioStreamPlayer
+
+
 func _ready() -> void:
 	_spawn = global_position
 	mark.visible = false
+	sfx_break.stream = Sfx.make("break")
+	_sfx_crack = Sfx.player(self, "break_crack", -3.0)
+	_sfx_sweep = Sfx.player(self, "swing", -6.0, 0.7)
 	for n in [$Visual/Straw, $Visual/Head, $Visual/Arms, $Visual/Post]:
 		var mi := n as MeshInstance3D
 		var src := mi.material_override as StandardMaterial3D
@@ -159,6 +166,7 @@ func _tick_counter(delta: float) -> void:
 		arms.rotation.y = lerpf(-1.6, 2.4, (_counter_t - 0.5) / 0.18)
 		if not _sweep_done:
 			_sweep_done = true
+			_sfx_sweep.play()
 			Feel.shake(0.6)
 			for a in sweep.get_overlapping_areas():
 				var t := a.get_parent()
@@ -187,6 +195,7 @@ func _die() -> void:
 	head.rotation = Vector3.ZERO
 	arms.rotation = Vector3.ZERO
 	sfx_break.play()
+	_sfx_crack.play()
 	Feel.shake(1.2)
 	particles.scale_amount_max = 1.7
 	particles.initial_velocity_max = 12.0

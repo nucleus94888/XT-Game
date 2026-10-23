@@ -53,7 +53,17 @@ var _jolt_tw: Tween
 @onready var sfx_hurt: AudioStreamPlayer = $SfxHurt
 
 
+var _sfx_heavy_wood: AudioStreamPlayer
+
+
 func _ready() -> void:
+	# 音效：Kenney CC0，各組隨機變化（見 sfx.gd）
+	sfx_swing.stream = Sfx.make("swing", 1.1, 1.0)
+	sfx_hit.stream = Sfx.make("hit")
+	sfx_heavy.stream = Sfx.make("heavy", 1.05, 1.0)
+	sfx_dash.stream = Sfx.make("dash", 1.15, 2.0)
+	sfx_hurt.stream = Sfx.make("hurt")
+	_sfx_heavy_wood = Sfx.player(self, "heavy_wood", -5.0, 0.9)
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -156,6 +166,9 @@ func _start_attack() -> void:
 	velocity.x *= 0.3
 	velocity.z *= 0.3
 	trail.visible = false
+	# 揮刀音在「按下」的瞬間就播（而不是等前置蓄力結束），抵銷手機音訊輸出延遲
+	sfx_swing.pitch_scale = 0.8 if c.heavy else 1.0
+	sfx_swing.play()
 
 
 func _tick_attack(delta: float, _input: Vector2) -> void:
@@ -181,8 +194,6 @@ func _tick_attack(delta: float, _input: Vector2) -> void:
 				_phase_len = Feel.sec("active_ms") * float(c.tmul)
 				_build_trail(from_deg, to_deg, tilt)
 				trail.visible = true
-				sfx_swing.pitch_scale = randf_range(0.94, 1.06) * (0.78 if c.heavy else 1.0)
-				sfx_swing.play()
 		1:
 			# 有效：刀快速掃過（先快後慢）、前衝、每個物理幀檢查命中
 			var e := 1.0 - pow(1.0 - k, 2.2)
@@ -250,12 +261,15 @@ func _on_landed(info: Dictionary, c: Dictionary) -> void:
 	_jolt_tw.set_ignore_time_scale(true)
 	_jolt_tw.tween_property(body, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 	var sp := sfx_heavy if c.heavy else sfx_hit
-	sp.pitch_scale = randf_range(0.95, 1.05)
 	var d := Feel.sec("sfx_delay_ms")
 	if d > 0.0:
 		get_tree().create_timer(d, true, false, true).timeout.connect(sp.play)
+		if c.heavy:
+			get_tree().create_timer(d, true, false, true).timeout.connect(_sfx_heavy_wood.play)
 	else:
 		sp.play()
+		if c.heavy:
+			_sfx_heavy_wood.play()
 	hit_landed.emit(info)
 
 
@@ -273,7 +287,6 @@ func _start_dash() -> void:
 	_queued = false
 	trail.visible = false
 	sword_pivot.rotation_degrees = Vector3.ZERO
-	sfx_dash.pitch_scale = randf_range(0.95, 1.08)
 	sfx_dash.play()
 	Fx.afterimage(body, Color(0.6, 0.7, 1.0, 0.45), 0.22)
 
