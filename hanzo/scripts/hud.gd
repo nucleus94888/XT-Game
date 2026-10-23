@@ -47,6 +47,7 @@ func _ready() -> void:
 func attach(player: Node, cam_rig: Node) -> void:
 	_player = player
 	_cam = cam_rig
+	compass.player = player
 	player.touch = touch
 	player.cam_rig = cam_rig
 	touch.look_delta.connect(cam_rig.look)

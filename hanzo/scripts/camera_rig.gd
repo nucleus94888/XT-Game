@@ -2,7 +2,7 @@ extends Node3D
 ## 跟隨鏡頭：可旋轉（yaw）與微調俯角（pitch），創傷式震動（trauma²）與方向性踢擊。
 ## 震動與踢擊以「真實時間」推進，頓幀期間畫面仍會動。
 
-@export var distance := 9.5
+@export var distance := 12.5
 @export var follow_speed := 7.0
 @export var look_height := 1.0
 
