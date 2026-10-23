@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：半藏 HANZO 第一關之後，深度往哪裡加？</title>
+<style>
+  :root{--ink:#1d2129;--muted:#5b6470;--line:#e3e6ea;--bg:#fff;--soft:#f6f7f9;
+    --c1:#c75c4c;--c2:#3c6fb0;--c3:#3a9a6e;--c4:#9a6bb8;--c5:#d08a2a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",Roboto,sans-serif;line-height:1.7;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 64px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:28px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:18px 0;background:#fff}
+  .card.q{background:var(--soft)}
+  .card h2{font-size:18px;margin:0 0 12px}
+  .verdict h3{font-size:16px;margin:20px 0 6px;padding-left:10px;border-left:4px solid var(--ink)}
+  .verdict p,.verdict li{margin:6px 0}
+  .first{background:#fff8e6;border:1px solid #f0d890;border-radius:8px;padding:14px 16px;margin-top:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+  .adv{border:1px solid var(--line);border-radius:8px;padding:12px;border-top:4px solid}
+  .adv .n{font-weight:700;font-size:14px}
+  .adv .p{font-size:13px;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft)}
+  td.y{color:#1f7a4d;font-weight:600} td.n{color:#a33b2d;font-weight:600} td.m{color:#8a6a12;font-weight:600}
+  details{border:1px solid var(--line);border-radius:8px;margin:10px 0}
+  summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;align-items:center;gap:10px}
+  summary::-webkit-details-marker{display:none}
+  summary .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  details .body{padding:0 18px 16px;color:#2a2f36}
+  .c1{border-color:var(--c1)} .c2{border-color:var(--c2)} .c3{border-color:var(--c3)} .c4{border-color:var(--c4)} .c5{border-color:var(--c5)}
+  .d1{background:var(--c1)} .d2{background:var(--c2)} .d3{background:var(--c3)} .d4{background:var(--c4)} .d5{background:var(--c5)}
+  .footer{color:var(--muted);font-size:13px;margin-top:36px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LLM Council 報告：半藏 HANZO 第一關之後，深度往哪裡加？</h1>
+  <div class="sub">2026-10-23 22:12 · 五位顧問獨立回答 → 匿名互評 → 主席統整 · 完整逐字稿：council-transcript-20261023-2212.md</div>
+
+  <div class="card q">
+    <h2>提問</h2>
+    <p>第一關「伊賀夜襲」已可玩（手感獲認可、隻狼式體幹／體力／彈反、敵人感知與暗殺、撤離結算）。接下來<strong>怎麼提高深度？什麼不足、什麼多餘？要不要加道具物品欄、更多武器、投擲武器（手裡劍）、爬牆？</strong> 使用者另表示「忍者未來武器要更多、3D 也要能爬牆」。限制：單人＋AI、灰盒、無人形動畫、手機拇指空間已緊、「要好玩不要簡化、參考隻狼」、AI 只能自動試玩。</p>
+  </div>
+
+  <div class="card verdict">
+    <h2>主席裁決</h2>
+    <h3>議會一致同意之處</h3>
+    <ol>
+      <li><strong>深度不在新動詞，在情境是否逼人選擇。</strong> 第一關目前是「單線、正面打或背後砍」的二元結構，沒有第三個選項。</li>
+      <li><strong>手裡劍是唯一零風險的加法</strong>，且不該當第四種武器，應當環境動詞：引開守衛、打熄燈籠、打斷弓兵。不加按鍵，用長按攻擊鍵。</li>
+      <li><strong>物品欄砍掉。</strong> 手機上開選單等於打斷戰鬥，隻狼也只有一個義手輪盤。</li>
+      <li><strong>多武器現在不做。</strong> 每把武器都要重做三段斬動畫與彈反窗口，而 AI 無法親手驗證手感。</li>
+      <li><strong>爬牆現在不做</strong>，灰盒期先用「翻矮牆／跳上屋頂」代替。</li>
+    </ol>
+    <h3>議會分歧之處</h3>
+    <p><strong>三套資源（HP／體幹／體力）去留。</strong> 反方、第一原理、局外人認為是認知噪音，應砍一套；擴張者認為可串成「潛行消耗體力→喘氣→正面忍殺」光譜；執行者主張用 debug 旗標關掉體力做對照實驗。</p>
+    <p><strong>主席裁定：</strong>站執行者。使用者對手感敏感且每次實機試玩，一次對照實驗比五個人推論可靠。但局外人的點成立——問題可能不是「三套太多」而是「沒被畫面翻譯」：敵人喘氣要真的彎腰、體幹滿要真的搖晃紅閃。先做視覺翻譯再測，否則測的是 UI 不是系統。</p>
+    <h3>議會抓到的盲點</h3>
+    <ul>
+      <li><strong>敵人缺「失去目標→搜索→回歸巡邏」循環。</strong> 最重要的盲點。沒有這個，手裡劍引開毫無意義——引走後他回不來，潛行永遠是「成功或戰鬥」二元。隻狼深度一半來自局面惡化後可挽回。</li>
+      <li><strong>從沒量測過重玩。</strong> 沒人知道使用者是否第二次玩想換路線。</li>
+      <li><strong>AI 自動試玩應升級成工具：</strong>寫「只潛行」「只硬打」「丟刀引開」三種策略的 bot 跑第一關，記錄被誰發現、死在哪、拿什麼評價。</li>
+      <li><strong>「影」評價規則本身是深度槓桿</strong>，調評分比加系統便宜。</li>
+      <li>iPhone Safari 效能預算無人提及：投射物、多燈籠光影、多敵人感知要一起壓測。</li>
+    </ul>
+    <h3>建議</h3>
+    <ul>
+      <li><strong>手裡劍：做，本週。</strong> 長按攻擊 0.3 秒擲出，命中觸發現有聽覺邏輯，可打熄燈籠。</li>
+      <li><strong>物品欄：不做。</strong></li>
+      <li><strong>更多武器：有條件。</strong> 第二關做完、人形動畫進場後；新武器要有「情境差異」而非數值差異（例如鎖鏈鐮刀是拉人／拉自己）。在那之前，手裡劍就是第二把武器。</li>
+      <li><strong>爬牆：分兩步。</strong> 現在做「翻矮牆／跳上屋頂」（一條 RayCast，一天），讓第一關出現屋頂路線與落下忍殺；「貼牆攀爬」等人形動畫與第二關幾何一起設計。這不是簡化，是先用便宜的方式驗證立體路線好不好玩。</li>
+    </ul>
+    <div class="first"><strong>第一件該做的事：</strong>先做敵人的「搜索→回歸」循環，再做手裡劍。順序不能反：引開必須有「引走後會回來」才成立。<br>
+    兩週計畫：第 1–2 天 敵人失去目標後搜索 10 秒再回巡邏、警戒衰退 → 第 3–4 天 手裡劍（長按攻擊）、兩個可熄燈籠 → 第 5 天 翻矮牆／跳上小屋屋頂、落下忍殺 → 第 6–7 天 體幹滿／喘氣的視覺翻譯，debug 關體力對照試玩 → 第 8–10 天 三策略 bot 跑第一關記錄數據、調「影」評分。兩週後第一關應有三種解法。</div>
+  </div>
+
+  <div class="card">
+    <h2>顧問立場一覽</h2>
+    <div class="grid">
+      <div class="adv c1"><div class="n">反方思考者</div><div class="p">先驗證重玩；砍一套資源；爬牆是範圍殺手；先做第二關。</div></div>
+      <div class="adv c2"><div class="n">第一原理</div><div class="p">深度＝情境逼選擇；先做能兩種通關的段落；一次只加一個動詞。</div></div>
+      <div class="adv c3"><div class="n">擴張者</div><div class="p">敵人感知是棋盤；手裡劍當環境動詞；爬牆開立體路線；三資源串光譜。</div></div>
+      <div class="adv c4"><div class="n">局外人</div><div class="p">三條條沒翻譯；缺「聰明選擇」時刻；手裡劍是第一個選項；爬牆是手機陷阱。</div></div>
+      <div class="adv c5"><div class="n">執行者</div><div class="p">手裡劍兩天不加鍵；翻矮牆一天；道具欄／多武器砍；debug 關體力做對照。</div></div>
+    </div>
+    <table>
+      <thead><tr><th>議題</th><th>反方</th><th>第一原理</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr></thead>
+      <tbody>
+        <tr><td>手裡劍（長按攻擊）</td><td class="m">可做，但怕成唯一解</td><td class="y">做</td><td class="y">做（環境動詞）</td><td class="y">做</td><td class="y">做，本週</td></tr>
+        <tr><td>爬牆</td><td class="n">不做</td><td class="m">先跳矮牆</td><td class="y">做（立體路線）</td><td class="n">手機陷阱</td><td class="m">先翻矮牆</td></tr>
+        <tr><td>物品欄</td><td class="n">不做</td><td class="n">不做</td><td class="m">未提</td><td class="m">未提</td><td class="n">砍掉</td></tr>
+        <tr><td>更多武器</td><td class="n">不做</td><td class="m">未提</td><td class="m">未提</td><td class="m">未提</td><td class="n">不做</td></tr>
+        <tr><td>三套資源</td><td class="n">砍一套</td><td class="n">砍或合併</td><td class="y">放大</td><td class="m">先翻譯成畫面</td><td class="m">debug 對照測</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>各顧問完整回答</h2>
+    <details class="c1"><summary><span class="dot d1"></span>反方思考者</summary><div class="body">
+      <p>致命缺陷先講：你還沒有驗證「深度」的前提——第一關有人從頭玩到尾超過三次嗎？使用者每次回饋都是「手感」層級，從沒說過「第二遍我想換路線」。在沒有重玩數據前談物品欄、多武器、爬牆，是在替一個還不知道有沒有骨架的身體買衣服。</p>
+      <p>真正會失敗的地方：1. 三套資源互相抵銷。隻狼只有兩套，體力是你自己加的。手機上玩家看不了三條條，結果一定是只看 HP、其他兩條變噪音。砍掉一套再談加東西。2. 爬牆是範圍殺手：牽動關卡設計、鏡頭、動畫至少六組、還要第四個按鍵。單人灰盒階段碰這個，等於重做第一關。3. 多武器＝手感稀釋。4. 手裡劍是唯一不會爆的選項，但要問它會不會讓潛行變成「遠處丟一下引開敵人」的唯一解。5. 被迴避的問題：你實際只能自動試玩，再加系統，回饋瓶頸會先於程式瓶頸崩掉。</p>
+      <p>建議方向反過來：先做第二關用相同系統，看現有東西撐不撐得住變化。撐不住，才知道缺的是什麼；撐得住，證明深度在關卡不在道具。</p>
+    </div></details>
+    <details class="c2"><summary><span class="dot d2"></span>第一原理思考者</summary><div class="body">
+      <p>你問「加什麼系統」，問錯了。動作潛行遊戲的深度只來自一件事：玩家在一個情境裡有幾種真正不同、且各有代價的解法。手裡劍、爬牆、物品欄本身不是深度，只是動詞；動詞若沒有情境去逼玩家選擇，就只是動畫成本。</p>
+      <p>現有動詞已經足夠多甚至過剩。三套資源彼此重疊，體力與體幹在功能上都是「壓迫→破綻」，應砍掉一套或合併。真正不足的是情境：第一關是「一條線、幾個敵人、砍到底」。先別加動詞，先用現有動詞做三個關卡段落，每段至少能用兩種截然不同方式通關，評價系統讓兩種路線都能拿「影」。做完自然會發現哪個動詞缺席，再加且一次只加一個。</p>
+      <p>手裡劍是情境工具，值得加，可用攻擊鍵長按完成；爬牆對潛行深度貢獻最大但動畫成本極高，灰盒先用「跳上矮牆」代替；物品欄是純粹的 UI 稅，別做。</p>
+    </div></details>
+    <details class="c3"><summary><span class="dot d3"></span>擴張者</summary><div class="body">
+      <p>最被低估的資產是已經做好的敵人感知系統——這是一套「資訊戰場」，但玩家只能用「走到背後」一種方式操弄它。手裡劍不該當第四種攻擊，該當環境動詞：打滅燈籠製造陰影、擲地引開守衛、打斷弓兵拉弓。爬牆是立體潛行路線：屋頂俯視第二院、從上方落下忍殺。操作上別加鍵——攻擊鍵長按變投擲、靠牆推搖桿自動攀爬。</p>
+      <p>體幹／體力／HP 不多餘，反而可以放大：潛行階段消耗敵人體力，他喘氣時正面一刀忍殺，三套資源串成「潛行→戰鬥」連續光譜。做對了，手上的是能無限生產關卡的系統。</p>
+    </div></details>
+    <details class="c4"><summary><span class="dot d4"></span>局外人</summary><div class="body">
+      <p>第一次在手機上點開這款遊戲的人看到三條顏色不同的條、三個鍵、一個會脈動的圓盤，不知道哪條快沒了會死、哪條沒了只是累、哪條滿了會發生好事。這不是深度，是沒人翻譯的門檻。先別加任何東西，先讓畫面本身教學——敵人體幹滿時人物真的搖晃、紅光閃。</p>
+      <p>該問的是：第一關裡玩家有沒有一次「我做了個聰明的選擇」的時刻？路線單線，玩家除了正面打和背後砍沒有第三個選項。手裡劍是第一個會讓玩家思考的選項，只需一個按鍵。爬牆對手機玩家是陷阱，螢幕預算早就用完。不足的是「選擇」，多餘的是「沒被解釋的資源條」。</p>
+    </div></details>
+    <details class="c5"><summary><span class="dot d5"></span>執行者</summary><div class="body">
+      <p>1. 先把答應的三件做完。2. 手裏劍不加按鍵：長按攻擊 0.3 秒擲出，Area3D 加移動，擊中觸發現有聽覺／警戒邏輯，順便打熄燈籠，兩天。3. 爬牆現在不要，先做翻矮牆／跳上屋頂（一條 RayCast，一天）。4. 道具欄砍掉。5. 多武器不做。6. 三資源留著但先驗證：debug 旗標關掉體力讓使用者對照玩。</p>
+      <p>兩週目標：第一關加手裏劍、翻牆、兩個可熄燈籠，同一關有「正面打／偷襲／丟刀引開」三種解法。深度來自路徑選擇，不是更多按鍵。</p>
+    </div></details>
+  </div>
+
+  <div class="card">
+    <h2>互評重點</h2>
+    <details><summary>五位評審的共同結論與全體盲點</summary><div class="body">
+      <p><strong>最強：五票一致選「第一原理思考者」。</strong> 把問題從「加什麼動詞」翻成「情境是否逼人選擇」，給出可執行的驗證標準（每段兩種通關、都能拿「影」），並逐項裁決四個提案；執行者的排程是它的施工表。</p>
+      <p><strong>最大盲點：五票一致指「擴張者」。</strong> 把所有系統往上疊，無視灰盒、無人形動畫、拇指已滿、AI 無法真玩四項限制與回饋瓶頸。</p>
+      <p><strong>全體漏掉：</strong>敵人缺「失去目標→搜索→回歸」循環（沒有它，引開沒意義）；從沒量測重玩與發現點；AI 自動試玩該做成多策略 bot 記錄數據；「影」評分規則是便宜的深度槓桿；死亡重來的懲罰設計；敵人視野的可讀性；iPhone Safari 效能預算。</p>
+    </div></details>
+  </div>
+
+  <div class="footer">產出時間 2026-10-23 22:12 · 議題：半藏 HANZO 第一關之後的深度方向（手裡劍／爬牆／物品欄／多武器／三資源） · 逐字稿：council-transcript-20261023-2212.md</div>
+</div>
+</body>
+</html>
