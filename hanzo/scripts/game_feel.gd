@@ -11,18 +11,19 @@ const SAVE_PATH := "user://feel.cfg"
 
 ## key: [顯示名稱, 最小, 最大, 步進, 預設]
 const PARAMS := {
-	"windup_ms": ["前置蓄力（出刀前）ms", 20.0, 300.0, 5.0, 90.0],
-	"active_ms": ["有效命中窗 ms", 40.0, 250.0, 5.0, 110.0],
+	"ui_scale": ["介面大小", 0.8, 2.4, 0.05, 1.0],
+	"windup_ms": ["出刀前置 ms", 20.0, 300.0, 5.0, 90.0],
+	"active_ms": ["命中窗 ms", 40.0, 250.0, 5.0, 110.0],
 	"recovery_ms": ["收刀硬直 ms", 60.0, 500.0, 5.0, 180.0],
 	"hitstop_ms": ["頓幀 ms", 0.0, 250.0, 5.0, 70.0],
 	"hitstop_scale": ["頓幀時間倍率", 0.0, 0.5, 0.01, 0.05],
 	"shake_amp": ["鏡頭震幅", 0.0, 0.8, 0.01, 0.18],
-	"shake_ms": ["鏡頭震動時間 ms", 40.0, 500.0, 5.0, 160.0],
+	"shake_ms": ["鏡頭震動 ms", 40.0, 500.0, 5.0, 160.0],
 	"knockback": ["擊退力道", 0.0, 10.0, 0.1, 3.5],
 	"lunge": ["出刀前衝", 0.0, 6.0, 0.1, 1.8],
 	"hit_flash_ms": ["受擊閃白 ms", 0.0, 250.0, 5.0, 80.0],
-	"sfx_delay_ms": ["命中音效延遲 ms", 0.0, 120.0, 2.0, 0.0],
-	"cam_fov": ["鏡頭視角 FOV", 35.0, 90.0, 1.0, 55.0],
+	"sfx_delay_ms": ["音效延遲 ms", 0.0, 120.0, 2.0, 0.0],
+	"cam_fov": ["鏡頭視角", 35.0, 90.0, 1.0, 55.0],
 	"trail_alpha": ["刀光濃度", 0.0, 1.0, 0.05, 0.85],
 	"dmg_scale": ["傷害數字大小", 0.5, 2.5, 0.05, 1.0],
 }
@@ -36,21 +37,43 @@ const PRESETS := {
 	"戊・無料": {"hitstop_ms": 0.0, "shake_amp": 0.0, "hit_flash_ms": 0.0, "knockback": 0.5, "trail_alpha": 0.0, "lunge": 0.0},
 }
 
+## 手機預設介面倍率：以 720 高的基準畫布算，1.6 倍讓「斬」鍵直徑約佔螢幕高度 30%（拇指好按）
+const MOBILE_UI_SCALE := 1.6
+
 var p: Dictionary = {}
 var _stop_token := 0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	params_changed.connect(_apply_ui_scale)
 	reset_defaults()
 	load_cfg()
 	_setup_input_map()
 
 
+## 手機（iOS / Android，含 Safari 網頁版）或命令列加 --mobile 時視為手機
+func is_mobile() -> bool:
+	if "--mobile" in OS.get_cmdline_user_args():
+		return true
+	for f in ["web_ios", "web_android", "ios", "android"]:
+		if OS.has_feature(f):
+			return true
+	return false
+
+
 func reset_defaults() -> void:
 	for k in PARAMS:
 		p[k] = PARAMS[k][4]
+	if is_mobile():
+		p["ui_scale"] = MOBILE_UI_SCALE
 	params_changed.emit()
+
+
+func _apply_ui_scale() -> void:
+	var root := get_tree().root
+	if root:
+		root.content_scale_factor = get_p("ui_scale")
 
 
 func get_p(k: String) -> float:
@@ -71,8 +94,10 @@ func set_p(k: String, v: float) -> void:
 func apply_preset(preset_name: String) -> void:
 	if not PRESETS.has(preset_name):
 		return
+	var keep_ui := get_p("ui_scale")
 	for k in PARAMS:
 		p[k] = PARAMS[k][4]
+	p["ui_scale"] = keep_ui
 	var over: Dictionary = PRESETS[preset_name]
 	for k in over:
 		p[k] = over[k]

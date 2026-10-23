@@ -5,9 +5,9 @@ extends Control
 signal attack_pressed
 signal dash_pressed
 
-const JOY_R := 72.0
-const ATK_R := 66.0
-const DASH_R := 46.0
+const JOY_R := 78.0
+const ATK_R := 70.0
+const DASH_R := 50.0
 
 var move_vector := Vector2.ZERO
 ## 這些控制項可見且覆蓋到的區域，不會觸發搖桿（例如手感面板）
@@ -26,12 +26,13 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 
+## 鍵位離角落稍遠一點，拇指自然彎曲就按得到，也避開 iPhone 圓角與手勢區
 func _atk_center() -> Vector2:
-	return Vector2(size.x - 120.0, size.y - 120.0)
+	return Vector2(size.x - 140.0, size.y - 140.0)
 
 
 func _dash_center() -> Vector2:
-	return Vector2(size.x - 250.0, size.y - 78.0)
+	return Vector2(size.x - 290.0, size.y - 92.0)
 
 
 func _blocked(pos: Vector2) -> bool:
@@ -101,9 +102,9 @@ func _draw() -> void:
 	draw_circle(ac, ATK_R, Color(0.72, 0.14, 0.12, 0.55 + 0.4 * _atk_flash))
 	draw_arc(ac, ATK_R, 0.0, TAU, 64, Color(1, 0.92, 0.85, 0.9), 3.0, true)
 	if font:
-		draw_string(font, ac + Vector2(-ATK_R, 15.0), "斬", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 42, Color(1, 1, 1, 0.95))
+		draw_string(font, ac + Vector2(-ATK_R, 17.0), "斬", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 48, Color(1, 1, 1, 0.95))
 	var dc := _dash_center()
 	draw_circle(dc, DASH_R, Color(0.2, 0.3, 0.55, 0.5 + 0.4 * _dash_flash))
 	draw_arc(dc, DASH_R, 0.0, TAU, 48, Color(0.85, 0.9, 1, 0.85), 2.5, true)
 	if font:
-		draw_string(font, dc + Vector2(-DASH_R, 11.0), "閃", HORIZONTAL_ALIGNMENT_CENTER, DASH_R * 2.0, 30, Color(1, 1, 1, 0.95))
+		draw_string(font, dc + Vector2(-DASH_R, 12.0), "閃", HORIZONTAL_ALIGNMENT_CENTER, DASH_R * 2.0, 34, Color(1, 1, 1, 0.95))

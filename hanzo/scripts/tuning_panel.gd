@@ -8,13 +8,21 @@ var _syncing := false
 var _status: Label
 
 
+const FONT := 22
+const FONT_TITLE := 30
+const FONT_BTN := 22
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.09, 0.11, 0.93)
-	sb.set_content_margin_all(14.0)
+	sb.bg_color = Color(0.08, 0.09, 0.11, 0.95)
+	sb.set_content_margin_all(16.0)
 	add_theme_stylebox_override("panel", sb)
+	# 手機：介面已放大，剩下的畫布較窄，面板改佔六成寬才放得下滑桿
+	if Feel.is_mobile():
+		anchor_left = 0.38
 	_build()
 	Feel.params_changed.connect(_sync)
 	_sync()
@@ -25,16 +33,23 @@ func _build() -> void:
 	root.add_theme_constant_override("separation", 8)
 	add_child(root)
 
+	var head := HBoxContainer.new()
+	root.add_child(head)
 	var title := Label.new()
 	title.text = "手感調校（即時生效）"
-	title.add_theme_font_size_override("font_size", 26)
-	root.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_size_override("font_size", FONT_TITLE)
+	head.add_child(title)
+	_btn(head, "✕ 關閉", func() -> void:
+		visible = false)
 
 	var presets := HFlowContainer.new()
 	root.add_child(presets)
 	for preset_name in Feel.PRESETS:
 		var b := Button.new()
 		b.text = preset_name
+		b.add_theme_font_size_override("font_size", FONT_BTN)
+		b.custom_minimum_size = Vector2(0.0, 48.0)
 		b.pressed.connect(func() -> void:
 			Feel.apply_preset(preset_name)
 			_say("已套用「%s」，去砍看看。" % preset_name))
@@ -49,28 +64,37 @@ func _build() -> void:
 	list.add_theme_constant_override("separation", 4)
 	scroll.add_child(list)
 
+	# 一列放完「名稱｜滑桿｜數值」，手機上一屏能看到六七個參數
 	for key in Feel.PARAMS:
 		var spec: Array = Feel.PARAMS[key]
 		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
 		list.add_child(row)
 		var name_l := Label.new()
 		name_l.text = spec[0]
-		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_l.custom_minimum_size.x = 170.0
+		name_l.add_theme_font_size_override("font_size", FONT - 2)
+		name_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(name_l)
-		var val_l := Label.new()
-		val_l.custom_minimum_size.x = 72.0
-		val_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		row.add_child(val_l)
 		var s := HSlider.new()
 		s.min_value = spec[1]
 		s.max_value = spec[2]
 		s.step = spec[3]
-		s.custom_minimum_size = Vector2(0.0, 34.0)
+		s.custom_minimum_size = Vector2(120.0, 44.0)
 		s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		s.scrollable = false
 		s.value_changed.connect(func(v: float) -> void:
 			if not _syncing:
 				Feel.set_p(key, v))
-		list.add_child(s)
+		row.add_child(s)
+		var val_l := Label.new()
+		val_l.custom_minimum_size.x = 70.0
+		val_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		val_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		val_l.add_theme_font_size_override("font_size", FONT)
+		val_l.modulate = Color(1.0, 0.85, 0.5)
+		row.add_child(val_l)
 		_sliders[key] = s
 		_values[key] = val_l
 
@@ -85,18 +109,19 @@ func _build() -> void:
 	_btn(actions, "複製數值", func() -> void:
 		DisplayServer.clipboard_set(Feel.to_text())
 		_say("已複製，貼給 AI 就能重現這組手感。"))
-	_btn(actions, "關閉", func() -> void:
-		visible = false)
 
 	_status = Label.new()
-	_status.text = "拖滑桿後直接去砍稻草人；先用上面五組預設盲選，別先看數字。"
+	_status.text = "先按五組預設盲選各砍一分鐘，再微調；對了就「儲存」。"
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status.add_theme_font_size_override("font_size", FONT - 2)
 	root.add_child(_status)
 
 
 func _btn(parent: Node, text: String, cb: Callable) -> void:
 	var b := Button.new()
 	b.text = text
+	b.add_theme_font_size_override("font_size", FONT_BTN)
+	b.custom_minimum_size = Vector2(0.0, 48.0)
 	b.pressed.connect(cb)
 	parent.add_child(b)
 

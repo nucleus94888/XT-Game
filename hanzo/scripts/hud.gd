@@ -29,6 +29,11 @@ func _ready() -> void:
 
 func toggle_panel() -> void:
 	panel.visible = not panel.visible
+	gear.visible = not panel.visible
+
+
+func _process_panel_state() -> void:
+	gear.visible = not panel.visible
 
 
 func add_hit(heavy: bool) -> void:
@@ -77,6 +82,7 @@ func _process(delta: float) -> void:
 			combo = 0
 			_refresh()
 	fps.text = "%d fps" % Engine.get_frames_per_second()
+	_process_panel_state()
 
 
 func _refresh() -> void:

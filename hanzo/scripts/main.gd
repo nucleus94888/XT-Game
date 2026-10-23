@@ -5,6 +5,7 @@ extends Node3D
 ##   godot --path hanzo ++ --shot=../build/shots            只截一張閒置畫面後離開
 ##   godot --path hanzo ++ --shot=../build/shots --autoplay 走向稻草人、三段斬、閃步，
 ##                                                          在重擊命中瞬間與其後各截一張
+##   加 --mobile 模擬手機介面倍率；加 --panel 一開始就打開手感面板
 
 @onready var player: CharacterBody3D = $Player
 @onready var dummy: CharacterBody3D = $Dummy
@@ -54,6 +55,8 @@ func _parse_args() -> void:
 			_shot_dir = a.substr(7)
 		elif a == "--autoplay":
 			_auto = true
+		elif a == "--panel":
+			hud.panel.visible = true
 	if _shot_dir != "":
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_shot_dir))
 		if not _auto:
