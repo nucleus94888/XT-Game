@@ -16,7 +16,8 @@ func _init() -> void:
 	start_pos = Vector3(0.0, HILL + 0.1, 28.0)
 	exit_pos = Vector3(0.0, 8.1, -16.75)
 	checkpoints = [Vector3(0.0, HILL, 28.0), Vector3(0.0, 0.0, 12.0), Vector3(0.0, F1, -3.0), Vector3(10.5, F2, -10.5)]
-	next_scene = ""
+	next_scene = "res://scenes/level3.tscn"
+	next_label = "下一關：夜之城下町"
 	bounds = AABB(Vector3(-20.4, -1.0, -31.0), Vector3(40.8, 20.0, 64.0))
 
 
@@ -176,6 +177,12 @@ func _spawn_enemies() -> void:
 	if not _target_dead:
 		_lord = _spawn(Enemy.Kind.TARGET, Vector3(0.0, F2, -18.5), [], Vector3(0.0, 0.0, 1.0))
 		_lord.hp = 150
+	_respawn_scrolls()
+
+
+## 卷軸「口糧可帶兩份」：二樓西翼房（足輕守著）
+func _respawn_scrolls() -> void:
+	_scroll(Vector3(-10.0, F2, -21.0), "ration2")
 
 
 func _on_enemy_died_hook(e: Enemy, _stealth: bool) -> void:

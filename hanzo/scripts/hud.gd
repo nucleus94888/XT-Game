@@ -41,9 +41,20 @@ var _lat_samples: Array = []
 var _lat_js := false
 
 
+var items_label: Label
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("hud")
 	touch.process_mode = Node.PROCESS_MODE_PAUSABLE
+	items_label = Label.new()
+	items_label.position = Vector2(18, 48)
+	items_label.add_theme_font_size_override("font_size", 16)
+	items_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	items_label.add_theme_constant_override("outline_size", 4)
+	items_label.modulate = Color(0.85, 1.0, 0.85)
+	add_child(items_label)
 	Feel.flash_requested.connect(_on_flash)
 	_setup_latency_probe()
 	gear.pressed.connect(toggle_panel)
@@ -84,6 +95,10 @@ func attach(player: Node, cam_rig: Node) -> void:
 	player.hit_landed.connect(func(info: Dictionary) -> void:
 		add_hit(bool(info.heavy)))
 	player.hp_changed.connect(set_hp)
+	player.rations_changed.connect(func(_n: int) -> void:
+		_refresh_items())
+	set_hp(player.hp)
+	_refresh_items()
 	player.parried.connect(func() -> void:
 		say("彈反！", Color(1.0, 0.92, 0.5)))
 
@@ -221,7 +236,21 @@ func add_kill(text: String = "擊破！", color: Color = Color(1.0, 0.85, 0.4)) 
 
 
 func set_hp(v: int) -> void:
+	if _player:
+		var mx: int = _player.max_hp
+		hp_bar.max_value = mx
+		# 血條長度跟著最大 HP 變（念珠）
+		hp_bar.size.x = 240.0 * float(mx) / 100.0
 	hp_bar.value = v
+
+
+func _refresh_items() -> void:
+	if _player == null:
+		return
+	var parts: Array = []
+	if _player.rations > 0:
+		parts.append("口糧 ×%d" % _player.rations)
+	items_label.text = "　".join(parts)
 
 
 ## 體幹條：空的時候幾乎看不見，越滿越亮、超過 70% 開始脈動

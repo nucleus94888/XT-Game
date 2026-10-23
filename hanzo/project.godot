@@ -25,6 +25,7 @@ config/icon="res://icon.svg"
 Feel="*res://scripts/game_feel.gd"
 Fx="*res://scripts/fx.gd"
 Sfx="*res://scripts/sfx.gd"
+Progress="*res://scripts/progress.gd"
 
 [audio]
 

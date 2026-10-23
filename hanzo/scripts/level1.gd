@@ -163,6 +163,12 @@ func _spawn_enemies() -> void:
 		_lord.flee_route = [Vector3(0.0, HALL_Y, -23.5), Vector3(0.0, T, -25.5), Vector3(0.0, T, -28.8)]
 		_lord.flee_started.connect(_on_lord_flee)
 		_lord.escaped.connect(_on_lord_escaped)
+	_respawn_scrolls()
+
+
+## 卷軸「手裡劍 ×7」：櫓的平台上（弓兵旁邊）
+func _respawn_scrolls() -> void:
+	_scroll(Vector3(9.4, 4.5, 14.1), "shuriken7")
 
 
 func _after_respawn() -> void:

@@ -38,6 +38,12 @@ func start() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a == "--trace":
 			_trace = true
+		elif a == "--full":
+			# 全升級組合：念珠四枚（HP 140）＋三卷卷軸（不寫存檔）
+			Progress.beads = Progress.MAX_BEADS
+			Progress._pending = Progress.SCROLLS.keys()
+			player.refresh_progress()
+			print("BOT full upgrades: max_hp=%d shuriken=%d" % [player.max_hp, Progress.shuriken_max()])
 	if _trace:
 		player.hit_landed.connect(func(info: Dictionary) -> void:
 			if is_instance_valid(enemy):

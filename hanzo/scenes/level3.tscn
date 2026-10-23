@@ -1,0 +1,35 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/level3.gd" id="s_level"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="sc_player"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="sc_hud"]
+[ext_resource type="PackedScene" path="res://scenes/camera_rig.tscn" id="sc_cam"]
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.03, 0.035, 0.06, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.4, 0.46, 0.7, 1)
+ambient_light_energy = 0.32
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.1, 0.1, 0.14, 1)
+fog_density = 0.012
+
+[node name="Level3" type="Node3D"]
+script = ExtResource("s_level")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env")
+
+[node name="Moon" type="DirectionalLight3D" parent="."]
+light_color = Color(0.62, 0.7, 1, 1)
+light_energy = 0.35
+shadow_enabled = true
+
+[node name="Player" parent="." instance=ExtResource("sc_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 31)
+
+[node name="CameraRig" parent="." instance=ExtResource("sc_cam")]
+
+[node name="HUD" parent="." instance=ExtResource("sc_hud")]

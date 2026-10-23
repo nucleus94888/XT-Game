@@ -26,6 +26,7 @@ var _lanterns: Array = []
 var _gates := {}
 var _mats := {}
 var _target_dead := false
+var _bead_given := false
 var _exit_ready := false
 var _exit_beacon: Node3D
 var _finished := false
@@ -167,6 +168,8 @@ func _physics_process(_delta: float) -> void:
 			_cp_index = i
 			_checkpoint = cp + Vector3(0.0, 0.1, 0.0)
 			player.refill_shuriken()
+			# 撿到的卷軸走到檢查點才算數
+			Progress.commit_pending()
 	var lit := false
 	for l in _lanterns:
 		if l.lights(player.global_position):
@@ -482,6 +485,19 @@ func _stone_lantern(pos: Vector3) -> void:
 	_box(pos + Vector3(0.0, 1.75, 0.0), Vector3(0.8, 0.15, 0.8), stone.darkened(0.2), Vector3.ZERO, false)
 
 
+## 卷軸（每關一卷，藏在潛行路線深處）；已經有的就不放
+const ScrollScript := preload("res://scripts/scroll.gd")
+
+
+func _scroll(pos: Vector3, id: String) -> void:
+	if Progress.has_scroll(id):
+		return
+	var s: Node3D = ScrollScript.new()
+	s.id = id
+	add_child(s)
+	s.global_position = pos
+
+
 ## 會亮的燈籠（可用手裡劍熄滅）
 func _lantern(pos: Vector3) -> Lantern:
 	var l := Lantern.new()
@@ -652,6 +668,12 @@ func _on_enemy_died(e: Enemy, stealth: bool) -> void:
 	if stealth:
 		_stealth_kills += 1
 	hud.add_kill("")
+	# 忍殺大將得念珠：最大 HP +10（每關一枚，最多四枚）
+	if e.kind == Enemy.Kind.TARGET and not _bead_given and Progress.beads < Progress.MAX_BEADS:
+		_bead_given = true
+		Progress.add_bead()
+		get_tree().create_timer(0.9).timeout.connect(func() -> void:
+			hud.say("念珠　最大 HP +10", Color(1.0, 0.85, 0.5)))
 	_on_enemy_died_hook(e, stealth)
 
 
@@ -678,6 +700,11 @@ func _respawn() -> void:
 	for a in get_children():
 		if a is Arrow or a is Shuriken or a is Ration:
 			a.queue_free()
+	# 撿到但還沒到檢查點的卷軸：回溯後要重撿
+	Progress.drop_pending()
+	for a in get_children():
+		if a.get_script() == ScrollScript:
+			a.queue_free()
 	_spawn_enemies()
 	_after_respawn()
 	player.global_position = _checkpoint
@@ -692,9 +719,16 @@ func _after_respawn() -> void:
 	pass
 
 
+## 子類別：在 _spawn_enemies 結尾呼叫，放這關的卷軸（已持有的不放；死亡回溯會重放）
+func _respawn_scrolls() -> void:
+	pass
+
+
 func _finish() -> void:
 	_finished = true
 	var rank := _rank()
+	Progress.commit_pending()
+	Progress.mark_cleared(scene_file_path.get_file().get_basename(), rank)
 	hud.say("任務完成", Color(0.95, 0.9, 0.6))
 	var buttons: Array = []
 	if next_scene != "":
@@ -705,6 +739,7 @@ func _finish() -> void:
 		hud.show_overlay("任務完成　評價 %s" % rank, [
 			"時間 %s" % _fmt_time(_time),
 			"擊破 %d（暗殺 %d）　被擊中 %d 次　被發現 %d 次" % [_kills, _stealth_kills, _hits_taken, _alert_count],
+			"念珠 %d/%d　卷軸 %d/%d" % [Progress.beads, Progress.MAX_BEADS, Progress.scroll_count(), Progress.SCROLLS.size()],
 			_rank_comment(rank),
 		], buttons, Color(1.0, 0.9, 0.5)))
 

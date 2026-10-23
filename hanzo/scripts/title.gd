@@ -52,6 +52,17 @@ func _ready() -> void:
 		get_tree().change_scene_to_file(LEVEL1))
 	_btn(vb, "第二關：湖畔屋敷（追擊）", func() -> void:
 		get_tree().change_scene_to_file("res://scenes/level2.tscn"))
+	_btn(vb, "第三關：夜之城下町（出城）", func() -> void:
+		get_tree().change_scene_to_file("res://scenes/level3.tscn"))
+	var prog := Label.new()
+	var names: Array = []
+	for id in Progress.scrolls:
+		names.append(Progress.SCROLLS[id])
+	prog.text = "念珠 %d/%d（最大 HP %d）　卷軸 %d/%d%s" % [Progress.beads, Progress.MAX_BEADS, Progress.max_hp(), Progress.scroll_count(), Progress.SCROLLS.size(), ("：" + "、".join(names)) if names.size() > 0 else ""]
+	prog.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prog.modulate = Color(1.0, 0.9, 0.7)
+	prog.add_theme_font_size_override("font_size", 18)
+	vb.add_child(prog)
 	_btn(vb, "道場（練手感）", func() -> void:
 		get_tree().change_scene_to_file(DOJO))
 

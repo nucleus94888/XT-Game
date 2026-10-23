@@ -14,6 +14,7 @@ signal posture_broken
 ## 動作被拒（手裡劍沒了、閃步冷卻中、鉤繩冷卻中…）：HUD 用來給一個小提示
 signal denied(what: String)
 signal shuriken_changed(n: int)
+signal rations_changed(n: int)
 signal weapon_changed(mode: int)
 
 enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE, BROKEN }
@@ -60,6 +61,9 @@ var state := State.FREE
 var touch: Node = null
 var cam_rig: Node = null
 var hp := MAX_HP
+var max_hp := MAX_HP
+## 帶著的口糧（血滿時撿到會帶著，血量低於三成自動吃）
+var rations := 0
 var posture := 0.0
 var _posture_delay := 0.0
 var _broken_t := 0.0
@@ -152,6 +156,10 @@ func _ready() -> void:
 	add_to_group("player")
 	_build_spark()
 	_build_rope()
+	max_hp = Progress.max_hp()
+	hp = max_hp
+	shuriken = Progress.shuriken_max()
+	Progress.changed.connect(refresh_progress)
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -419,6 +427,16 @@ func _tick_hook_job(delta: float) -> void:
 			elif kind == "pull" and is_instance_valid(target) and target.has_method("hooked") and target.get("state") != target.State.DEAD:
 				_hook_cd = HOOK_PULL_CD
 				var dir := _forward()
+				var flat_d := Vector2(target.global_position.x - global_position.x, target.global_position.z - global_position.z).length()
+				if Progress.has_scroll("hook_fly") and flat_d > 6.0:
+					# 飛鉤（卷軸）：對方太遠就是你飛過去，落地時他正硬直
+					target.hooked(target.global_position, 15 if bool(_hook_job.head) else 6, bool(_hook_job.head), self, 0.05)
+					var to_me := global_position - target.global_position
+					to_me.y = 0.0
+					to_me = to_me.normalized() if to_me.length() > 0.01 else -dir
+					_hook_job = {}
+					_start_grapple_to(target.global_position + to_me * 1.5)
+					return
 				var dest := global_position + dir * 1.6
 				target.hooked(dest, 15 if bool(_hook_job.head) else 6, bool(_hook_job.head), self, HOOK_PULL_TIME)
 				Feel.kick(dir, 0.3)
@@ -588,20 +606,48 @@ func _try_plunge() -> bool:
 	return true
 
 
-func heal(v: int) -> void:
-	hp = mini(hp + v, MAX_HP)
+## 吃口糧：血快滿就帶著（上限看卷軸），血量低於三成自動吃。回傳 true＝直接回血、false＝帶著
+func heal(v: int) -> bool:
+	if hp >= max_hp - 5 and rations < Progress.ration_max():
+		rations += 1
+		rations_changed.emit(rations)
+		return false
+	hp = mini(hp + v, max_hp)
 	hp_changed.emit(hp)
+	return true
+
+
+func _tick_rations() -> void:
+	if rations <= 0 or hp >= int(max_hp * 0.3) or state in [State.HURT, State.DEAD, State.BROKEN]:
+		return
+	rations -= 1
+	rations_changed.emit(rations)
+	hp = mini(hp + 35, max_hp)
+	hp_changed.emit(hp)
+	Fx.damage_number(global_position + Vector3(0.0, 2.0, 0.0), 35, false, Color(0.6, 1.0, 0.6), "口糧 +35")
+
+
+## 進度（念珠、卷軸）套用到角色：最大 HP、手裡劍上限
+func refresh_progress() -> void:
+	var was_max := hp >= max_hp
+	max_hp = Progress.max_hp()
+	if was_max:
+		hp = max_hp
+	hp = mini(hp, max_hp)
+	hp_changed.emit(hp)
+	shuriken = mini(shuriken, Progress.shuriken_max())
+	shuriken_changed.emit(shuriken)
 
 
 ## 檢查點／復活：補滿手裡劍
 func refill_shuriken() -> void:
-	shuriken = MAX_SHURIKEN
+	shuriken = Progress.shuriken_max()
 	shuriken_changed.emit(shuriken)
 
 
 ## 撿回射出的手裡劍
 func pickup_shuriken() -> void:
-	shuriken = mini(shuriken + 1, MAX_SHURIKEN)
+	shuriken = mini(shuriken + 1, Progress.shuriken_max())
 	shuriken_changed.emit(shuriken)
 
 
@@ -777,6 +823,7 @@ func _physics_process(delta: float) -> void:
 		State.BROKEN:
 			_tick_broken(delta)
 	_tick_posture(delta)
+	_tick_rations()
 	_lock_t -= delta
 	_dash_lock_t -= delta
 	_hook_cd -= delta
@@ -1087,7 +1134,8 @@ func _die(dir: Vector3) -> void:
 
 ## 道場／檢查點用：原地復活（補滿血、體幹歸零、手裡劍補滿）
 func revive() -> void:
-	hp = MAX_HP
+	max_hp = Progress.max_hp()
+	hp = max_hp
 	posture = 0.0
 	_posture_immune_t = 0.0
 	_posture_sources.clear()
