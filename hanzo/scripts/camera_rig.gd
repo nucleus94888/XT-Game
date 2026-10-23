@@ -11,12 +11,14 @@ extends Node3D
 var _target: Node3D
 var _trauma := 0.0
 var _decay := 0.0
+var _kick := Vector3.ZERO
 var _last_ms := 0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	Feel.shake_requested.connect(_on_shake)
+	Feel.kick_requested.connect(_on_kick)
 	Feel.params_changed.connect(_apply_params)
 	_apply_params()
 	_last_ms = Time.get_ticks_msec()
@@ -37,6 +39,10 @@ func _on_shake(amp: float, dur: float) -> void:
 	_decay = amp / maxf(dur, 0.02)
 
 
+func _on_kick(dir: Vector3, amount: float) -> void:
+	_kick += Vector3(dir.x, 0.0, dir.z) * amount
+
+
 func _process(delta: float) -> void:
 	var now := Time.get_ticks_msec()
 	var real_dt := clampf(float(now - _last_ms) / 1000.0, 0.0, 0.1)
@@ -52,7 +58,8 @@ func _process(delta: float) -> void:
 		0.0
 	) * sh * 1.6
 	var roll := sin(t * 2.9) * sh * 0.09
-	cam.position = offset + off
-	cam.look_at(global_position + Vector3(0.0, look_height, 0.0), Vector3.UP)
+	cam.position = offset + off + _kick
+	cam.look_at(global_position + Vector3(0.0, look_height, 0.0) + _kick * 0.5, Vector3.UP)
 	cam.rotate_object_local(Vector3(0.0, 0.0, 1.0), roll)
 	_trauma = maxf(_trauma - _decay * real_dt, 0.0)
+	_kick = _kick.lerp(Vector3.ZERO, 1.0 - exp(-14.0 * real_dt))

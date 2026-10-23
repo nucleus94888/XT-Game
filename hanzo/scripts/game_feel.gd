@@ -8,6 +8,8 @@ signal shake_requested(amp: float, dur: float)
 signal flash_requested(color: Color, dur: float)
 ## 頓幀期間每幀發出目前的時間流速，讓火花等效果能用真實時間繼續動
 signal time_scale_changed(ts: float)
+## 方向性鏡頭踢擊（往砍的方向頂一下再彈回），比亂數震動更像「撞上東西」
+signal kick_requested(dir: Vector3, amount: float)
 
 const SAVE_PATH := "user://feel.cfg"
 
@@ -154,6 +156,10 @@ func shake(mult: float = 1.0) -> void:
 
 func flash(color: Color, dur: float) -> void:
 	flash_requested.emit(color, dur)
+
+
+func kick(dir: Vector3, amount: float) -> void:
+	kick_requested.emit(dir, amount)
 
 
 func save_cfg() -> void:

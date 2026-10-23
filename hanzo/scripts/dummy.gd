@@ -27,6 +27,8 @@ var _mats: Array[StandardMaterial3D] = []
 @onready var sweep: Area3D = $Visual/SweepBox
 @onready var mark: Label3D = $Visual/Mark
 @onready var arms: MeshInstance3D = $Visual/Arms
+@onready var head: MeshInstance3D = $Visual/Head
+var _react_tw: Tween
 @onready var particles: CPUParticles3D = $HitParticles
 @onready var sfx_break: AudioStreamPlayer = $SfxBreak
 
@@ -108,6 +110,7 @@ func take_hit(info: Dictionary) -> void:
 	_flash_t = Feel.sec("hit_flash_ms")
 	if _flash_t > 0.0:
 		_set_flash(true)
+	_react(info)
 	particles.global_position = info.pos
 	particles.direction = _hit_dir + Vector3(0.0, 0.6, 0.0)
 	particles.scale_amount_max = 1.7 if info.heavy else 1.2
@@ -124,6 +127,22 @@ func take_hit(info: Dictionary) -> void:
 		_sweep_done = false
 		_recent_hits = 0
 		mark.visible = true
+
+
+## 受擊反應（真實時間，頓幀中可見）：整體擠扁再彈回、頭往受擊方向甩、手臂抖一下
+func _react(info: Dictionary) -> void:
+	if _react_tw and _react_tw.is_valid():
+		_react_tw.kill()
+	var heavy: bool = info.heavy
+	visual.scale = Vector3(1.32, 0.72, 1.32) if heavy else Vector3(1.18, 0.86, 1.18)
+	head.rotation = Vector3(_hit_dir.z * (0.9 if heavy else 0.5), 0.0, -_hit_dir.x * (0.9 if heavy else 0.5))
+	arms.rotation.z = (0.5 if heavy else 0.25) * (1.0 if randf() > 0.5 else -1.0)
+	_react_tw = create_tween()
+	_react_tw.set_ignore_time_scale(true)
+	_react_tw.set_parallel(true)
+	_react_tw.tween_property(visual, "scale", Vector3.ONE, 0.32).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_react_tw.tween_property(head, "rotation", Vector3.ZERO, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_react_tw.tween_property(arms, "rotation:z", 0.0, 0.35).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 
 func _tick_counter(delta: float) -> void:
@@ -163,6 +182,10 @@ func _die() -> void:
 	mark.visible = false
 	_counter_t = -1.0
 	_set_flash(false)
+	if _react_tw and _react_tw.is_valid():
+		_react_tw.kill()
+	head.rotation = Vector3.ZERO
+	arms.rotation = Vector3.ZERO
 	sfx_break.play()
 	Feel.shake(1.2)
 	particles.scale_amount_max = 1.7
@@ -184,6 +207,8 @@ func _respawn() -> void:
 	_wob_v = 0.0
 	global_position = _spawn
 	visual.rotation = Vector3.ZERO
+	head.rotation = Vector3.ZERO
+	arms.rotation = Vector3.ZERO
 	visual.scale = Vector3(0.2, 0.2, 0.2)
 	var tw := create_tween()
 	tw.tween_property(visual, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

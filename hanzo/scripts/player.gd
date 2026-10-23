@@ -39,6 +39,7 @@ var _dash_dir := Vector3.FORWARD
 var _invuln := false
 var _hurt_t := 0.0
 var _trail_mat: StandardMaterial3D
+var _jolt_tw: Tween
 
 @onready var visual: Node3D = $Visual
 @onready var body: MeshInstance3D = $Visual/Body
@@ -240,6 +241,14 @@ func _check_hits(c: Dictionary) -> void:
 func _on_landed(info: Dictionary, c: Dictionary) -> void:
 	Feel.hitstop(float(c.stop))
 	Feel.shake(float(c.shake))
+	# 刀撞上東西的反作用：鏡頭往砍的方向踢一下、身體一震（真實時間，頓幀中可見）
+	Feel.kick(_forward(), 0.35 * float(c.shake))
+	body.scale = Vector3(1.14, 0.9, 1.14) if c.heavy else Vector3(1.08, 0.95, 1.08)
+	if _jolt_tw and _jolt_tw.is_valid():
+		_jolt_tw.kill()
+	_jolt_tw = create_tween()
+	_jolt_tw.set_ignore_time_scale(true)
+	_jolt_tw.tween_property(body, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 	var sp := sfx_heavy if c.heavy else sfx_hit
 	sp.pitch_scale = randf_range(0.95, 1.05)
 	var d := Feel.sec("sfx_delay_ms")
@@ -298,6 +307,13 @@ func take_hit(info: Dictionary) -> void:
 	var dir: Vector3 = info.dir
 	velocity.x = dir.x * 7.0
 	velocity.z = dir.z * 7.0
+	body.scale = Vector3(1.2, 0.82, 1.2)
+	if _jolt_tw and _jolt_tw.is_valid():
+		_jolt_tw.kill()
+	_jolt_tw = create_tween()
+	_jolt_tw.set_ignore_time_scale(true)
+	_jolt_tw.tween_property(body, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	Feel.kick(dir, 0.5)
 	sfx_hurt.play()
 	Feel.hitstop(0.8)
 	Feel.shake(1.6)
