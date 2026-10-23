@@ -15,8 +15,8 @@ enum State { IDLE, PATROL, SUSPICIOUS, ALERT, ATTACK, STAGGER, BROKEN, DEAD, SEA
 const SPEC := {
 	Kind.ASHIGARU: {"name": "足輕", "hp": 40, "posture": 60.0, "speed": 4.0, "color": Color(0.36, 0.42, 0.55), "reach": 2.1, "dmg": 12, "windup": 0.45, "strike": 0.14, "cd": 1.5, "weapon": "spear", "view": 7.0},
 	Kind.ARCHER: {"name": "弓兵", "hp": 30, "posture": 50.0, "speed": 3.6, "color": Color(0.3, 0.5, 0.35), "reach": 9.5, "dmg": 10, "windup": 0.75, "strike": 0.1, "cd": 2.3, "weapon": "bow", "view": 9.0},
-	Kind.SAMURAI: {"name": "武士", "hp": 90, "posture": 100.0, "speed": 4.5, "color": Color(0.6, 0.16, 0.14), "reach": 2.3, "dmg": 18, "windup": 0.5, "strike": 0.14, "cd": 1.8, "weapon": "katana", "view": 8.0},
-	Kind.TARGET: {"name": "武將", "hp": 120, "posture": 110.0, "speed": 4.3, "color": Color(0.78, 0.62, 0.2), "reach": 2.4, "dmg": 22, "windup": 0.55, "strike": 0.14, "cd": 1.6, "weapon": "katana", "view": 8.0},
+	Kind.SAMURAI: {"name": "武士", "hp": 90, "posture": 100.0, "speed": 4.5, "color": Color(0.6, 0.16, 0.14), "reach": 2.3, "dmg": 18, "windup": 0.5, "strike": 0.14, "cd": 1.4, "weapon": "katana", "view": 8.0},
+	Kind.TARGET: {"name": "武將", "hp": 120, "posture": 110.0, "speed": 4.3, "color": Color(0.78, 0.62, 0.2), "reach": 2.4, "dmg": 22, "windup": 0.55, "strike": 0.14, "cd": 1.3, "weapon": "katana", "view": 8.0},
 }
 const VIEW_COS := 0.42
 const SHOUT_RANGE := 10.0
@@ -30,10 +30,20 @@ var hp := 0
 var posture := 0.0
 var state := State.IDLE
 var alerted_once := false
-## 體力：出手要花，耗盡會喘氣停手（破綻）
-var stamina := 100.0
-const STAM_ATTACK := 25.0
-var stam_fill: MeshInstance3D
+## 體力（不可見）：連續出手 6 刀會喘 0.8 秒（破綻）；武將不喘。4 秒沒出手就恢復
+const SWINGS_BEFORE_PANT := 6
+var _swings := 0
+var _swing_rest_t := 0.0
+## 連續格擋玩家幾刀（武士／武將格擋第三刀必反擊）
+var _blocked_streak := 0
+var _blocked_streak_t := 0.0
+## 連續被玩家打中幾下（被連打 2 下，下一刀變成不可格擋的「危」技）
+var _hit_streak := 0
+var _hit_streak_t := 0.0
+var _perilous := false
+var _counter := false
+## 被鉤繩拉過後 6 秒內不能再被拉
+var _hook_immune_t := 0.0
 
 var _player: Node3D
 var _facing := 0.0
@@ -234,20 +244,6 @@ func _build() -> void:
 	bar_fill.mesh = qf
 	bar_fill.position = Vector3(0, 0, 0.01)
 	bar.add_child(bar_fill)
-	# 體力細條（綠）在體幹條下方
-	stam_fill = MeshInstance3D.new()
-	var qs := QuadMesh.new()
-	qs.size = Vector2(1.24, 0.045)
-	var sm := StandardMaterial3D.new()
-	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sm.albedo_color = Color(0.35, 0.85, 0.4)
-	sm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	sm.no_depth_test = true
-	sm.render_priority = 1
-	qs.material = sm
-	stam_fill.mesh = qs
-	stam_fill.position = Vector3(0, -0.1, 0.01)
-	bar.add_child(stam_fill)
 	bar.visible = false
 
 	particles = CPUParticles3D.new()
@@ -288,8 +284,16 @@ func _physics_process(delta: float) -> void:
 	_attack_cd -= delta
 	_stun_t -= delta
 	_posture_t -= delta
-	if state != State.ATTACK:
-		stamina = minf(stamina + 18.0 * delta, 100.0)
+	_hook_immune_t -= delta
+	_swing_rest_t -= delta
+	if _swing_rest_t <= 0.0:
+		_swings = 0
+	_blocked_streak_t -= delta
+	if _blocked_streak_t <= 0.0:
+		_blocked_streak = 0
+	_hit_streak_t -= delta
+	if _hit_streak_t <= 0.0:
+		_hit_streak = 0
 	if _posture_t <= 0.0 and state != State.BROKEN and posture > 0.0:
 		posture = maxf(posture - 10.0 * delta, 0.0)
 	if _flash_t > 0.0:
@@ -532,37 +536,58 @@ func _do_alert(delta: float) -> void:
 		else:
 			_stop()
 			_face_player(delta)
-		_guard = (kind == Kind.SAMURAI or kind == Kind.TARGET) and dist < 4.5 and _attack_cd > 0.35
+		# 武士／武將戰鬥中一律架刀（出手時才放下）
+		_guard = (kind == Kind.SAMURAI or kind == Kind.TARGET) and dist < 4.5
+		# 玩家體幹崩壞跪著：不客氣，立刻追擊
+		if _player.get("state") == _player.State.BROKEN:
+			_attack_cd = minf(_attack_cd, 0.15)
 		if _attack_cd <= 0.0 and dist < float(spec.reach) * 1.05 and _forward().dot(to.normalized()) > 0.5:
 			_try_attack()
 
 
-## 體力不夠就喘氣停手 1.1 秒（頭上「喘」），這是玩家的破綻機會
+## 連續出手 6 刀就喘氣停手 0.8 秒（頭上「喘」），這是玩家的破綻機會；武將不喘
 func _try_attack() -> void:
-	if stamina < STAM_ATTACK:
+	if kind != Kind.TARGET and _swings >= SWINGS_BEFORE_PANT:
+		_swings = 0
 		state = State.STAGGER
-		_stun_t = 1.1
-		_attack_cd = 1.0
+		_stun_t = 0.8
+		_attack_cd = 0.8
 		_guard = false
-		_show_mark("喘", Color(0.75, 0.85, 1.0), 1.0)
+		_show_mark("喘", Color(0.75, 0.85, 1.0), 0.8)
 		return
-	stamina -= STAM_ATTACK
+	_swings += 1
+	_swing_rest_t = 4.0
 	_start_attack()
 
 
-func _start_attack() -> void:
+## counter = 格擋第三刀後的反擊（前置只有 220ms）
+func _start_attack(counter: bool = false) -> void:
 	state = State.ATTACK
 	_atk_t = 0.0
 	_struck = false
 	_guard = false
+	_counter = counter
+	# 被連打 2 下 → 這一刀是「危」：不可格擋，只能閃或拉開距離
+	_perilous = _hit_streak >= 2 and kind != Kind.ARCHER
 	_stop()
 	_set_emission(Color(1.0, 0.2, 0.15), 0.8)
 	_flash_t = 0.0
+	if _perilous:
+		_show_mark("危", Color(1.0, 0.2, 0.15), _windup() + 0.1)
+		_hit_streak = 0
+
+
+func _windup() -> float:
+	if _counter:
+		return 0.22
+	return float(spec.windup) * (1.25 if _perilous else 1.0)
 
 
 func _do_attack(delta: float) -> void:
+	# 出手中不自己走動；速度只來自 _kb（前衝半步）。不歸零的話 _kb 會逐幀累加，整個人飛出去
+	_stop()
 	_atk_t += delta
-	var w: float = spec.windup
+	var w: float = _windup()
 	var s: float = spec.strike
 	if _atk_t < w:
 		_face_player(delta, 6.0)
@@ -591,6 +616,8 @@ func _do_attack(delta: float) -> void:
 	else:
 		weapon.rotation = Vector3.ZERO
 		state = State.ALERT
+		_perilous = false
+		_counter = false
 		_attack_cd = float(spec.cd) * randf_range(0.85, 1.25)
 
 
@@ -598,16 +625,19 @@ func _strike() -> void:
 	Sfx.play(_sfx_swing)
 	weapon.rotation.x = -0.8
 	weapon.rotation.y = -1.4
-	# 前衝半步
+	# 前衝半步（危技衝更遠）
 	var f := _forward()
-	_kb = f * 3.0
+	_kb = f * (4.5 if _perilous else 3.0)
 	for a in _strike_area.get_overlapping_areas():
 		var t := a.get_parent()
 		if t and t != self and t.is_in_group("player") and t.has_method("take_hit"):
 			var dir: Vector3 = (t as Node3D).global_position - global_position
 			dir.y = 0.0
 			dir = dir.normalized()
-			t.take_hit({"dmg": spec.dmg, "dir": dir, "kb": 5.0, "heavy": false, "pos": t.global_position + Vector3(0, 1.2, 0), "src": self})
+			var dmg := int(spec.dmg)
+			if _perilous:
+				dmg = int(dmg * 1.3)
+			t.take_hit({"dmg": dmg, "dir": dir, "kb": 5.0, "heavy": _perilous, "pos": t.global_position + Vector3(0, 1.2, 0), "src": self, "unblockable": _perilous})
 
 
 func _shoot() -> void:
@@ -653,23 +683,28 @@ func _hit_dir_set(info: Dictionary) -> Vector3:
 	return dir.normalized()
 
 
-## 被鉤繩拉過來：拖到 dest、小傷害、硬直；會驚動
+## 被鉤繩拉過來：拖到 dest、小傷害、短硬直（0.45 秒）；會驚動；之後 6 秒不能再被拉
+func can_be_hooked() -> bool:
+	return state != State.DEAD and _hook_immune_t <= 0.0
+
+
 func hooked(dest: Vector3, dmg: int, headshot: bool, by: Node3D) -> void:
 	if state == State.DEAD:
 		return
+	_hook_immune_t = 6.0
 	var dir: Vector3 = dest - global_position
 	dir.y = 0.0
 	dir = dir.normalized()
 	var tw := create_tween()
 	tw.tween_property(self, "global_position", Vector3(dest.x, global_position.y, dest.z), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	state = State.STAGGER
-	_stun_t = 0.9
+	_stun_t = 0.45
 	_guard = false
 	weapon.rotation = Vector3.ZERO
 	take_hit({"dmg": dmg, "dir": -dir, "kb": 0.0, "heavy": false, "pos": global_position + Vector3(0.0, 1.5 if headshot else 1.1, 0.0), "src": by, "headshot": headshot, "hook": true})
 	if state != State.DEAD and state != State.BROKEN:
 		state = State.STAGGER
-		_stun_t = 0.9
+		_stun_t = 0.45
 		_facing = _yaw_to(-dir)
 
 
@@ -682,25 +717,34 @@ func take_hit(info: Dictionary) -> void:
 	if state == State.BROKEN:
 		_execute(info, dir)
 		return
-	# 武士架刀：正面的輕攻擊被擋下（體幹仍會累積，重擊能破）
-	if _guard and not heavy and _forward().dot(-dir) > 0.3:
+	# 武士架刀（隻狼式）：正面的刀全部擋下，輕重都一樣，只累積體幹（重擊累積較多）。
+	# 要傷到他：彈反他的攻擊讓他硬直、手裡劍／鉤繩、或把體幹打滿。
+	# 連擋第三刀立刻反擊（連按攻擊的下場）。
+	var sword_hit: bool = not info.get("shuriken", false) and not info.get("hook", false)
+	if _guard and sword_hit and _forward().dot(-dir) > 0.3:
 		Sfx.play(_sfx_block)
-		stamina = maxf(stamina - 10.0, 0.0)
-		if stamina <= 0.0:
-			_guard = false
-			state = State.STAGGER
-			_stun_t = 0.6
-		posture += 12.0
-		_posture_t = 1.5
+		_blocked_streak += 1
+		_blocked_streak_t = 2.5
+		# 砍架刀只累積少量體幹（彈反他才是大量）；用砍的硬磕不划算
+		posture += 10.0 if heavy else 6.0
+		_posture_t = 1.0
 		_kb = dir * 1.5
 		weapon.rotation.y = 0.9
 		var tw := weapon.create_tween()
 		tw.set_ignore_time_scale(true)
 		tw.tween_property(weapon, "rotation:y", 0.0, 0.25).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 		Feel.hitstop(0.5)
+		var src = info.get("src")
+		if src and src.has_method("on_attack_blocked"):
+			src.on_attack_blocked(self)
 		if posture >= float(spec.posture):
 			_break_posture()
+		elif _blocked_streak >= 3 and (kind == Kind.SAMURAI or kind == Kind.TARGET):
+			_blocked_streak = 0
+			_show_mark("反", Color(1.0, 0.35, 0.2), 0.4)
+			_start_attack(true)
 		return
+	_blocked_streak = 0
 	# 手裡劍打斷弓兵拉弓
 	if info.get("shuriken", false) and state == State.ATTACK and kind == Kind.ARCHER and not _struck:
 		state = State.STAGGER
@@ -709,9 +753,17 @@ func take_hit(info: Dictionary) -> void:
 		_set_emission(Color(1, 1, 1), 0.0)
 	if not alerted_once or state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]:
 		_go_alert()
-	hp -= int(info.dmg)
+	# 武士／武將出手前置中有「霸體」：硬吃刀只受六成傷害，攻擊照樣揮出（跟他對砍是划不來的）
+	var dmg := int(info.dmg)
+	if state == State.ATTACK and not _struck and (kind == Kind.SAMURAI or kind == Kind.TARGET) and sword_hit:
+		dmg = int(ceil(dmg * 0.6))
+		info = info.duplicate()
+		info.dmg = dmg
+	hp -= dmg
 	posture += 16.0 if heavy else 8.0
 	_posture_t = 1.5
+	_hit_streak += 1
+	_hit_streak_t = 2.0
 	_kb = dir * float(info.kb) * 0.7
 	_guard = false
 	_flash_t = Feel.sec("hit_flash_ms")
@@ -743,6 +795,8 @@ func deflected(push_dir: Vector3) -> void:
 	state = State.STAGGER
 	_stun_t = 0.75
 	_attack_cd = float(spec.cd)
+	_perilous = false
+	_counter = false
 	mark.visible = false
 	weapon.rotation = Vector3.ZERO
 	_kb = dir * 3.5
@@ -776,6 +830,9 @@ func _break_posture() -> void:
 	_stun_t = 2.5
 	posture = float(spec.posture)
 	_guard = false
+	_hit_streak = 0
+	_blocked_streak = 0
+	_perilous = false
 	mark.visible = false
 	weapon.rotation = Vector3.ZERO
 	_show_mark("崩", Color(1.0, 0.55, 0.2), 2.3)
@@ -850,7 +907,6 @@ func _update_visual(delta: float) -> void:
 	bar_fill.visible = ratio > 0.001
 	var blink := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.02)
 	bar_mat.albedo_color = Color(1.0, 0.3 + 0.7 * blink, 0.3 + 0.7 * blink) if state == State.BROKEN else Color(0.9, 0.2, 0.18)
-	stam_fill.visible = false
 	if state in [State.SUSPICIOUS, State.SEARCH] and not mark.visible:
 		_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
 	elif not state in [State.SUSPICIOUS, State.SEARCH] and mark.text == "？":

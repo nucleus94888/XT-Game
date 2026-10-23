@@ -4,7 +4,7 @@ extends CanvasLayer
 
 @onready var stats: Label = $Stats
 @onready var hp_bar: ProgressBar = $HpBar
-@onready var stamina_bar: ProgressBar = $StaminaBar
+@onready var posture_bar: ProgressBar = $PostureBar
 @onready var compass: Control = $Compass
 @onready var objective: Label = $Objective
 @onready var announce: Label = $Announce
@@ -31,17 +31,21 @@ var _player: Node3D
 var _cam: Node3D
 var _compass_target := Vector3.ZERO
 var _has_compass_target := false
-var _stam_tw: Tween
+var _posture_tw: Tween
 var _obj_tw: Tween
 var _debug := false
 var _tap_times: Array = []
 var _paused_by_menu := false
+## 觸控延遲量測（網頁版）：JS touchstart 時間戳 → Godot 收到 InputEventScreenTouch 的毫秒差
+var _lat_samples: Array = []
+var _lat_js := false
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	touch.process_mode = Node.PROCESS_MODE_PAUSABLE
 	Feel.flash_requested.connect(_on_flash)
+	_setup_latency_probe()
 	gear.pressed.connect(toggle_panel)
 	panel.visible = false
 	pause_btn.pressed.connect(show_pause)
@@ -60,8 +64,11 @@ func attach(player: Node, cam_rig: Node) -> void:
 	player.touch = touch
 	player.cam_rig = cam_rig
 	touch.look_delta.connect(cam_rig.look)
-	player.stamina_changed.connect(set_stamina)
-	player.exhausted.connect(flash_stamina)
+	player.posture_changed.connect(set_posture)
+	player.posture_broken.connect(func() -> void:
+		say("體幹崩壞", Color(1.0, 0.55, 0.2))
+		flash_posture())
+	player.denied.connect(touch.deny)
 	touch.attack_down.connect(player.on_attack_down)
 	touch.attack_up.connect(player.on_attack_up)
 	touch.hook_down.connect(player.on_hook_down)
@@ -218,19 +225,56 @@ func set_hp(v: int) -> void:
 	hp_bar.value = v
 
 
-func set_stamina(v: float, max_v: float) -> void:
-	stamina_bar.max_value = max_v
-	stamina_bar.value = v
+## 體幹條：空的時候幾乎看不見，越滿越亮、超過 70% 開始脈動
+func set_posture(v: float, max_v: float) -> void:
+	posture_bar.max_value = max_v
+	posture_bar.value = v
+	var k := v / maxf(max_v, 1.0)
+	posture_bar.modulate = Color(1.0, 1.0, 1.0, 0.35 + 0.65 * k)
 
 
-## 體力不足時閃紅
-func flash_stamina() -> void:
-	if _stam_tw and _stam_tw.is_valid():
-		_stam_tw.kill()
-	stamina_bar.modulate = Color(1.0, 0.3, 0.3)
-	_stam_tw = stamina_bar.create_tween()
-	_stam_tw.set_ignore_time_scale(true)
-	_stam_tw.tween_property(stamina_bar, "modulate", Color.WHITE, 0.4)
+## 體幹崩壞時閃紅
+func flash_posture() -> void:
+	if _posture_tw and _posture_tw.is_valid():
+		_posture_tw.kill()
+	posture_bar.modulate = Color(1.0, 0.25, 0.2)
+	_posture_tw = posture_bar.create_tween()
+	_posture_tw.set_ignore_time_scale(true)
+	_posture_tw.tween_property(posture_bar, "modulate", Color(1, 1, 1, 0.35), 2.5)
+
+
+## 網頁版：在 JS 端記 touchstart 的時間戳，Godot 端收到觸控時算延遲（除錯模式顯示在 fps 旁）
+func _setup_latency_probe() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("window.__xt_touch_t=0;window.addEventListener('touchstart',function(e){window.__xt_touch_t=e.timeStamp;},{passive:true,capture:true});", true)
+	_lat_js = true
+
+
+func _input(ev: InputEvent) -> void:
+	if not _lat_js or not (ev is InputEventScreenTouch) or not ev.pressed:
+		return
+	var now = JavaScriptBridge.eval("performance.now()", true)
+	var t0 = JavaScriptBridge.eval("window.__xt_touch_t", true)
+	if now == null or t0 == null or float(t0) <= 0.0:
+		return
+	var lat := float(now) - float(t0)
+	if lat < 0.0 or lat > 1000.0:
+		return
+	_lat_samples.append(lat)
+	if _lat_samples.size() > 30:
+		_lat_samples.pop_front()
+
+
+func _latency_text() -> String:
+	if _lat_samples.is_empty():
+		return ""
+	var sum := 0.0
+	var worst := 0.0
+	for s in _lat_samples:
+		sum += float(s)
+		worst = maxf(worst, float(s))
+	return "　觸控延遲 %d ms（最差 %d）" % [int(sum / _lat_samples.size()), int(worst)]
 
 
 func set_compass_target(pos: Vector3, color: Color = Color(0.6, 0.9, 1.0)) -> void:
@@ -358,7 +402,9 @@ func _process(delta: float) -> void:
 		_worst_t = 1.0
 		_worst_shown = _worst_ms
 		_worst_ms = 0
-	fps.text = "%d fps　最長一幀 %d ms" % [Engine.get_frames_per_second(), _worst_shown]
+	fps.text = "%d fps　最長一幀 %d ms%s" % [Engine.get_frames_per_second(), _worst_shown, _latency_text()]
+	if posture_bar.value >= posture_bar.max_value * 0.7:
+		posture_bar.modulate.a = 0.75 + 0.25 * sin(float(Time.get_ticks_msec()) * 0.015)
 	_process_panel_state()
 	# 鍵盤轉視角（Q / E）與指南針
 	if _cam:

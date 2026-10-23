@@ -49,6 +49,10 @@ var _walk := false
 var _walk_t := 0.0
 var _walk_shots := 0
 var _auto_done := {}
+## 自動試玩 bot（--bot=mash|deflect --runs=N）：只放一名武士在山門前 1v1
+var _bot: Node = null
+var _bot_mode := ""
+var _bot_runs := 20
 
 
 func _ready() -> void:
@@ -57,13 +61,30 @@ func _ready() -> void:
 	player.died.connect(_on_player_died)
 	player.damaged.connect(func(_a: int) -> void:
 		_hits_taken += 1)
+	_parse_args()
 	_build_world()
+	if _bot_mode != "":
+		_start_bot()
+		return
 	_spawn_enemies()
 	hud.set_objective("潛入山村，暗殺今川家的武將")
 	hud.set_compass_target(TARGET_POS, Color(1.0, 0.8, 0.3))
 	hud.say("伊賀夜襲", Color(0.95, 0.9, 0.8))
 	_warmup()
-	_parse_args()
+
+
+func _start_bot() -> void:
+	var b: Node = preload("res://scripts/bot.gd").new()
+	b.mode = _bot_mode
+	b.runs = _bot_runs
+	b.level = self
+	b.player = player
+	b.hud = hud
+	b.cam_rig = cam_rig
+	add_child(b)
+	_bot = b
+	await get_tree().process_frame
+	b.start()
 
 
 func _warmup() -> void:
@@ -78,6 +99,10 @@ func _parse_args() -> void:
 			_shot_dir = a.substr(7)
 		elif a == "--walk":
 			_walk = true
+		elif a.begins_with("--bot="):
+			_bot_mode = a.substr(6)
+		elif a.begins_with("--runs="):
+			_bot_runs = int(a.substr(7))
 	if _shot_dir != "":
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_shot_dir))
 		get_tree().create_timer(1.0).timeout.connect(func() -> void:
@@ -140,6 +165,7 @@ func _physics_process(_delta: float) -> void:
 		if d.length() < 2.5:
 			_cp_index = i
 			_checkpoint = cp + Vector3(0.0, 0.1, 0.0)
+			player.refill_shuriken()
 			hud.say("記住了此處", Color(0.7, 0.85, 1.0))
 	# 玩家是否站在燈光下（敵人視野據此縮放）
 	var lit := false
@@ -340,7 +366,7 @@ func _on_enemy_died(e: Enemy, stealth: bool) -> void:
 # ---------------------------------------------------------------- 結束
 
 func _on_player_died() -> void:
-	if _dead or _finished:
+	if _dead or _finished or _bot != null:
 		return
 	_dead = true
 	hud.say("敗北…", Color(0.9, 0.3, 0.3))

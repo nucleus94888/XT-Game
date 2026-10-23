@@ -8,23 +8,39 @@ signal died
 signal parried
 ## 實際扣血時發出（格擋成功不算）
 signal damaged(amount: int)
-signal stamina_changed(v: float, max_v: float)
-signal exhausted
+## 體幹（隻狼式）：被格擋、被打、普通格擋都會累積；滿了崩壞 2.5 秒
+signal posture_changed(v: float, max_v: float)
+signal posture_broken
+## 動作被拒（手裡劍沒了、閃步冷卻中、鉤繩冷卻中…）：HUD 用來給一個小提示
+signal denied(what: String)
 signal shuriken_changed(n: int)
 signal weapon_changed(mode: int)
 
-enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE }
+enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE, BROKEN }
 
 const SPEED := 6.2
 const ACCEL := 34.0
 const DASH_SPEED := 17.0
 const DASH_TIME := 0.17
 const MAX_HP := 100
-const MAX_STAM := 100.0
-const STAM_ATTACK := [12.0, 12.0, 20.0]
-const STAM_DASH := 20.0
-const STAM_BLOCK_HIT := 15.0
-const STAM_REGEN := 28.0
+## 體幹：被敵人格擋 +15、被打中 +25、普通格擋 +10、完美彈反 −10；1.5 秒未受擊後每秒回 20
+const MAX_POSTURE := 100.0
+const POSTURE_BLOCKED := 15.0
+const POSTURE_HIT := 25.0
+const POSTURE_GUARD := 10.0
+const POSTURE_DEFLECT := -10.0
+const POSTURE_REGEN := 20.0
+const POSTURE_BREAK_TIME := 2.5
+## 閃步：0.6 秒內最多兩次，之後 0.8 秒不可閃
+const DASH_BURST := 2
+const DASH_BURST_WINDOW := 0.6
+const DASH_LOCKOUT := 0.8
+## 手裡劍 5 枚；一次只能有一枚在空中；撿回或檢查點補充
+const MAX_SHURIKEN := 5
+## 鉤繩拉人冷卻
+const HOOK_PULL_CD := 4.0
+## 奔跑靴聲半徑（未警戒的敵人會過來查看）
+const RUN_NOISE_RADIUS := 3.5
 const PIVOT_HOME := Vector3(0.0, 1.15, 0.0)
 ## 格擋姿勢（隻狼式）：刀身豎直在身前、略向內收
 const GUARD_ROT := Vector3(-82.0, 18.0, -10.0)
@@ -42,11 +58,22 @@ var state := State.FREE
 var touch: Node = null
 var cam_rig: Node = null
 var hp := MAX_HP
-var stamina := MAX_STAM
-var _stam_delay := 0.0
-var _exhausted := false
+var posture := 0.0
+var _posture_delay := 0.0
+var _broken_t := 0.0
+## 崩壞後 3 秒免疫體幹傷害
+var _posture_immune_t := 0.0
+## 最近 1 秒內造成體幹傷害的敵人（多敵圍攻：第二個以上打 0.5 折）
+var _posture_sources: Array = []
+var _dash_times: Array = []
+var _dash_lock_t := 0.0
+## 暗殺後的短暫硬直（不能攻擊／閃步／瞄準）
+var _lock_t := 0.0
+var _run_noise_t := 0.0
+var _hook_cd := 0.0
+var _shuriken_in_flight: Node = null
 ## 手裡劍數量
-var shuriken := 8
+var shuriken := MAX_SHURIKEN
 ## 武器模式與瞄準
 const WEAPON_SWORD := 0
 const WEAPON_SHURIKEN := 1
@@ -186,14 +213,15 @@ func toggle_weapon() -> void:
 
 ## 刀：空閒/閃步中立刻出刀；攻擊中則排隊，收刀到一半自動接下一段。
 func request_attack() -> void:
+	if _lock_t > 0.0:
+		return
 	if state == State.FREE and not is_on_floor() and _try_plunge():
 		return
 	match state:
 		State.ATTACK:
 			_queued = true
 		State.FREE, State.DASH, State.BLOCK:
-			if _spend(STAM_ATTACK[_combo_idx]):
-				_start_attack()
+			_start_attack()
 
 
 ## 自動試玩用：快速丟手裡劍／快速鉤（瞄準鏡頭正前方）
@@ -210,10 +238,10 @@ func request_hook() -> void:
 # ---------------------------------------------------------------- 瞄準
 
 func _begin_aim(kind: int) -> void:
-	if not state in [State.FREE, State.BLOCK]:
+	if not state in [State.FREE, State.BLOCK] or _lock_t > 0.0:
 		return
 	if kind == AIM_SHURIKEN and shuriken <= 0:
-		exhausted.emit()
+		denied.emit("shuriken")
 		return
 	if state == State.BLOCK:
 		state = State.FREE
@@ -250,9 +278,14 @@ func _tick_aim(delta: float) -> void:
 	_aim_target = lock.target
 	_aim_head = lock.head
 	if _aim_target:
-		aim_status = "lock"
 		var pos: Vector3 = _aim_target.global_position + (Vector3(0.0, 1.68, 0.0) if _aim_head else Vector3(0.0, 1.1, 0.0))
-		_reticle_set(pos, Color(1.0, 0.55, 0.2) if _aim_head else Color(1.0, 0.85, 0.3), "頭" if _aim_head else "鎖定")
+		# 鉤繩拉人：冷卻中或這個敵人剛被拉過 → 準心灰、不可拉
+		if aim_mode == AIM_HOOK and not _can_hook_pull(_aim_target):
+			aim_status = "wait"
+			_reticle_set(pos, Color(0.7, 0.7, 0.7), "待")
+		else:
+			aim_status = "lock"
+			_reticle_set(pos, Color(1.0, 0.55, 0.2) if _aim_head else Color(1.0, 0.85, 0.3), "頭" if _aim_head else "鎖定")
 		_reticle.visible = true
 		return
 	if aim_mode == AIM_SHURIKEN:
@@ -280,12 +313,23 @@ func _release_aim() -> void:
 		_throw(aim_dir, _aim_target, _aim_head)
 	elif kind == AIM_HOOK:
 		if _aim_target:
-			_hook_enemy(_aim_target, _aim_head)
+			if _can_hook_pull(_aim_target):
+				_hook_enemy(_aim_target, _aim_head)
+			else:
+				denied.emit("hook")
 		elif _hook_ok:
 			_start_grapple_to(_hook_pos)
 		else:
-			exhausted.emit()
+			denied.emit("hook")
 	_aim_target = null
+
+
+func _can_hook_pull(e: Node3D) -> bool:
+	if _hook_cd > 0.0:
+		return false
+	if e.has_method("can_be_hooked") and not e.can_be_hooked():
+		return false
+	return true
 
 
 ## 準心附近的敵人（與射線夾角最小者）；準心更靠近頭部時回報 head=true
@@ -342,10 +386,10 @@ func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	return {"ok": true, "pos": top + Vector3(0.0, 0.05, 0.0)}
 
 
-## 鉤繩鉤敵人：把對方拉到面前，造成些微傷害並硬直；爆頭傷害更高
+## 鉤繩鉤敵人：把對方拉到面前，造成些微傷害並硬直；爆頭傷害更高。
+## 冷卻 4 秒；同一敵人 6 秒內不能再拉（瞄準時間本身就是成本）
 func _hook_enemy(e: Node3D, head: bool) -> void:
-	if not _spend(10.0):
-		return
+	_hook_cd = HOOK_PULL_CD
 	var to := e.global_position - global_position
 	to.y = 0.0
 	var dist := to.length()
@@ -437,12 +481,13 @@ func _reticle_set(pos: Vector3, color: Color, text: String) -> void:
 	_reticle_label.visible = text != ""
 
 
-## 手裡劍：往瞄準方向射出；有鎖定目標就射向目標胸口
+## 手裡劍：往瞄準方向射出；有鎖定目標就射向目標胸口。一次只能有一枚在空中。
 func _throw(dir: Vector3, target: Node3D, head: bool = false) -> void:
 	if shuriken <= 0:
-		exhausted.emit()
+		denied.emit("shuriken")
 		return
-	if not _spend(8.0):
+	if is_instance_valid(_shuriken_in_flight) and _shuriken_in_flight.is_inside_tree() and not _shuriken_in_flight.get("stuck"):
+		denied.emit("shuriken")
 		return
 	shuriken -= 1
 	shuriken_changed.emit(shuriken)
@@ -467,6 +512,7 @@ func _throw(dir: Vector3, target: Node3D, head: bool = false) -> void:
 	s.src = self
 	get_tree().current_scene.add_child(s)
 	s.launch(from + d * 0.6, d)
+	_shuriken_in_flight = s
 	sfx_swing.set_meta("sfx_base", 1.35)
 	Sfx.play(sfx_swing)
 	sfx_swing.set_meta("sfx_base", 1.0)
@@ -546,6 +592,7 @@ func _try_plunge() -> bool:
 	Feel.kick(-back, 0.5)
 	hit_landed.emit(info)
 	sword_pivot.rotation_degrees = Vector3(70.0, 0.0, 0.0)
+	_lock_t = 1.0
 	return true
 
 
@@ -554,29 +601,110 @@ func heal(v: int) -> void:
 	hp_changed.emit(hp)
 
 
-## 體力：攻擊、閃步、普通格擋都要花；耗盡會「疲憊」，回到 35 以上才解除
-func _spend(v: float) -> bool:
-	if _exhausted or stamina < v:
-		exhausted.emit()
-		return false
-	stamina -= v
-	_stam_delay = 0.7
-	if stamina <= 0.0:
-		stamina = 0.0
-		_exhausted = true
-	stamina_changed.emit(stamina, MAX_STAM)
-	return true
+## 檢查點／復活：補滿手裡劍
+func refill_shuriken() -> void:
+	shuriken = MAX_SHURIKEN
+	shuriken_changed.emit(shuriken)
 
 
-func _tick_stamina(delta: float) -> void:
-	_stam_delay -= delta
-	if _stam_delay > 0.0 or stamina >= MAX_STAM:
+## 撿回射出的手裡劍
+func pickup_shuriken() -> void:
+	shuriken = mini(shuriken + 1, MAX_SHURIKEN)
+	shuriken_changed.emit(shuriken)
+
+
+## 敵人格擋了我的刀（武士架刀）：體幹累積、刀被震開、鏡頭回踢
+func on_attack_blocked(by: Node) -> void:
+	_add_posture(POSTURE_BLOCKED, by)
+	Feel.kick(-_forward(), 0.3)
+	var tip := sword_pivot.to_global(Vector3(0.38, 0.0, -1.1))
+	_burst_spark(tip, -_forward(), 0.7)
+	body.scale = Vector3(1.08, 0.94, 1.08)
+	if _jolt_tw and _jolt_tw.is_valid():
+		_jolt_tw.kill()
+	_jolt_tw = create_tween()
+	_jolt_tw.set_ignore_time_scale(true)
+	_jolt_tw.tween_property(body, "scale", Vector3.ONE, 0.2).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+
+## 體幹累積。多敵圍攻：1 秒內第二個以上不同敵人造成的體幹傷害打 0.5 折；崩壞後 3 秒免疫。
+func _add_posture(v: float, src: Node) -> void:
+	if state == State.DEAD or state == State.BROKEN:
 		return
-	var r := STAM_REGEN * (0.45 if state == State.BLOCK else 1.0) * (0.6 if _exhausted else 1.0)
-	stamina = minf(stamina + r * delta, MAX_STAM)
-	if _exhausted and stamina >= 35.0:
-		_exhausted = false
-	stamina_changed.emit(stamina, MAX_STAM)
+	if v > 0.0:
+		if _posture_immune_t > 0.0:
+			return
+		var now := Time.get_ticks_msec()
+		_posture_sources = _posture_sources.filter(func(s: Array) -> bool: return now - int(s[1]) < 1000)
+		var other := false
+		for s in _posture_sources:
+			if s[0] != src:
+				other = true
+		if other:
+			v *= 0.5
+		_posture_sources.append([src, now])
+		_posture_delay = 1.5
+	posture = clampf(posture + v, 0.0, MAX_POSTURE)
+	posture_changed.emit(posture, MAX_POSTURE)
+	if posture >= MAX_POSTURE:
+		_break_posture()
+
+
+func _tick_posture(delta: float) -> void:
+	_posture_delay -= delta
+	if _posture_immune_t > 0.0:
+		_posture_immune_t -= delta
+	if state == State.BROKEN or _posture_delay > 0.0 or posture <= 0.0:
+		return
+	posture = maxf(posture - POSTURE_REGEN * delta * (0.5 if state == State.BLOCK else 1.0), 0.0)
+	posture_changed.emit(posture, MAX_POSTURE)
+
+
+## 體幹崩壞：2.5 秒無法行動、無法格擋（敵人可以自由攻擊）
+func _break_posture() -> void:
+	state = State.BROKEN
+	_broken_t = 0.0
+	_queued = false
+	_block_held = false
+	trail.visible = false
+	_invuln = false
+	if aim_mode != AIM_NONE:
+		_release_aim_silent()
+	velocity.x *= 0.2
+	velocity.z *= 0.2
+	if _guard_tw and _guard_tw.is_valid():
+		_guard_tw.kill()
+	sword_pivot.rotation_degrees = Vector3(30.0, 60.0, 0.0)
+	Sfx.play(sfx_hurt)
+	Feel.hitstop(1.2)
+	Feel.shake(1.2)
+	Feel.flash(Color(1.0, 0.6, 0.2, 0.3), 0.3)
+	posture_broken.emit()
+
+
+func _tick_broken(delta: float) -> void:
+	_broken_t += delta
+	velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
+	velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
+	# 跪下喘氣：身體前傾、上下起伏
+	body.rotation.x = lerpf(body.rotation.x, 0.55, 1.0 - exp(-10.0 * delta))
+	visual.position.y = lerpf(visual.position.y, -0.35 + sin(_broken_t * 9.0) * 0.03, 1.0 - exp(-10.0 * delta))
+	if _broken_t >= POSTURE_BREAK_TIME:
+		posture = 0.0
+		_posture_immune_t = 3.0
+		_posture_delay = 0.0
+		posture_changed.emit(posture, MAX_POSTURE)
+		visual.position.y = 0.0
+		state = _after_action()
+
+
+func _release_aim_silent() -> void:
+	aim_mode = AIM_NONE
+	aim_status = ""
+	_aim_target = null
+	_reticle.visible = false
+	if cam_rig != null:
+		cam_rig.aiming = false
 
 
 ## 格擋鍵：按住生效。空閒時立刻舉刀；攻擊收刀/閃步結束後若仍按著會自動回到格擋。
@@ -619,10 +747,22 @@ func _tick_block(delta: float, input: Vector3) -> void:
 
 
 ## 閃步鍵：空閒可閃；出刀「前置」與「收刀」階段可取消成閃步（有效幀不可）。
+## 0.6 秒內最多兩次；第三次起 0.8 秒不可閃（連按閃步不是無限滾）。
 func request_dash() -> void:
+	if _lock_t > 0.0:
+		return
 	if state == State.FREE or state == State.BLOCK or (state == State.ATTACK and _phase != 1):
-		if _spend(STAM_DASH):
-			_start_dash()
+		if _dash_lock_t > 0.0:
+			denied.emit("dash")
+			return
+		var now := Time.get_ticks_msec()
+		_dash_times = _dash_times.filter(func(t: int) -> bool: return now - t < int(DASH_BURST_WINDOW * 1000.0))
+		if _dash_times.size() >= DASH_BURST:
+			_dash_lock_t = DASH_LOCKOUT
+			denied.emit("dash")
+			return
+		_dash_times.append(now)
+		_start_dash()
 
 
 func _physics_process(delta: float) -> void:
@@ -643,7 +783,12 @@ func _physics_process(delta: float) -> void:
 			velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
 		State.GRAPPLE:
 			_tick_grapple(delta)
-	_tick_stamina(delta)
+		State.BROKEN:
+			_tick_broken(delta)
+	_tick_posture(delta)
+	_lock_t -= delta
+	_dash_lock_t -= delta
+	_hook_cd -= delta
 	_rope_t -= delta
 	_rope_update()
 	if state == State.GRAPPLE:
@@ -701,6 +846,11 @@ func _tick_free(delta: float, input: Vector3) -> void:
 	var spd := Vector2(velocity.x, velocity.z).length() / SPEED
 	body.rotation.x = lerpf(body.rotation.x, -0.14 * spd, 1.0 - exp(-10.0 * delta))
 	visual.position.y = sin(Time.get_ticks_msec() * 0.006) * 0.025 * (1.0 + spd * 2.0)
+	# 全速奔跑有靴聲：附近未警戒的敵人會過來查看（潛行要放慢搖桿）
+	_run_noise_t -= delta
+	if spd > 0.85 and is_on_floor() and _run_noise_t <= 0.0:
+		_run_noise_t = 0.4
+		get_tree().call_group("enemies", "hear_noise", global_position, RUN_NOISE_RADIUS)
 	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(Vector3.ZERO, 1.0 - exp(-14.0 * delta))
 	sword_pivot.position = sword_pivot.position.lerp(PIVOT_HOME, 1.0 - exp(-14.0 * delta))
 
@@ -777,12 +927,9 @@ func _tick_attack(delta: float, _input: Vector3) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, 22.0 * delta)
 			velocity.z = move_toward(velocity.z, 0.0, 22.0 * delta)
 			if _queued and k >= 0.5:
-				var next_idx := (_combo_idx + 1) % COMBO.size()
-				if _spend(STAM_ATTACK[next_idx]):
-					_combo_idx = next_idx
-					_start_attack()
-					return
-				_queued = false
+				_combo_idx = (_combo_idx + 1) % COMBO.size()
+				_start_attack()
+				return
 			if k >= 1.0:
 				trail.visible = false
 				_combo_idx = (_combo_idx + 1) % COMBO.size()
@@ -806,11 +953,13 @@ func _check_hits(c: Dictionary) -> void:
 			"pos": hitbox.to_global(Vector3(0.38, 0.0, -0.9)),
 			"src": self,
 		}
-		# 未察覺的敵人從背後砍 = 暗殺（一擊必殺、無聲）
+		# 未察覺的敵人從背後砍 = 暗殺（一擊必殺、無聲）；之後 1 秒硬直
 		if tgt.has_method("can_be_assassinated") and tgt.can_be_assassinated(self):
 			tgt.assassinate(info)
 			Feel.shake(0.6)
 			hit_landed.emit(info)
+			_lock_t = 1.0
+			_queued = false
 			continue
 		tgt.take_hit(info)
 		_on_landed(info, c)
@@ -874,16 +1023,30 @@ func _tick_dash(delta: float) -> void:
 		velocity.z *= 0.35
 
 
-## 被稻草人反擊打到（閃步中無敵）
+## 被打到（閃步中無敵）。「危」技（unblockable）不能格擋，只能閃。
 func take_hit(info: Dictionary) -> void:
 	if _invuln or state == State.HURT or state == State.DEAD:
 		return
-	if state == State.BLOCK and _forward().dot(-(info.dir as Vector3)) > 0.2:
+	var unblockable: bool = info.get("unblockable", false)
+	if state == State.BLOCK and not unblockable and _forward().dot(-(info.dir as Vector3)) > 0.2:
 		_blocked_hit(info)
 		return
-	hp = maxi(hp - int(info.dmg), 0)
+	var was_broken := state == State.BROKEN
+	var dmg := int(info.dmg)
+	if was_broken:
+		# 體幹崩壞中挨刀：1.5 倍傷害（崩壞就是會死人的）
+		dmg = int(dmg * 1.5)
+	hp = maxi(hp - dmg, 0)
 	hp_changed.emit(hp)
-	damaged.emit(int(info.dmg))
+	damaged.emit(dmg)
+	if not was_broken:
+		_add_posture(POSTURE_HIT, info.get("src"))
+	if state == State.BROKEN and hp > 0:
+		# 崩壞中被打：只扣血、不脫離崩壞（敵人的獎勵時間）
+		_hurt_fx(info)
+		return
+	if state == State.BROKEN:
+		visual.position.y = 0.0
 	state = State.HURT
 	_hurt_t = 0.0
 	_queued = false
@@ -891,6 +1054,14 @@ func take_hit(info: Dictionary) -> void:
 	var dir: Vector3 = info.dir
 	velocity.x = dir.x * 7.0
 	velocity.z = dir.z * 7.0
+	_hurt_fx(info)
+	if hp <= 0:
+		_die(dir)
+		died.emit()
+
+
+func _hurt_fx(info: Dictionary) -> void:
+	var dir: Vector3 = info.dir
 	body.scale = Vector3(1.2, 0.82, 1.2)
 	if _jolt_tw and _jolt_tw.is_valid():
 		_jolt_tw.kill()
@@ -902,9 +1073,6 @@ func take_hit(info: Dictionary) -> void:
 	Feel.hitstop(0.8)
 	Feel.shake(1.6)
 	Feel.flash(Color(0.8, 0.1, 0.1, 0.35), 0.25)
-	if hp <= 0:
-		_die(dir)
-		died.emit()
 
 
 ## 敗北：往受擊方向倒下，刀落地；由關卡決定重來或由道場 revive()
@@ -926,13 +1094,20 @@ func _die(dir: Vector3) -> void:
 	tw.tween_property(body, "rotation:x", 0.0, 0.3)
 
 
-## 道場用：原地復活
+## 道場／檢查點用：原地復活（補滿血、體幹歸零、手裡劍補滿）
 func revive() -> void:
 	hp = MAX_HP
-	stamina = MAX_STAM
-	_exhausted = false
+	posture = 0.0
+	_posture_immune_t = 0.0
+	_posture_sources.clear()
+	_lock_t = 0.0
+	_dash_lock_t = 0.0
+	_hook_cd = 0.0
+	_block_held = false
 	hp_changed.emit(hp)
-	stamina_changed.emit(stamina, MAX_STAM)
+	posture_changed.emit(posture, MAX_POSTURE)
+	refill_shuriken()
+	body.rotation.x = 0.0
 	visual.rotation = Vector3(0.0, _facing, 0.0)
 	visual.position = Vector3.ZERO
 	sword_pivot.rotation_degrees = Vector3.ZERO
@@ -948,22 +1123,11 @@ func _blocked_hit(info: Dictionary) -> void:
 	var ranged: bool = info.get("ranged", false)
 	var perfect: bool = (not ranged) and Time.get_ticks_msec() - _block_start_ms <= int(Feel.get_p("parry_ms"))
 	var src = info.get("src")
-	# 普通格擋要花體力；體力不夠 = 破防，吃一半傷害並被打退
-	if not perfect:
-		if _exhausted or stamina < STAM_BLOCK_HIT:
-			stamina = 0.0
-			_exhausted = true
-			stamina_changed.emit(stamina, MAX_STAM)
-			exhausted.emit()
-			state = State.FREE
-			var half := info.duplicate()
-			half.dmg = int(info.dmg) / 2
-			take_hit(half)
-			return
-		_spend(STAM_BLOCK_HIT)
-	else:
-		stamina = minf(stamina + 10.0, MAX_STAM)
-		stamina_changed.emit(stamina, MAX_STAM)
+	# 普通格擋：體幹 +10（連擋會崩）；完美彈反：體幹 −10
+	_add_posture(POSTURE_DEFLECT if perfect else POSTURE_GUARD, src)
+	if state == State.BROKEN:
+		# 這一擋把體幹擋滿了：崩壞，不扣血但接下來 2.5 秒任人宰割
+		return
 	body.scale = Vector3(1.1, 0.92, 1.1)
 	if _jolt_tw and _jolt_tw.is_valid():
 		_jolt_tw.kill()

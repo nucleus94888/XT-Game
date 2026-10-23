@@ -39,7 +39,14 @@ var _btn_last := {}
 var _atk_flash := 0.0
 var _dash_flash := 0.0
 var _hook_flash := 0.0
+## 動作被拒的紅圈提示：{"dash": 剩餘秒, "shuriken": ..., "hook": ...}
+var _deny := {}
 var _block_on := false
+
+
+## 玩家動作被拒（閃步冷卻、沒手裡劍、鉤繩冷卻…）：對應按鍵閃一圈紅
+func deny(what: String) -> void:
+	_deny[what] = 0.35
 var _look_idx := -1
 var _look_last := Vector2.ZERO
 
@@ -193,7 +200,17 @@ func _process(delta: float) -> void:
 	_atk_flash = maxf(_atk_flash - delta * 5.0, 0.0)
 	_dash_flash = maxf(_dash_flash - delta * 5.0, 0.0)
 	_hook_flash = maxf(_hook_flash - delta * 5.0, 0.0)
+	for k in _deny.keys():
+		_deny[k] = float(_deny[k]) - delta
+		if float(_deny[k]) <= 0.0:
+			_deny.erase(k)
 	queue_redraw()
+
+
+func _deny_ring(c: Vector2, r: float, key: String) -> void:
+	if _deny.has(key):
+		var a := clampf(float(_deny[key]) / 0.35, 0.0, 1.0)
+		draw_arc(c, r + 6.0, 0.0, TAU, 48, Color(1.0, 0.25, 0.2, 0.9 * a), 4.0, true)
 
 
 func _draw() -> void:
@@ -215,6 +232,8 @@ func _draw() -> void:
 			ccol = Color(0.5, 1.0, 0.6)
 		elif aim_status == "bad":
 			ccol = Color(1.0, 0.35, 0.3)
+		elif aim_status == "wait":
+			ccol = Color(0.7, 0.7, 0.7, 0.8)
 		var gap := 10.0 if aim_status == "" else 16.0
 		draw_line(c + Vector2(-gap - 14, 0), c + Vector2(-gap, 0), ccol, 2.5)
 		draw_line(c + Vector2(gap, 0), c + Vector2(gap + 14, 0), ccol, 2.5)
@@ -229,6 +248,7 @@ func _draw() -> void:
 	var acol := Color(0.45, 0.3, 0.6, 0.6 + 0.35 * _atk_flash) if shuriken else Color(0.72, 0.14, 0.12, 0.55 + 0.4 * _atk_flash)
 	draw_circle(ac, ATK_R, acol)
 	draw_arc(ac, ATK_R, 0.0, TAU, 64, Color(1, 0.92, 0.85, 0.9), 3.0, true)
+	_deny_ring(ac, ATK_R, "shuriken")
 	if font:
 		if shuriken:
 			draw_string(font, ac + Vector2(-ATK_R, 8.0), "手裡劍", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 30, Color(1, 1, 1, 0.95))
@@ -246,12 +266,14 @@ func _draw() -> void:
 	var dc := _dash_center()
 	draw_circle(dc, DASH_R, Color(0.2, 0.3, 0.55, 0.5 + 0.4 * _dash_flash))
 	draw_arc(dc, DASH_R, 0.0, TAU, 48, Color(0.85, 0.9, 1, 0.85), 2.5, true)
+	_deny_ring(dc, DASH_R, "dash")
 	if font:
 		draw_string(font, dc + Vector2(-DASH_R, 12.0), "閃", HORIZONTAL_ALIGNMENT_CENTER, DASH_R * 2.0, 34, Color(1, 1, 1, 0.95))
 	# 鉤繩（按住瞄準）
 	var hc := _hook_center()
 	draw_circle(hc, HOOK_R, Color(0.75, 0.6, 0.2, 0.55 + 0.4 * _hook_flash))
 	draw_arc(hc, HOOK_R, 0.0, TAU, 48, Color(1, 0.95, 0.8, 0.9), 2.5, true)
+	_deny_ring(hc, HOOK_R, "hook")
 	if font:
 		draw_string(font, hc + Vector2(-HOOK_R, 11.0), "鉤", HORIZONTAL_ALIGNMENT_CENTER, HOOK_R * 2.0, 32, Color(1, 1, 1, 0.95))
 	# 格擋（按住時亮起）

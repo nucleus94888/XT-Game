@@ -19,8 +19,8 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="st_fill"]
-bg_color = Color(0.35, 0.8, 0.4, 1)
+[sub_resource type="StyleBoxFlat" id="po_fill"]
+bg_color = Color(1, 0.6, 0.2, 1)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
@@ -69,14 +69,14 @@ theme_override_styles/fill = SubResource("hp_fill")
 value = 100.0
 show_percentage = false
 
-[node name="StaminaBar" type="ProgressBar" parent="."]
+[node name="PostureBar" type="ProgressBar" parent="."]
 offset_left = 18.0
 offset_top = 34.0
 offset_right = 218.0
 offset_bottom = 44.0
 theme_override_styles/background = SubResource("hp_bg")
-theme_override_styles/fill = SubResource("st_fill")
-value = 100.0
+theme_override_styles/fill = SubResource("po_fill")
+value = 0.0
 show_percentage = false
 
 [node name="Compass" type="Control" parent="."]

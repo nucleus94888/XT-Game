@@ -1,16 +1,20 @@
 extends Node3D
 class_name Shuriken
 ## 手裡劍：直線飛行並旋轉。命中敵人造成小傷害與體幹，打斷弓兵拉弓；
-## 命中牆／地面製造聲響（引開守衛）；命中燈籠使其熄滅。
+## 命中牆／地面製造聲響（引開守衛）並插在那裡，半藏走過去可以撿回；命中燈籠使其熄滅。
 
 var dir := Vector3.FORWARD
 var speed := 24.0
 var dmg := 8
 var src: Node = null
+## 已插在牆／地上（可撿回）
+var stuck := false
 
 var _life := 1.6
 var _done := false
 var _spin: MeshInstance3D
+var _area: Area3D
+var _t := 0.0
 
 
 func launch(from: Vector3, to_dir: Vector3) -> void:
@@ -44,26 +48,31 @@ func _ready() -> void:
 	_spin.rotation.x = PI / 2.0
 	add_child(_spin)
 
-	var area := Area3D.new()
-	area.collision_layer = 0
-	area.collision_mask = 1 | 4 | 16
-	area.monitorable = false
+	_area = Area3D.new()
+	_area.collision_layer = 0
+	_area.collision_mask = 1 | 4 | 16
+	_area.monitorable = false
 	var cs := CollisionShape3D.new()
 	var sh := SphereShape3D.new()
 	sh.radius = 0.25
 	cs.shape = sh
-	area.add_child(cs)
-	add_child(area)
-	area.area_entered.connect(_on_area)
-	area.body_entered.connect(_on_body)
+	_area.add_child(cs)
+	add_child(_area)
+	_area.area_entered.connect(_on_area)
+	_area.body_entered.connect(_on_body)
 
 
 func _physics_process(delta: float) -> void:
+	_t += delta
+	if stuck:
+		# 插著微微發亮，提示可撿
+		_spin.scale = Vector3.ONE * (1.0 + 0.08 * sin(_t * 6.0))
+		return
 	global_position += dir * speed * delta
 	_spin.rotation.z += delta * 30.0
 	_life -= delta
 	if _life <= 0.0:
-		queue_free()
+		_drop_to_ground()
 
 
 func _finish() -> void:
@@ -71,8 +80,60 @@ func _finish() -> void:
 	queue_free()
 
 
+## 飛到底沒打到東西：落到地上變成可撿的
+func _drop_to_ground() -> void:
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(global_position, global_position + Vector3(0.0, -12.0, 0.0), 1)
+	var hit := space.intersect_ray(q)
+	if hit.is_empty():
+		_finish()
+		return
+	global_position = (hit.position as Vector3) + Vector3(0.0, 0.05, 0.0)
+	_stick(Vector3.UP)
+
+
+## 插在牆／地上：變成撿拾點（半藏走到旁邊就撿回）
+func _stick(normal: Vector3) -> void:
+	stuck = true
+	_done = false
+	if absf(normal.y) < 0.7:
+		_spin.rotation = Vector3.ZERO
+		look_at(global_position + normal, Vector3.UP)
+	else:
+		_spin.rotation.x = 0.0
+		rotation = Vector3.ZERO
+		_spin.rotation.x = PI / 2.0
+	var m: StandardMaterial3D = _spin.material_override
+	m.emission_enabled = true
+	m.emission = Color(0.7, 0.85, 1.0)
+	m.emission_energy_multiplier = 0.9
+	# 撿拾範圍：只對玩家本體
+	var pick := Area3D.new()
+	pick.collision_layer = 0
+	pick.collision_mask = 1
+	var cs := CollisionShape3D.new()
+	var sh := SphereShape3D.new()
+	sh.radius = 1.1
+	cs.shape = sh
+	pick.add_child(cs)
+	add_child(pick)
+	pick.body_entered.connect(_on_pick)
+	_area.queue_free()
+
+
+func _on_pick(b: Node3D) -> void:
+	if _done or not b.is_in_group("player") or not b.has_method("pickup_shuriken"):
+		return
+	_done = true
+	b.pickup_shuriken()
+	Fx.damage_number(global_position + Vector3(0.0, 1.0, 0.0), 1, false, Color(0.75, 0.85, 1.0), "手裡劍 +1")
+	var tw := create_tween()
+	tw.tween_property(self, "scale", Vector3.ZERO, 0.12)
+	tw.tween_callback(queue_free)
+
+
 func _on_area(a: Area3D) -> void:
-	if _done:
+	if _done or stuck:
 		return
 	var t := a.get_parent()
 	if t == null or t == src:
@@ -89,8 +150,15 @@ func _on_area(a: Area3D) -> void:
 
 
 func _on_body(b: Node3D) -> void:
-	if _done or b == src or b.is_in_group("enemies") or b.is_in_group("player"):
+	if _done or stuck or b == src or b.is_in_group("enemies") or b.is_in_group("player"):
 		return
-	# 打到牆或地：製造聲響，附近守衛會過來查看
+	# 打到牆或地：製造聲響，附近守衛會過來查看；手裡劍插在那裡可撿回
 	get_tree().call_group("enemies", "hear_noise", global_position, 8.0)
-	_finish()
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(global_position - dir * 0.6, global_position + dir * 0.6, 1)
+	var hit := space.intersect_ray(q)
+	var n := -dir
+	if not hit.is_empty():
+		global_position = (hit.position as Vector3) + (hit.normal as Vector3) * 0.04
+		n = hit.normal
+	_stick(n)
