@@ -1,13 +1,16 @@
 extends Control
-## 觸控操作：左 60% 畫面為「浮動搖桿」（手指落點即中心，拖超出半徑時中心跟著走），
-## 右下兩顆鍵：「斬」攻擊、「閃」閃步。桌機以滑鼠模擬觸控，另有鍵盤 WASD / J / K。
+## 觸控操作
+## 左：常駐淡白色搖桿圓圈（左下），手指落在左 60% 畫面任意處即以落點為中心；拖超出半徑時圓圈跟著走。
+## 右：「攻擊」（紅，大）、「閃」（藍）、「格擋」（綠，按住生效）。桌機以滑鼠模擬觸控，另有鍵盤。
 
 signal attack_pressed
 signal dash_pressed
+signal block_changed(on: bool)
 
 const JOY_R := 78.0
 const ATK_R := 70.0
 const DASH_R := 50.0
+const BLOCK_R := 50.0
 
 var move_vector := Vector2.ZERO
 ## 這些控制項可見且覆蓋到的區域，不會觸發搖桿（例如手感面板）
@@ -19,11 +22,16 @@ var _joy_pos := Vector2.ZERO
 var _btn_touch := {}
 var _atk_flash := 0.0
 var _dash_flash := 0.0
+var _block_on := false
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+
+
+func _joy_home() -> Vector2:
+	return Vector2(150.0, size.y - 150.0)
 
 
 ## 鍵位離角落稍遠一點，拇指自然彎曲就按得到，也避開 iPhone 圓角與手勢區
@@ -35,11 +43,22 @@ func _dash_center() -> Vector2:
 	return Vector2(size.x - 290.0, size.y - 92.0)
 
 
+func _block_center() -> Vector2:
+	return Vector2(size.x - 130.0, size.y - 300.0)
+
+
 func _blocked(pos: Vector2) -> bool:
 	for b in blockers:
 		if b and b.visible and b.get_global_rect().has_point(pos):
 			return true
 	return false
+
+
+func _set_block(on: bool) -> void:
+	if _block_on == on:
+		return
+	_block_on = on
+	block_changed.emit(on)
 
 
 func _unhandled_input(ev: InputEvent) -> void:
@@ -48,16 +67,21 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if t.pressed:
 			if _blocked(t.position):
 				return
-			if t.position.distance_to(_atk_center()) < ATK_R * 1.35:
+			if t.position.distance_to(_atk_center()) < ATK_R * 1.3:
 				_btn_touch[t.index] = "attack"
 				_atk_flash = 1.0
 				attack_pressed.emit()
 				get_viewport().set_input_as_handled()
 				return
-			if t.position.distance_to(_dash_center()) < DASH_R * 1.5:
+			if t.position.distance_to(_dash_center()) < DASH_R * 1.45:
 				_btn_touch[t.index] = "dash"
 				_dash_flash = 1.0
 				dash_pressed.emit()
+				get_viewport().set_input_as_handled()
+				return
+			if t.position.distance_to(_block_center()) < BLOCK_R * 1.45:
+				_btn_touch[t.index] = "block"
+				_set_block(true)
 				get_viewport().set_input_as_handled()
 				return
 			if _joy_idx == -1 and t.position.x < size.x * 0.6:
@@ -70,6 +94,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if t.index == _joy_idx:
 				_joy_idx = -1
 				move_vector = Vector2.ZERO
+			if _btn_touch.get(t.index, "") == "block":
+				_set_block(false)
 			_btn_touch.erase(t.index)
 	elif ev is InputEventScreenDrag:
 		var d := ev as InputEventScreenDrag
@@ -84,6 +110,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 			var n := l / JOY_R
 			move_vector = Vector2.ZERO if n < 0.12 else v / JOY_R
 			get_viewport().set_input_as_handled()
+		elif _btn_touch.get(d.index, "") == "block":
+			# 手指滑出格擋鍵太遠就視為放開
+			if d.position.distance_to(_block_center()) > BLOCK_R * 2.2:
+				_btn_touch.erase(d.index)
+				_set_block(false)
 
 
 func _process(delta: float) -> void:
@@ -94,17 +125,27 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var font: Font = Fx.ui_font
-	if _joy_idx != -1:
-		draw_circle(_joy_origin, JOY_R, Color(1, 1, 1, 0.07))
-		draw_arc(_joy_origin, JOY_R, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0, true)
-		draw_circle(_joy_pos, 28.0, Color(1, 1, 1, 0.55))
+	# 搖桿：閒置時停在左下，按住時跟著手指
+	var jc := _joy_origin if _joy_idx != -1 else _joy_home()
+	draw_circle(jc, JOY_R, Color(1, 1, 1, 0.10 if _joy_idx != -1 else 0.07))
+	draw_arc(jc, JOY_R, 0.0, TAU, 48, Color(1, 1, 1, 0.42 if _joy_idx != -1 else 0.28), 2.5, true)
+	var knob := _joy_pos if _joy_idx != -1 else jc
+	draw_circle(knob, 28.0, Color(1, 1, 1, 0.55 if _joy_idx != -1 else 0.22))
+	# 攻擊
 	var ac := _atk_center()
 	draw_circle(ac, ATK_R, Color(0.72, 0.14, 0.12, 0.55 + 0.4 * _atk_flash))
 	draw_arc(ac, ATK_R, 0.0, TAU, 64, Color(1, 0.92, 0.85, 0.9), 3.0, true)
 	if font:
-		draw_string(font, ac + Vector2(-ATK_R, 17.0), "斬", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 48, Color(1, 1, 1, 0.95))
+		draw_string(font, ac + Vector2(-ATK_R, 13.0), "攻擊", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 36, Color(1, 1, 1, 0.95))
+	# 閃
 	var dc := _dash_center()
 	draw_circle(dc, DASH_R, Color(0.2, 0.3, 0.55, 0.5 + 0.4 * _dash_flash))
 	draw_arc(dc, DASH_R, 0.0, TAU, 48, Color(0.85, 0.9, 1, 0.85), 2.5, true)
 	if font:
 		draw_string(font, dc + Vector2(-DASH_R, 12.0), "閃", HORIZONTAL_ALIGNMENT_CENTER, DASH_R * 2.0, 34, Color(1, 1, 1, 0.95))
+	# 格擋（按住時亮起）
+	var bc := _block_center()
+	draw_circle(bc, BLOCK_R, Color(0.18, 0.5, 0.32, 0.9 if _block_on else 0.5))
+	draw_arc(bc, BLOCK_R, 0.0, TAU, 48, Color(0.85, 1, 0.9, 0.9), 2.5, true)
+	if font:
+		draw_string(font, bc + Vector2(-BLOCK_R, 10.0), "格擋", HORIZONTAL_ALIGNMENT_CENTER, BLOCK_R * 2.0, 28, Color(1, 1, 1, 0.95))

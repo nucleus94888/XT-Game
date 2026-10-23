@@ -34,6 +34,7 @@ var _react_tw: Tween
 
 
 var _sfx_crack: AudioStreamPlayer
+var _stun_t := 0.0
 var _sfx_sweep: AudioStreamPlayer
 
 
@@ -86,6 +87,7 @@ func _physics_process(delta: float) -> void:
 	if _recent_t <= 0.0:
 		_recent_hits = 0
 	_counter_cd -= delta
+	_stun_t -= delta
 	if _counter_t >= 0.0:
 		_tick_counter(delta)
 
@@ -129,7 +131,7 @@ func take_hit(info: Dictionary) -> void:
 	hit_taken.emit(info)
 	if hp <= 0:
 		_die()
-	elif _recent_hits >= 3 and _counter_t < 0.0 and _counter_cd <= 0.0:
+	elif _recent_hits >= 3 and _counter_t < 0.0 and _counter_cd <= 0.0 and _stun_t <= 0.0:
 		_counter_t = 0.0
 		_sweep_done = false
 		_recent_hits = 0
@@ -174,7 +176,7 @@ func _tick_counter(delta: float) -> void:
 					var dir: Vector3 = t.global_position - global_position
 					dir.y = 0.0
 					dir = dir.normalized()
-					t.take_hit({"dmg": 15, "dir": dir, "kb": 6.0, "heavy": false, "pos": t.global_position + Vector3(0.0, 1.2, 0.0)})
+					t.take_hit({"dmg": 15, "dir": dir, "kb": 6.0, "heavy": false, "pos": t.global_position + Vector3(0.0, 1.2, 0.0), "src": self})
 	elif _counter_t < 1.0:
 		arms.rotation.y = lerpf(2.4, 0.0, (_counter_t - 0.68) / 0.32)
 		_set_flash(false)
@@ -182,6 +184,29 @@ func _tick_counter(delta: float) -> void:
 		_counter_t = -1.0
 		_counter_cd = 2.5
 		arms.rotation.y = 0.0
+
+
+## 被彈反：反擊中斷、大幅搖晃、閃白、1.5 秒內不會再反擊（可盡情連砍）
+func stagger() -> void:
+	if _dead:
+		return
+	_counter_t = -1.0
+	_counter_cd = 3.0
+	_stun_t = 1.5
+	mark.visible = false
+	_wob_v += 3.2
+	_flash_t = 0.25
+	_set_flash(true)
+	arms.rotation.y = 0.0
+	if _react_tw and _react_tw.is_valid():
+		_react_tw.kill()
+	visual.scale = Vector3(1.25, 0.8, 1.25)
+	head.rotation = Vector3(0.0, 0.0, 0.9)
+	_react_tw = create_tween()
+	_react_tw.set_ignore_time_scale(true)
+	_react_tw.set_parallel(true)
+	_react_tw.tween_property(visual, "scale", Vector3.ONE, 0.5).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_react_tw.tween_property(head, "rotation", Vector3.ZERO, 1.2).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 
 func _die() -> void:

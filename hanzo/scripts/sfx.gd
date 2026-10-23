@@ -13,6 +13,7 @@ const SETS := {
 	"heavy_wood": ["kenney/impactWood_medium_000.ogg", "kenney/impactWood_medium_001.ogg", "kenney/impactWood_medium_002.ogg"],
 	"dash": ["kenney/cloth1.ogg", "kenney/cloth2.ogg", "kenney/cloth3.ogg"],
 	"hurt": ["kenney/impactSoft_heavy_000.ogg", "kenney/impactSoft_heavy_001.ogg", "kenney/impactSoft_heavy_002.ogg"],
+	"block": ["kenney/impactMetal_light_000.ogg", "kenney/impactMetal_light_001.ogg", "kenney/impactMetal_light_002.ogg"],
 	"break": ["kenney/impactWood_heavy_000.ogg", "kenney/impactWood_heavy_001.ogg", "kenney/impactWood_heavy_002.ogg"],
 }
 

@@ -5,8 +5,9 @@ extends CharacterBody3D
 signal hit_landed(info: Dictionary)
 signal hp_changed(hp: int)
 signal died
+signal parried
 
-enum State { FREE, ATTACK, DASH, HURT }
+enum State { FREE, ATTACK, DASH, HURT, BLOCK }
 
 const SPEED := 6.2
 const ACCEL := 34.0
@@ -40,6 +41,9 @@ var _invuln := false
 var _hurt_t := 0.0
 var _trail_mat: StandardMaterial3D
 var _jolt_tw: Tween
+var _block_held := false
+var _block_start_ms := 0
+var _sfx_block: AudioStreamPlayer
 
 @onready var visual: Node3D = $Visual
 @onready var body: MeshInstance3D = $Visual/Body
@@ -64,6 +68,7 @@ func _ready() -> void:
 	Sfx.bind(sfx_dash, "dash", 1.15)
 	Sfx.bind(sfx_hurt, "hurt", 1.08)
 	_sfx_heavy_wood = Sfx.player(self, "heavy_wood", -9.0, 0.9)
+	_sfx_block = Sfx.player(self, "block", -6.0, 1.0, 1.1)
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -81,6 +86,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 		request_attack()
 	elif ev.is_action_pressed("dash"):
 		request_dash()
+	elif ev.is_action_pressed("block"):
+		set_block(true)
+	elif ev.is_action_released("block"):
+		set_block(false)
 
 
 ## 攻擊鍵：空閒/閃步中立刻出刀；攻擊中則排隊，收刀到一半自動接下一段。
@@ -88,13 +97,48 @@ func request_attack() -> void:
 	match state:
 		State.ATTACK:
 			_queued = true
-		State.FREE, State.DASH:
+		State.FREE, State.DASH, State.BLOCK:
 			_start_attack()
+
+
+## 格擋鍵：按住生效。空閒時立刻舉刀；攻擊收刀/閃步結束後若仍按著會自動回到格擋。
+## 對方的攻擊在舉刀後 160ms 內打到 = 彈反（對方硬直）。
+func set_block(on: bool) -> void:
+	_block_held = on
+	if on:
+		if state == State.FREE or (state == State.ATTACK and _phase == 2):
+			_start_block()
+	elif state == State.BLOCK:
+		state = State.FREE
+
+
+func _start_block() -> void:
+	state = State.BLOCK
+	_block_start_ms = Time.get_ticks_msec()
+	_queued = false
+	trail.visible = false
+
+
+func _after_action() -> State:
+	if _block_held:
+		_start_block()
+		return State.BLOCK
+	return State.FREE
+
+
+func _tick_block(delta: float, input: Vector2) -> void:
+	var dir := Vector3(input.x, 0.0, input.y)
+	velocity.x = move_toward(velocity.x, dir.x * SPEED * 0.3, ACCEL * delta)
+	velocity.z = move_toward(velocity.z, dir.z * SPEED * 0.3, ACCEL * delta)
+	_face_input(input, false)
+	visual.rotation.y = lerp_angle(visual.rotation.y, _facing, 1.0 - exp(-16.0 * delta))
+	body.rotation.x = lerpf(body.rotation.x, 0.1, 1.0 - exp(-12.0 * delta))
+	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(Vector3(-55.0, 38.0, 0.0), 1.0 - exp(-22.0 * delta))
 
 
 ## 閃步鍵：空閒可閃；出刀「前置」與「收刀」階段可取消成閃步（有效幀不可）。
 func request_dash() -> void:
-	if state == State.FREE or (state == State.ATTACK and _phase != 1):
+	if state == State.FREE or state == State.BLOCK or (state == State.ATTACK and _phase != 1):
 		_start_dash()
 
 
@@ -109,6 +153,8 @@ func _physics_process(delta: float) -> void:
 			_tick_dash(delta)
 		State.HURT:
 			_tick_hurt(delta)
+		State.BLOCK:
+			_tick_block(delta, input)
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
 	else:
@@ -225,9 +271,9 @@ func _tick_attack(delta: float, _input: Vector2) -> void:
 				return
 			if k >= 1.0:
 				trail.visible = false
-				state = State.FREE
 				_combo_idx = (_combo_idx + 1) % COMBO.size()
 				_combo_window = 0.8
+				state = _after_action()
 
 
 func _check_hits(c: Dictionary) -> void:
@@ -301,8 +347,8 @@ func _tick_dash(delta: float) -> void:
 	if fmod(_dash_t, 0.05) < delta:
 		Fx.afterimage(body, Color(0.6, 0.7, 1.0, 0.3), 0.2)
 	if _dash_t >= DASH_TIME:
-		state = State.FREE
 		_invuln = false
+		state = _after_action()
 		velocity.x *= 0.35
 		velocity.z *= 0.35
 
@@ -310,6 +356,9 @@ func _tick_dash(delta: float) -> void:
 ## 被稻草人反擊打到（閃步中無敵）
 func take_hit(info: Dictionary) -> void:
 	if _invuln or state == State.HURT:
+		return
+	if state == State.BLOCK and _forward().dot(-(info.dir as Vector3)) > 0.2:
+		_blocked_hit(info)
 		return
 	hp = maxi(hp - int(info.dmg), 0)
 	hp_changed.emit(hp)
@@ -337,6 +386,36 @@ func take_hit(info: Dictionary) -> void:
 		hp_changed.emit(hp)
 
 
+## 格擋成功：正面擋下不扣血；舉刀 160ms 內擋下 = 彈反，對方硬直
+func _blocked_hit(info: Dictionary) -> void:
+	var dir: Vector3 = info.dir
+	var perfect := Time.get_ticks_msec() - _block_start_ms <= 160
+	Sfx.play(_sfx_block)
+	body.scale = Vector3(1.1, 0.92, 1.1)
+	if _jolt_tw and _jolt_tw.is_valid():
+		_jolt_tw.kill()
+	_jolt_tw = create_tween()
+	_jolt_tw.set_ignore_time_scale(true)
+	_jolt_tw.tween_property(body, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	if perfect:
+		velocity.x = dir.x * 1.5
+		velocity.z = dir.z * 1.5
+		Feel.hitstop(1.4)
+		Feel.shake(0.9)
+		Feel.kick(-dir, 0.4)
+		Feel.flash(Color(1.0, 0.95, 0.8, 0.25), 0.15)
+		var src = info.get("src")
+		if src and src.has_method("stagger"):
+			src.stagger()
+		parried.emit()
+	else:
+		velocity.x = dir.x * 4.0
+		velocity.z = dir.z * 4.0
+		Feel.hitstop(0.45)
+		Feel.shake(0.45)
+		Feel.kick(dir, 0.2)
+
+
 func _tick_hurt(delta: float) -> void:
 	_hurt_t += delta
 	velocity.x = move_toward(velocity.x, 0.0, 24.0 * delta)
@@ -344,7 +423,7 @@ func _tick_hurt(delta: float) -> void:
 	body.rotation.x = lerpf(body.rotation.x, 0.3, 1.0 - exp(-20.0 * delta))
 	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(Vector3.ZERO, 1.0 - exp(-10.0 * delta))
 	if _hurt_t > 0.4:
-		state = State.FREE
+		state = _after_action()
 
 
 ## 刀光：扇形網格，尾端透明、刀頭亮；第三段下劈時整片前傾。

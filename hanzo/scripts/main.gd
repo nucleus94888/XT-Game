@@ -24,6 +24,9 @@ func _ready() -> void:
 	player.touch = touch
 	touch.attack_pressed.connect(player.request_attack)
 	touch.dash_pressed.connect(player.request_dash)
+	touch.block_changed.connect(player.set_block)
+	player.parried.connect(func() -> void:
+		hud.say("彈反！", Color(1.0, 0.92, 0.5)))
 	cam_rig.set_target(player)
 	player.hit_landed.connect(_on_hit_landed)
 	player.hp_changed.connect(hud.set_hp)
