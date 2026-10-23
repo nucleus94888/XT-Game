@@ -1,5 +1,4 @@
 extends Node
-class_name Bot
 ## 自動試玩 bot（議會驗證用）：對一名武士 1v1 打 N 場，印出勝率。
 ##   godot --path hanzo scenes/level1.tscn ++ --bot=mash --runs=20
 ##   godot --path hanzo scenes/level1.tscn ++ --bot=deflect --runs=20

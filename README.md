@@ -8,10 +8,12 @@
 - 之前的戰國大戰略版本：封存在 `strategy-archive` 分支，沒有刪除。
 - 五次 LLM Council 的報告與逐字稿：`docs/council/`（第五次：體力條去留 → 刪體力、改玩家體幹）
 
-## 第一關：伊賀夜襲
+## 關卡與故事（詳見 [docs/STORY.md](docs/STORY.md)）
 
-標題畫面選「第一關」。山門 → 第一院（足輕×2 巡邏、弓兵×1）→ 窄道 → 第二院（武士巡邏）→ 小屋裡的目標武將（背對門）。
-暗殺武將後回南邊山門撤離，結算時間、擊破、暗殺數、被擊中與被發現次數，評價 影 / S / A / B / C。
+- **第一關：伊賀夜襲** — 今川軍本營。鳥居山門 → 第一院（農家、水井、櫓上的弓兵、足輕巡邏）→ 石階上台地 → 第二院（長屋、土藏、練兵場、武士巡邏）→ 陣屋。陣屋裡副將守著大將：大將一察覺就從後門逃走、門在他身後關上；殺了副將門才開，追出去就過關。
+- **第二關：湖畔屋敷** — 大將逃到山下的屋敷。山道俯瞰 → 池泉庭園（石橋、茶室上的弓兵）→ 屋敷一樓（緣側、障子隔間、走廊有武士巡邏）→ 樓梯上二樓（守衛面向樓梯口）→ 奧座敷的大將。從後院鉤上北側露台可以從背後接近。殺了大將鉤上屋頂撤離。
+- 走到屋簷下／樓下時上方的屋頂與樓板會自動隱藏，鏡頭看得到室內。
+- 過關結算時間、擊破、暗殺數、被擊中與被發現次數，評價 影 / S / A / B / C，可直接進下一關。
 
 - 敵人有視野錐與視線遮蔽：頭上白條是警覺度，「？」起疑、「！」發現並呼叫 10 公尺內同伴。出刀有聲音，5 公尺內的敵人會起疑。
 - 未察覺的敵人從背後砍 = **暗殺**，一擊必殺、無聲。
@@ -70,6 +72,10 @@ C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=deflect --runs=20
 
 # 網頁版量觸控延遲：遊戲中連點羅盤三下開除錯，左下會顯示「觸控延遲 avg ms（最差）」
+
+# 關卡檢查：故事流程（第一關）、巡迴截圖（任何關，把半藏傳送到各點各拍一張）
+C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --story
+C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --path hanzo scenes/level2.tscn ++ --shot=C:/Users/Win/Desktop/XT-Game/build/t2 "--tour=0,0.7,-5;0,3.7,-17"
 
 # 重新產生圖示 / 字型子集
 npm run assets

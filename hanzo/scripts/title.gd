@@ -50,6 +50,8 @@ func _ready() -> void:
 
 	_btn(vb, "第一關：伊賀夜襲", func() -> void:
 		get_tree().change_scene_to_file(LEVEL1))
+	_btn(vb, "第二關：湖畔屋敷（追擊）", func() -> void:
+		get_tree().change_scene_to_file("res://scenes/level2.tscn"))
 	_btn(vb, "道場（練手感）", func() -> void:
 		get_tree().change_scene_to_file(DOJO))
 

@@ -1,449 +1,281 @@
-extends Node3D
-## 第一關：伊賀夜襲。
-## 山門 → 第一院（足輕×2 巡邏、弓兵×1）→ 窄道 → 第二院（武士巡邏）→ 小屋（目標武將，背對門）。
-## 暗殺武將後回山門撤離。死亡可重來；撤離後結算。
+extends "res://scripts/level_base.gd"
+## 第一關：伊賀夜襲 — 今川軍在伊賀山村的本營。
+## 鳥居山門（低）→ 第一院：農家、水井、櫓上的弓兵 → 石階上台地 → 第二院：長屋、土藏、練兵場 →
+## 本陣：陣屋裡副將守著大將。大將一察覺就從後門逃走（故事：下一關追進湖畔屋敷）。
+## 殺了副將後門才會開，追出去就過關。
 ##
-## 截圖：godot --path hanzo ++ --shot=<dir> [--walk]   （--walk：往北走 6 秒，每 2 秒截一張）
+## 自動試玩：godot --path hanzo scenes/level1.tscn ++ --shot=<dir> --walk
 
-const WALL_H := 2.6
-const EXIT_POS := Vector3(0.0, 0.0, 29.0)
-const TARGET_POS := Vector3(0.0, 0.0, -18.0)
+const T := 1.5          # 台地高度
+const HALL_Y := T + 0.6 # 陣屋地板
+const REAR_GATE := Vector3(0.0, T, -25.5)
 
-## [中心x, 中心z, 寬x, 長z, (碰撞高度)]；外牆看起來一樣高，但碰撞是 12 公尺的透明牆，鉤繩鉤不上去、人翻不出去
-const WALLS := [
-	[-13.0, 4.5, 1.0, 58.0, 12.0], [13.0, 4.5, 1.0, 58.0, 12.0], [0.0, -23.5, 27.0, 1.0, 12.0], [0.0, 32.5, 27.0, 1.0, 12.0],
-	[-8.75, 24.0, 7.5, 12.0], [8.75, 24.0, 7.5, 12.0],
-	[-8.0, 4.0, 10.0, 1.0], [8.0, 4.0, 10.0, 1.0],
-	[-8.0, -1.0, 10.0, 10.0], [8.0, -1.0, 10.0, 10.0],
-	[0.0, -20.6, 6.4, 0.6], [-3.0, -18.0, 0.6, 5.2], [3.0, -18.0, 0.6, 5.2],
-	[-6.0, 11.0, 2.0, 2.0], [5.0, 14.5, 2.0, 2.0], [-5.0, -10.0, 2.0, 2.0], [7.0, -12.5, 2.0, 2.0],
-	[-10.5, 8.0, 1.5, 1.5], [10.5, 15.0, 1.5, 1.5],
-]
-const LANTERNS := [
-	Vector3(-10.5, 0, 16.5), Vector3(10.5, 0, 6.0), Vector3(-10.5, 0, -8.0), Vector3(10.0, 0, -20.0),
-	Vector3(-2.2, 0, -15.2), Vector3(2.2, 0, -15.2), Vector3(3.6, 0, 27.0),
-]
-
-@onready var player: CharacterBody3D = $Player
-@onready var cam_rig: Node3D = $CameraRig
-@onready var hud: CanvasLayer = $HUD
-
-var _enemies: Array = []
-var _target: Enemy
-var _target_dead := false
-var _finished := false
-var _dead := false
-var _time := 0.0
-var _hits_taken := 0
-var _stealth_kills := 0
-var _kills := 0
-var _alert_count := 0
-var _exit_beacon: Node3D
-var _lanterns: Array = []
-## 檢查點：走過就記住，死亡從最近的檢查點重生（敵人全部重置）
-const CHECKPOINTS := [Vector3(0.0, 0.0, 29.0), Vector3(0.0, 0.0, 19.0), Vector3(0.0, 0.0, 5.0), Vector3(0.0, 0.0, -5.0)]
-var _checkpoint := Vector3(0.0, 0.1, 29.0)
-var _cp_index := 0
-var _shot_dir := ""
+var _lord: Enemy
+var _vice: Enemy
+var _lord_fled := false
 var _walk := false
 var _walk_t := 0.0
-var _walk_shots := 0
 var _auto_done := {}
-## 自動試玩 bot（--bot=mash|deflect --runs=N）：只放一名武士在山門前 1v1
-var _bot: Node = null
-var _bot_mode := ""
-var _bot_runs := 20
 
 
-func _ready() -> void:
+func _init() -> void:
+	level_title = "伊賀夜襲"
+	objective_text = "潛入今川軍本營，取下大將首級"
+	start_pos = Vector3(0.0, 0.1, 30.0)
+	exit_pos = Vector3(0.0, T, -28.5)
+	checkpoints = [Vector3(0.0, 0.0, 30.0), Vector3(0.0, 0.0, 19.0), Vector3(0.0, T, 1.5), Vector3(0.0, T, -10.0)]
+	next_scene = "res://scenes/level2.tscn"
+	next_label = "下一關：湖畔屋敷"
+	bounds = AABB(Vector3(-13.4, -1.0, -29.0), Vector3(26.8, 20.0, 60.5))
+
+
+func _on_level_ready() -> void:
+	hud.set_compass_target(Vector3(0.0, HALL_Y, -21.0), Color(1.0, 0.8, 0.3))
 	$Moon.rotation_degrees = Vector3(-52.0, 25.0, 0.0)
-	hud.attach(player, cam_rig)
-	player.died.connect(_on_player_died)
-	player.damaged.connect(func(_a: int) -> void:
-		_hits_taken += 1)
-	_parse_args()
-	_build_world()
-	if _bot_mode != "":
-		_start_bot()
-		return
-	_spawn_enemies()
-	hud.set_objective("潛入山村，暗殺今川家的武將")
-	hud.set_compass_target(TARGET_POS, Color(1.0, 0.8, 0.3))
-	hud.say("伊賀夜襲", Color(0.95, 0.9, 0.8))
-	_warmup()
-
-
-func _start_bot() -> void:
-	var b: Node = preload("res://scripts/bot.gd").new()
-	b.mode = _bot_mode
-	b.runs = _bot_runs
-	b.level = self
-	b.player = player
-	b.hud = hud
-	b.cam_rig = cam_rig
-	add_child(b)
-	_bot = b
-	await get_tree().process_frame
-	b.start()
-
-
-func _warmup() -> void:
-	await get_tree().process_frame
-	player.warmup()
-	Fx.warmup(player.global_position + Vector3(0, 1.5, 0), player.body)
-
-
-func _parse_args() -> void:
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--shot="):
-			_shot_dir = a.substr(7)
-		elif a == "--walk":
-			_walk = true
-		elif a.begins_with("--bot="):
-			_bot_mode = a.substr(6)
-		elif a.begins_with("--runs="):
-			_bot_runs = int(a.substr(7))
-	if _shot_dir != "":
-		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_shot_dir))
-		get_tree().create_timer(1.0).timeout.connect(func() -> void:
-			await _shot("idle")
-			if not _walk:
-				get_tree().quit())
-
-
-func _process(delta: float) -> void:
-	if not _finished and not _dead:
-		_time += delta
-	if _walk:
-		# 自動試玩：走到東側牆頂鉤繩點下方 → 轉鏡頭朝東 → 鉤上牆頂 → 投手裡劍 → 每段截圖
-		_walk_t += delta
-		hud.touch.move_vector = Vector2(0.0, -1.0) if _walk_t < 1.3 else Vector2.ZERO
-		if _walk_t > 1.35 and not _auto_done.has("look"):
-			_auto_done["look"] = true
-			cam_rig.yaw = -PI / 2.0
-			cam_rig.aim_pitch = -0.05
-		if _walk_t > 1.7 and not _auto_done.has("aim"):
-			_auto_done["aim"] = true
-			player.on_hook_down()
-		if _walk_t > 2.5 and not _auto_done.has("shot_aim"):
-			_auto_done["shot_aim"] = true
-			_shot("aim_hook")
-		if _walk_t > 2.6 and not _auto_done.has("grapple"):
-			_auto_done["grapple"] = true
-			player.on_hook_up()
-		if _walk_t > 3.3 and not _auto_done.has("shot_grapple"):
-			_auto_done["shot_grapple"] = true
-			_shot("grapple")
-		if _walk_t > 3.6 and not _auto_done.has("aim2"):
-			_auto_done["aim2"] = true
-			cam_rig.yaw = PI
-			cam_rig.aim_pitch = 0.25
-			player.toggle_weapon()
-			player.on_attack_down()
-		if _walk_t > 4.4 and not _auto_done.has("shot_aim2"):
-			_auto_done["shot_aim2"] = true
-			_shot("aim_shuriken")
-		if _walk_t > 4.5 and not _auto_done.has("throw"):
-			_auto_done["throw"] = true
-			player.on_attack_up()
-		if _walk_t > 4.8 and not _auto_done.has("shot_throw"):
-			_auto_done["shot_throw"] = true
-			_shot("throw")
-		if _walk_t > 6.5 and not _auto_done.has("shot_end"):
-			_auto_done["shot_end"] = true
-			_shot("end")
-		if _walk_t > 7.0:
-			get_tree().quit()
-
-
-func _physics_process(_delta: float) -> void:
-	# 檢查點
-	for i in range(_cp_index + 1, CHECKPOINTS.size()):
-		var cp: Vector3 = CHECKPOINTS[i]
-		var d := player.global_position - cp
-		d.y = 0.0
-		if d.length() < 2.5:
-			_cp_index = i
-			_checkpoint = cp + Vector3(0.0, 0.1, 0.0)
-			player.refill_shuriken()
-	# 玩家是否站在燈光下（敵人視野據此縮放）
-	var lit := false
-	for l in _lanterns:
-		if l.lights(player.global_position):
-			lit = true
-			break
-	player.in_light = lit
-	if _target_dead and not _finished and not _dead:
-		var d := player.global_position - EXIT_POS
-		d.y = 0.0
-		if d.length() < 3.0:
-			_finish()
-
-
-func _shot(name: String) -> void:
-	if _shot_dir == "":
-		return
-	await RenderingServer.frame_post_draw
-	var img := get_viewport().get_texture().get_image()
-	var path := ProjectSettings.globalize_path("%s/%s.png" % [_shot_dir, name])
-	img.save_png(path)
-	print("shot: ", path)
+	_walk = _extra_args.has("--walk")
 
 
 # ---------------------------------------------------------------- 世界
 
 func _build_world() -> void:
-	var region := NavigationRegion3D.new()
-	var nm := NavigationMesh.new()
-	nm.agent_radius = 0.5
-	nm.agent_height = 2.0
-	nm.cell_size = 0.25
-	nm.cell_height = 0.25
-	# 執行期烘焙：只解析碰撞形狀（解析視覺網格要把資料從 GPU 讀回來，會卡）
-	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	region.navigation_mesh = nm
-	add_child(region)
+	var dirt := Color(0.17, 0.17, 0.15)
+	var stone := Color(0.42, 0.42, 0.4)
+	var wood := Color(0.32, 0.24, 0.16)
+	var plaster := Color(0.78, 0.74, 0.66)
+	var roof := Color(0.2, 0.22, 0.27)
+	var thatch := Color(0.45, 0.38, 0.22)
+	var palisade := Color(0.26, 0.2, 0.13)
 
-	# 地面
-	var ground := StaticBody3D.new()
-	ground.collision_layer = 1
-	ground.collision_mask = 0
-	var gm := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(80, 80)
-	var gmat := StandardMaterial3D.new()
-	gmat.albedo_color = Color(0.17, 0.17, 0.16)
-	gmat.roughness = 1.0
-	gm.mesh = pm
-	gm.material_override = gmat
-	ground.add_child(gm)
-	var gs := CollisionShape3D.new()
-	var gshape := BoxShape3D.new()
-	gshape.size = Vector3(80, 1, 80)
-	gs.shape = gshape
-	gs.position = Vector3(0, -0.5, 0)
-	ground.add_child(gs)
-	region.add_child(ground)
+	_ground(90.0, dirt)
+	# 台地（第二院＋本陣）：z < 4 全部墊高 1.5 公尺，前緣是石砌擋土牆
+	_terrace(0.0, -12.0, 28.0, 32.0, T, stone.darkened(0.3))
+	_box(Vector3(0.0, T - 0.25, 4.0), Vector3(28.0, 0.5, 0.3), stone, Vector3.ZERO, false)
+	# 中央石階
+	_ramp_z(0.0, 8.0, 4.0, 0.0, T, 5.0, stone)
+	_stone_lantern(Vector3(-3.2, T, 3.2))
+	_stone_lantern(Vector3(3.2, T, 3.2))
 
-	# 牆與遮蔽物
-	var wall_mesh_mat := StandardMaterial3D.new()
-	wall_mesh_mat.albedo_color = Color(0.3, 0.26, 0.22)
-	wall_mesh_mat.roughness = 1.0
-	for w in WALLS:
-		var sb := StaticBody3D.new()
-		sb.collision_layer = 1
-		sb.collision_mask = 0
-		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(w[2], WALL_H, w[3])
-		mi.mesh = bm
-		mi.material_override = wall_mesh_mat
-		sb.add_child(mi)
-		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = bm.size
-		cs.shape = bs
-		sb.add_child(cs)
-		sb.position = Vector3(w[0], WALL_H / 2.0, w[1])
-		region.add_child(sb)
-		# 透明牆：碰撞往上延伸（沒有網格，不擋畫面）
-		if w.size() > 4:
-			var h: float = float(w[4])
-			var cs2 := CollisionShape3D.new()
-			var bs2 := BoxShape3D.new()
-			bs2.size = Vector3(w[2], h - WALL_H, w[3])
-			cs2.shape = bs2
-			cs2.position = Vector3(0.0, (h - WALL_H) / 2.0 + WALL_H / 2.0, 0.0)
-			sb.add_child(cs2)
-	# 鉤繩只能到外牆以內
-	player.hook_bounds = AABB(Vector3(-12.4, -1.0, -22.9), Vector3(24.8, 20.0, 54.8))
+	# 外圍木柵（看起來 2.2 公尺，碰撞 12 公尺）
+	_fence(-13.5, 2.0, 63.0, false, 2.2, palisade, 0.0, 12.0)
+	_fence(13.5, 2.0, 63.0, false, 2.2, palisade, 0.0, 12.0)
+	_fence(0.0, 33.0, 28.0, true, 2.2, palisade, 0.0, 12.0)
+	_fence(0.0, -29.5, 28.0, true, 2.2, palisade, T, 12.0)
 
-	# 燈籠
-	for p in LANTERNS:
-		var l := Lantern.new()
-		add_child(l)
-		l.global_position = p
-		_lanterns.append(l)
+	# 山門：鳥居與兩座石燈籠
+	_torii(Vector3(0.0, 0.0, 28.0))
+	_stone_lantern(Vector3(-3.0, 0.0, 27.0))
+	_stone_lantern(Vector3(3.0, 0.0, 27.0))
+	_box(Vector3(0.0, 0.03, 20.0), Vector3(3.0, 0.06, 18.0), Color(0.3, 0.29, 0.27), Vector3.ZERO, false)  # 碎石路
 
-	# 屋頂與鉤繩點（立體路線）
-	_slab(0.0, -18.0, 6.8, 5.6, 2.75)
+	# 第一院：兩間農家（茅葺）、水井、菜畦、松樹、櫓
+	_hut(-9.0, 20.0, 5.0, 4.0, 2.4, 0.0, plaster, thatch, "e", 1.3)
+	_hut(9.0, 22.5, 5.0, 4.0, 2.4, 0.0, plaster, thatch, "w", 1.3)
+	_box(Vector3(3.5, 0.5, 16.0), Vector3(1.6, 1.0, 1.6), stone)                       # 水井
+	_box(Vector3(3.5, 1.9, 16.0), Vector3(1.8, 0.1, 1.8), wood, Vector3.ZERO, false)   # 井蓋
+	for i in range(4):
+		_box(Vector3(-8.0 + i * 1.2, 0.12, 11.0), Vector3(0.8, 0.24, 5.0), Color(0.22, 0.2, 0.14), Vector3.ZERO, false)  # 菜畦
+	_tree(Vector3(-11.0, 0.0, 13.0), 1.1)
+	_tree(Vector3(11.5, 0.0, 29.0), 0.9)
+	_tree(Vector3(-5.0, 0.0, 26.5), 1.0)
+	_tree(Vector3(-11.5, 0.0, 6.0), 0.8)
+	_tower(10.5, 13.0, 4.5, 0.0, wood, roof)
+	_lantern(Vector3(-4.5, 0.0, 22.0))
+	_lantern(Vector3(6.5, 0.0, 12.5))
+	_lantern(Vector3(-9.5, 0.0, 8.0))
 
-	# 撤離點信標（暗殺後才亮）
-	_exit_beacon = Node3D.new()
-	add_child(_exit_beacon)
-	_exit_beacon.position = EXIT_POS
-	var pillar := MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	cyl.top_radius = 0.9
-	cyl.bottom_radius = 0.9
-	cyl.height = 6.0
-	var bmat := StandardMaterial3D.new()
-	bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	bmat.albedo_color = Color(0.4, 0.8, 1.0, 0.2)
-	pillar.mesh = cyl
-	pillar.material_override = bmat
-	pillar.position = Vector3(0, 3.0, 0)
-	_exit_beacon.add_child(pillar)
-	var lbl := Label3D.new()
-	lbl.text = "撤離"
-	lbl.font = Fx.ui_font
-	lbl.font_size = 96
-	lbl.pixel_size = 0.014
-	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	lbl.no_depth_test = true
-	lbl.outline_size = 12
-	lbl.modulate = Color(0.6, 0.9, 1.0)
-	lbl.position = Vector3(0, 3.2, 0)
-	_exit_beacon.add_child(lbl)
-	_exit_beacon.visible = false
+	# 第二院（台地）：西側長屋（屋頂可走）、東側土藏（兩層高）、練兵場木樁、燈籠
+	_hut(-9.0, -5.0, 5.0, 12.0, 2.6, T, plaster, roof, "e", 1.2)
+	_box(Vector3(9.5, T + 2.25, -8.0), Vector3(5.0, 4.5, 6.0), Color(0.86, 0.84, 0.8))  # 土藏本體
+	_gable(9.5, -8.0, 5.0, 6.0, T + 4.5, 0.9, roof, true, 0.5)
+	_box(Vector3(9.5, T + 1.0, -4.85), Vector3(1.4, 2.0, 0.3), wood, Vector3.ZERO, false)  # 藏門
+	for i in range(3):
+		_box(Vector3(2.0 + i * 2.0, T + 0.9, -2.5), Vector3(0.3, 1.8, 0.3), thatch)       # 練兵木樁
+	_box(Vector3(4.0, T + 0.02, -3.0), Vector3(8.0, 0.04, 5.0), Color(0.3, 0.27, 0.22), Vector3.ZERO, false)
+	_tree(Vector3(-12.0, T, -1.0), 0.9)
+	_tree(Vector3(12.0, T, 1.0), 0.8)
+	_lantern(Vector3(-3.0, T, 0.5))
+	_lantern(Vector3(7.5, T, -1.5))
+	_lantern(Vector3(-11.0, T, -13.0))
+	_lantern(Vector3(11.0, T, -14.5))
 
-	region.bake_navigation_mesh(false)
+	# 本陣：陣幕（兩側）＋陣屋（高床、前面敞開、後門通後門道）
+	for side in [-1.0, 1.0]:
+		_box(Vector3(side * 9.0, T + 1.0, -15.0), Vector3(6.0, 2.0, 0.12), Color(0.1, 0.1, 0.12))
+		_box(Vector3(side * 9.0, T + 1.0, -15.0), Vector3(6.0, 0.5, 0.14), Color(0.75, 0.15, 0.12), Vector3.ZERO, false)
+	_hall()
+	_lantern(Vector3(-4.0, T, -16.2))
+	_lantern(Vector3(4.0, T, -16.2))
+
+	# 後門：殺了副將才開；大將逃跑時會先開再關
+	_fence(-7.0, -25.5, 10.0, true, 2.2, palisade, T, 12.0)
+	_fence(7.0, -25.5, 10.0, true, 2.2, palisade, T, 12.0)
+	_gate("rear", REAR_GATE, 4.0, 2.4, true, wood)
+	_box(Vector3(0.0, T + 0.02, -27.5), Vector3(3.0, 0.04, 4.0), Color(0.3, 0.29, 0.27), Vector3.ZERO, false)
 
 
-## 可站立的平板（屋頂）
-func _slab(cx: float, cz: float, sx: float, sz: float, y: float) -> void:
-	var sb := StaticBody3D.new()
-	sb.collision_layer = 1
-	sb.collision_mask = 0
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(sx, 0.3, sz)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.22, 0.18, 0.16)
-	mi.mesh = bm
-	mi.material_override = mat
-	sb.add_child(mi)
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = bm.size
-	cs.shape = bs
-	sb.add_child(cs)
-	add_child(sb)
-	sb.position = Vector3(cx, y, cz)
+## 陣屋：12×8 高床，三面牆、前面敞開（帳幕），後牆留門
+func _hall() -> void:
+	var wood := Color(0.3, 0.22, 0.14)
+	var plaster := Color(0.8, 0.76, 0.68)
+	var roof := Color(0.2, 0.22, 0.27)
+	var cx := 0.0
+	var cz := -20.0
+	var sx := 12.0
+	var sz := 8.0
+	# 高床（可走上去）＋前緣階梯
+	_box(Vector3(cx, T + 0.3, cz), Vector3(sx, 0.6, sz), wood)
+	_ramp_z(cx, cz + sz / 2.0 + 1.2, cz + sz / 2.0, T, HALL_Y, 4.0, wood.lightened(0.1))
+	# 側牆
+	for side in [-1.0, 1.0]:
+		_box(Vector3(cx + side * sx / 2.0, HALL_Y + 1.5, cz), Vector3(0.25, 3.0, sz), plaster)
+	# 後牆留門（1.8 公尺）
+	_wall_with_gap(cx - sx / 2.0, cx + sx / 2.0, cz - sz / 2.0, true, cx, 1.8, func(x: float, z: float, len: float) -> void:
+		_box(Vector3(x, HALL_Y + 1.5, z), Vector3(len, 3.0, 0.25), plaster))
+	# 前面：柱子＋橫楣
+	for x in [-6.0, -2.0, 2.0, 6.0]:
+		_box(Vector3(cx + x, HALL_Y + 1.5, cz + sz / 2.0), Vector3(0.3, 3.0, 0.3), wood)
+	_box(Vector3(cx, HALL_Y + 2.9, cz + sz / 2.0), Vector3(sx, 0.25, 0.3), wood, Vector3.ZERO, false)
+	# 屋頂（屋脊沿 x）：人在陣屋裡就隱藏
+	_cover_begin("hall", AABB(Vector3(cx - sx / 2.0 - 1.0, T - 0.3, cz - sz / 2.0 - 1.0), Vector3(sx + 2.0, 3.6, sz + 2.5)))
+	_gable(cx, cz, sx, sz, HALL_Y + 3.0, 1.6, roof, false, 0.8)
+	_cover_end()
+	# 室內：軍議桌、屏風、燭台
+	_box(Vector3(cx, HALL_Y + 0.35, cz - 1.5), Vector3(2.4, 0.7, 1.2), wood.darkened(0.2))
+	_box(Vector3(cx, HALL_Y + 1.0, cz - 3.0), Vector3(3.6, 2.0, 0.1), Color(0.85, 0.7, 0.3), Vector3.ZERO, false)  # 金屏風
+	_lantern(Vector3(cx - 4.5, HALL_Y, cz - 2.0))
+	_lantern(Vector3(cx + 4.5, HALL_Y, cz - 2.0))
 
 
-
-
-# ---------------------------------------------------------------- 敵人
+# ---------------------------------------------------------------- 敵人與故事
 
 func _spawn_enemies() -> void:
-	_spawn(Enemy.Kind.ASHIGARU, Vector3(-8, 0, 15), [Vector3(-8, 0, 15), Vector3(-8, 0, 7), Vector3(1, 0, 7), Vector3(1, 0, 15)])
-	_spawn(Enemy.Kind.ASHIGARU, Vector3(8, 0, 8), [Vector3(8, 0, 8), Vector3(8, 0, 16), Vector3(-1, 0, 17)])
-	_spawn(Enemy.Kind.ARCHER, Vector3(9.5, 0, 10), [], Vector3(-1, 0, 0))
-	_spawn(Enemy.Kind.SAMURAI, Vector3(-8, 0, -9), [Vector3(-8, 0, -9), Vector3(8, 0, -9), Vector3(8, 0, -13), Vector3(-8, 0, -13)])
-	_target = _spawn(Enemy.Kind.TARGET, TARGET_POS, [], Vector3(0, 0, -1))
+	_spawn(Enemy.Kind.ASHIGARU, Vector3(-6.0, 0.0, 24.0), [Vector3(-6.0, 0.0, 24.0), Vector3(-5.0, 0.0, 10.0), Vector3(2.0, 0.0, 9.0), Vector3(1.0, 0.0, 24.0)])
+	_spawn(Enemy.Kind.ASHIGARU, Vector3(7.0, 0.0, 9.0), [Vector3(7.0, 0.0, 9.0), Vector3(7.5, 0.0, 19.0), Vector3(-1.0, 0.0, 26.0)])
+	_spawn(Enemy.Kind.ARCHER, Vector3(10.5, 4.5, 13.0), [], Vector3(-1.0, 0.0, 0.3))
+	_spawn(Enemy.Kind.SAMURAI, Vector3(-4.0, T, -3.0), [Vector3(-4.0, T, -3.0), Vector3(5.5, T, -6.0), Vector3(5.0, T, -12.5), Vector3(-5.0, T, -12.0)])
+	_spawn(Enemy.Kind.ASHIGARU, Vector3(-6.0, T, -16.5), [], Vector3(0.6, 0.0, 1.0))
+	if not _target_dead:
+		# 副將：守在陣屋前段，面向入口（要暗殺得從後門或屋頂來）
+		_vice = _spawn(Enemy.Kind.TARGET, Vector3(0.0, HALL_Y, -17.5), [], Vector3(0.0, 0.0, 1.0))
+		_vice.name = "Vice"
+	if not _lord_fled:
+		_lord = _spawn(Enemy.Kind.LORD, Vector3(0.0, HALL_Y, -21.5), [], Vector3(0.0, 0.0, -1.0))
+		_lord.flee_route = [Vector3(0.0, HALL_Y, -23.5), Vector3(0.0, T, -25.5), Vector3(0.0, T, -28.8)]
+		_lord.flee_started.connect(_on_lord_flee)
+		_lord.escaped.connect(_on_lord_escaped)
 
 
-func _spawn(kind: Enemy.Kind, pos: Vector3, route: Array, face := Vector3.FORWARD) -> Enemy:
-	var e := Enemy.new()
-	e.kind = kind
-	e.patrol = route
-	e.face_dir = face
-	add_child(e)
-	e.global_position = pos + Vector3(0, 0.1, 0)
-	e.died.connect(_on_enemy_died)
-	e.alerted.connect(_on_enemy_alerted)
-	_enemies.append(e)
-	return e
+func _after_respawn() -> void:
+	if _target_dead:
+		_gate_set("rear", true)
 
 
-func _on_enemy_alerted(_e: Enemy) -> void:
-	_alert_count += 1
-	if _alert_count == 1:
-		hud.say("被發現了！", Color(1.0, 0.4, 0.3))
-
-
-func _on_enemy_died(e: Enemy, stealth: bool) -> void:
-	_kills += 1
-	# 忍者口糧：目標必掉，其他 35% 機率
-	if e == _target or randf() < 0.35:
-		var r := Ration.new()
-		add_child(r)
-		r.global_position = e.global_position
-	if stealth:
-		_stealth_kills += 1
-	hud.add_kill("")
-	if e == _target and not _target_dead:
-		_target_dead = true
-		_exit_beacon.visible = true
-		hud.set_objective("目標已除。回到南邊山門撤離")
-		hud.set_compass_target(EXIT_POS, Color(0.6, 0.9, 1.0))
-		get_tree().create_timer(1.2).timeout.connect(func() -> void:
-			hud.say("撤離！", Color(0.6, 0.9, 1.0)))
-
-
-# ---------------------------------------------------------------- 結束
-
-func _on_player_died() -> void:
-	if _dead or _finished or _bot != null:
+func _on_lord_flee(_e: Enemy) -> void:
+	if _lord_fled:
 		return
-	_dead = true
-	hud.say("敗北…", Color(0.9, 0.3, 0.3))
-	get_tree().create_timer(1.0).timeout.connect(func() -> void:
-		hud.show_overlay("敗北", ["時間 %s　擊破 %d　被擊中 %d 次" % [_fmt_time(_time), _kills, _hits_taken]],
-			[["從檢查點再來", func() -> void: _respawn()],
-			 ["整關重來", func() -> void: get_tree().reload_current_scene()],
-			 ["回標題", func() -> void: get_tree().change_scene_to_file("res://scenes/title.tscn")]],
-			Color(0.95, 0.3, 0.3)))
+	_lord_fled = true
+	_gate_set("rear", true)
+	hud.say("大將逃了！", Color(0.95, 0.6, 1.0))
+	if _target_dead:
+		hud.set_objective("大將往後門逃了，追上去")
+		_open_exit("追擊")
+	else:
+		hud.set_objective("大將逃了！解決守著後門的副將，追出去")
+		hud.set_compass_target(Vector3(0.0, HALL_Y, -17.5), Color(1.0, 0.8, 0.3))
 
 
-## 從最近檢查點重生：半藏復活、敵人全部重置（目標已死則不重生）
-func _respawn() -> void:
-	for e in _enemies:
-		if is_instance_valid(e):
-			e.queue_free()
-	_enemies.clear()
-	for n in get_tree().get_nodes_in_group("enemies"):
-		n.queue_free()
-	for a in get_children():
-		if a is Arrow or a is Shuriken or a is Ration:
-			a.queue_free()
-	_spawn_enemies()
-	if _target_dead and is_instance_valid(_target):
-		_target.queue_free()
-		_enemies.erase(_target)
-	player.global_position = _checkpoint
-	player.revive()
-	_dead = false
-	_alert_count = 0
-	hud.say("再起", Color(0.9, 0.9, 0.95))
+func _on_lord_escaped(_e: Enemy) -> void:
+	# 門在他身後關上；副將死了才會再開
+	if not _target_dead:
+		_gate_set("rear", false)
 
 
-func _finish() -> void:
-	_finished = true
-	var rank := _rank()
-	hud.say("任務完成", Color(0.95, 0.9, 0.6))
-	get_tree().create_timer(1.0).timeout.connect(func() -> void:
-		hud.show_overlay("任務完成　評價 %s" % rank, [
-			"時間 %s" % _fmt_time(_time),
-			"擊破 %d（暗殺 %d）　被擊中 %d 次　被發現 %d 次" % [_kills, _stealth_kills, _hits_taken, _alert_count],
-			_rank_comment(rank),
-		], [["再玩一次", func() -> void: get_tree().reload_current_scene()],
-			["回標題", func() -> void: get_tree().change_scene_to_file("res://scenes/title.tscn")]],
-			Color(1.0, 0.9, 0.5)))
+func _on_enemy_died_hook(e: Enemy, _stealth: bool) -> void:
+	if e.kind != Enemy.Kind.TARGET or _target_dead:
+		return
+	_target_dead = true
+	if is_instance_valid(_lord) and not _lord_fled:
+		# 副將倒下的動靜驚動大將
+		_lord.start_flee()
+	hud.set_objective("副將已除。大將往後門逃了，追上去")
+	get_tree().create_timer(1.6).timeout.connect(func() -> void:
+		_gate_set("rear", true)
+		_open_exit("追擊")
+		hud.say("追！", Color(0.6, 0.9, 1.0)))
 
 
-func _rank() -> String:
-	if _hits_taken == 0 and _alert_count == 0:
-		return "影"
-	if _hits_taken <= 1 and _time < 150.0:
-		return "S"
-	if _hits_taken <= 3 and _time < 240.0:
-		return "A"
-	if _hits_taken <= 6:
-		return "B"
-	return "C"
+# ---------------------------------------------------------------- 自動試玩
+
+## 故事流程自動測試：--story  把半藏丟到陣屋前 → 副將發現 → 大將逃、門關 → 殺副將 → 門開 → 走到出口過關
+var _story := false
+var _story_t := 0.0
 
 
-func _rank_comment(r: String) -> String:
-	match r:
-		"影": return "無人察覺，無傷而歸。真正的忍者。"
-		"S": return "幾近完美。"
-		"A": return "俐落。試試全程不被發現。"
-		"B": return "完成了，但傷痕不少。多用格擋與閃步。"
-	return "活著回來就好。下次試著從背後接近。"
-
-
-func _fmt_time(t: float) -> String:
-	return "%d:%02d" % [int(t) / 60, int(t) % 60]
+func _process(delta: float) -> void:
+	super(delta)
+	if _extra_args.has("--story") and not _story:
+		_story = true
+	if _story:
+		_story_t += delta
+		if _story_t > 1.0 and not _auto_done.has("s1"):
+			_auto_done["s1"] = true
+			player.global_position = Vector3(0.0, HALL_Y + 0.1, -15.5)
+			print("STORY: player at hall front")
+		if _story_t > 5.0 and not _auto_done.has("s2"):
+			_auto_done["s2"] = true
+			print("STORY: lord_fled=%s lord_valid=%s gate_open=%s" % [_lord_fled, is_instance_valid(_lord), _gates["rear"].open])
+		if _story_t > 6.0 and not _auto_done.has("s3"):
+			_auto_done["s3"] = true
+			if is_instance_valid(_vice):
+				_vice._die(false)
+			print("STORY: vice killed")
+		if _story_t > 8.5 and not _auto_done.has("s4"):
+			_auto_done["s4"] = true
+			print("STORY: target_dead=%s gate_open=%s exit_ready=%s" % [_target_dead, _gates["rear"].open, _exit_ready])
+			player.global_position = exit_pos + Vector3(0.0, 0.1, 0.0)
+		if _story_t > 10.0 and not _auto_done.has("s5"):
+			_auto_done["s5"] = true
+			print("STORY: finished=%s" % _finished)
+			get_tree().quit()
+		return
+	if not _walk:
+		return
+	_walk_t += delta
+	hud.touch.move_vector = Vector2(0.0, -1.0) if _walk_t < 1.3 else Vector2.ZERO
+	if _walk_t > 1.35 and not _auto_done.has("look"):
+		_auto_done["look"] = true
+		cam_rig.yaw = -PI / 2.0
+		cam_rig.aim_pitch = -0.05
+	if _walk_t > 1.7 and not _auto_done.has("aim"):
+		_auto_done["aim"] = true
+		player.on_hook_down()
+	if _walk_t > 2.5 and not _auto_done.has("shot_aim"):
+		_auto_done["shot_aim"] = true
+		_shot("aim_hook")
+	if _walk_t > 2.6 and not _auto_done.has("grapple"):
+		_auto_done["grapple"] = true
+		player.on_hook_up()
+	if _walk_t > 3.5 and not _auto_done.has("shot_grapple"):
+		_auto_done["shot_grapple"] = true
+		_shot("grapple")
+	if _walk_t > 3.8 and not _auto_done.has("aim2"):
+		_auto_done["aim2"] = true
+		cam_rig.yaw = PI
+		cam_rig.aim_pitch = 0.25
+		player.toggle_weapon()
+		player.on_attack_down()
+	if _walk_t > 4.6 and not _auto_done.has("shot_aim2"):
+		_auto_done["shot_aim2"] = true
+		_shot("aim_shuriken")
+	if _walk_t > 4.7 and not _auto_done.has("throw"):
+		_auto_done["throw"] = true
+		player.on_attack_up()
+	if _walk_t > 5.0 and not _auto_done.has("shot_throw"):
+		_auto_done["shot_throw"] = true
+		_shot("throw")
+	if _walk_t > 6.5 and not _auto_done.has("shot_end"):
+		_auto_done["shot_end"] = true
+		cam_rig.yaw = 0.0
+		_shot("end")
+	if _walk_t > 7.0:
+		get_tree().quit()

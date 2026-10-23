@@ -8,15 +8,20 @@ class_name Enemy
 
 signal died(enemy: Enemy, stealth: bool)
 signal alerted(enemy: Enemy)
+## 大將逃到路線終點（故事用）
+signal escaped(enemy: Enemy)
+signal flee_started(enemy: Enemy)
 
-enum Kind { ASHIGARU, ARCHER, SAMURAI, TARGET }
-enum State { IDLE, PATROL, SUSPICIOUS, ALERT, ATTACK, STAGGER, BROKEN, DEAD, SEARCH }
+enum Kind { ASHIGARU, ARCHER, SAMURAI, TARGET, LORD }
+enum State { IDLE, PATROL, SUSPICIOUS, ALERT, ATTACK, STAGGER, BROKEN, DEAD, SEARCH, FLEE }
 
 const SPEC := {
 	Kind.ASHIGARU: {"name": "足輕", "hp": 40, "posture": 60.0, "speed": 4.0, "color": Color(0.36, 0.42, 0.55), "reach": 2.1, "dmg": 12, "windup": 0.45, "strike": 0.14, "cd": 1.5, "weapon": "spear", "view": 7.0},
 	Kind.ARCHER: {"name": "弓兵", "hp": 30, "posture": 50.0, "speed": 3.6, "color": Color(0.3, 0.5, 0.35), "reach": 9.5, "dmg": 10, "windup": 0.75, "strike": 0.1, "cd": 2.3, "weapon": "bow", "view": 9.0},
 	Kind.SAMURAI: {"name": "武士", "hp": 90, "posture": 100.0, "speed": 4.5, "color": Color(0.6, 0.16, 0.14), "reach": 2.3, "dmg": 18, "windup": 0.5, "strike": 0.14, "cd": 1.4, "weapon": "katana", "view": 8.0},
 	Kind.TARGET: {"name": "武將", "hp": 120, "posture": 110.0, "speed": 4.3, "color": Color(0.78, 0.62, 0.2), "reach": 2.4, "dmg": 22, "windup": 0.55, "strike": 0.14, "cd": 1.3, "weapon": "katana", "view": 8.0},
+	# 大將：不打架，一察覺就逃（故事用，打不死）
+	Kind.LORD: {"name": "大將", "hp": 9999, "posture": 9999.0, "speed": 6.5, "color": Color(0.45, 0.12, 0.5), "reach": 0.0, "dmg": 0, "windup": 1.0, "strike": 0.1, "cd": 99.0, "weapon": "katana", "view": 9.0},
 }
 const VIEW_COS := 0.42
 const SHOUT_RANGE := 10.0
@@ -24,6 +29,9 @@ const SHOUT_RANGE := 10.0
 var kind: Kind = Kind.ASHIGARU
 var patrol: Array = []
 var face_dir := Vector3.FORWARD
+## 大將逃跑路線（最後一點到達就消失）
+var flee_route: Array = []
+var _flee_i := 0
 
 var spec: Dictionary
 var hp := 0
@@ -311,6 +319,8 @@ func _physics_process(delta: float) -> void:
 			_stop()
 		State.SEARCH:
 			_do_search(delta)
+		State.FLEE:
+			_do_flee(delta)
 		State.ALERT:
 			_do_alert(delta)
 		State.ATTACK:
@@ -375,7 +385,7 @@ func _los() -> bool:
 
 
 func _perceive(delta: float) -> void:
-	if _player == null or state in [State.ATTACK, State.STAGGER, State.BROKEN]:
+	if _player == null or state in [State.ATTACK, State.STAGGER, State.BROKEN, State.FLEE]:
 		return
 	var to := _player.global_position - global_position
 	to.y = 0.0
@@ -449,7 +459,36 @@ func _do_search(delta: float) -> void:
 		state = State.PATROL if patrol.size() > 0 else State.IDLE
 
 
+## 大將：沿逃跑路線跑，到終點就消失
+func start_flee() -> void:
+	if state in [State.FLEE, State.DEAD] or flee_route.is_empty():
+		return
+	state = State.FLEE
+	_flee_i = 0
+	alerted_once = true
+	_show_mark("逃", Color(0.9, 0.6, 1.0), 1.2)
+	flee_started.emit(self)
+	get_tree().call_group("enemies", "hear_shout", global_position)
+
+
+func _do_flee(delta: float) -> void:
+	var p: Vector3 = flee_route[_flee_i]
+	var d := p - global_position
+	d.y = 0.0
+	if d.length() < 0.8:
+		_flee_i += 1
+		if _flee_i >= flee_route.size():
+			state = State.DEAD
+			escaped.emit(self)
+			queue_free()
+			return
+	_move_to(flee_route[_flee_i], float(spec.speed), delta)
+
+
 func _go_alert() -> void:
+	if kind == Kind.LORD:
+		start_flee()
+		return
 	if state in [State.ALERT, State.ATTACK, State.DEAD, State.STAGGER, State.BROKEN]:
 		return
 	state = State.ALERT
@@ -463,13 +502,20 @@ func _go_alert() -> void:
 
 
 func hear_shout(pos: Vector3) -> void:
-	if state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH] and global_position.distance_to(pos) < SHOUT_RANGE:
+	if state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH] and global_position.distance_to(pos) < (SHOUT_RANGE * 1.5 if kind == Kind.LORD else SHOUT_RANGE):
 		_go_alert()
 
 
 ## 聽到聲響：未警戒 → 走過去查看（引開用）；警戒中 → 更新最後已知位置
 func hear_noise(pos: Vector3, radius: float) -> void:
 	if global_position.distance_to(pos) >= radius:
+		return
+	if kind == Kind.LORD:
+		# 大將不會過去查看，只是起疑、轉頭（看到你才逃）
+		if state in [State.IDLE, State.SUSPICIOUS]:
+			_detect = maxf(_detect, 0.5)
+			state = State.SUSPICIOUS
+			_facing = _yaw_to(pos - global_position)
 		return
 	if state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]:
 		_start_search(pos)
@@ -655,7 +701,7 @@ func _shoot() -> void:
 
 ## 暗殺條件：未警戒（巡邏／起疑／搜索中）且在背後，或從上方落下
 func can_be_assassinated(by: Node3D) -> bool:
-	if state in [State.DEAD, State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]:
+	if kind == Kind.LORD or state in [State.DEAD, State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN, State.FLEE]:
 		return false
 	if by.global_position.y - global_position.y > 1.0:
 		return true
@@ -691,6 +737,9 @@ func can_be_hooked() -> bool:
 func hooked(dest: Vector3, dmg: int, headshot: bool, by: Node3D, pull_dur: float = 0.45) -> void:
 	if state == State.DEAD:
 		return
+	if kind == Kind.LORD:
+		start_flee()
+		return
 	_hook_immune_t = 6.0
 	var dir: Vector3 = dest - global_position
 	dir.y = 0.0
@@ -721,6 +770,10 @@ func hooked(dest: Vector3, dmg: int, headshot: bool, by: Node3D, pull_dur: float
 
 func take_hit(info: Dictionary) -> void:
 	if state == State.DEAD:
+		return
+	if kind == Kind.LORD:
+		# 大將打不死：被碰到就逃
+		start_flee()
 		return
 	var dir := _hit_dir_set(info)
 	var heavy: bool = info.get("heavy", false)
@@ -912,7 +965,7 @@ func _update_visual(delta: float) -> void:
 		weapon.rotation = weapon.rotation.lerp(target_rot, 1.0 - exp(-18.0 * delta))
 	# 頭上只顯示血條：受過傷或戰鬥中才出現；體幹崩壞時血條閃紅白
 	var ratio := clampf(float(hp) / float(spec.hp), 0.0, 1.0)
-	bar.visible = hp < int(spec.hp) or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]
+	bar.visible = kind != Kind.LORD and (hp < int(spec.hp) or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN])
 	bar_fill.scale.x = maxf(ratio, 0.001)
 	bar_fill.position.x = -0.62 * (1.0 - ratio)
 	bar_fill.visible = ratio > 0.001
