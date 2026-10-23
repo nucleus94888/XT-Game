@@ -79,7 +79,7 @@ func add_hit(heavy: bool) -> void:
 	_combo_t = 1.8
 	_refresh()
 	if heavy:
-		_pop(stats, 1.25)
+		_pop(stats, 1.2, false)
 
 
 func add_kill(text: String = "擊破！", color: Color = Color(1.0, 0.85, 0.4)) -> void:
@@ -246,8 +246,8 @@ func _refresh() -> void:
 	stats.text = "命中 %d　連段 %d（最高 %d）　擊破 %d" % [hits, combo, best_combo, kills]
 
 
-func _pop(c: Control, s: float) -> void:
-	c.pivot_offset = Vector2(c.size.x / 2.0, c.size.y / 2.0)
+func _pop(c: Control, s: float, center: bool = true) -> void:
+	c.pivot_offset = Vector2(c.size.x / 2.0 if center else 0.0, c.size.y / 2.0)
 	c.scale = Vector2.ONE * s
 	var tw := c.create_tween()
 	tw.set_ignore_time_scale(true)
