@@ -6,6 +6,8 @@ signal hit_landed(info: Dictionary)
 signal hp_changed(hp: int)
 signal died
 signal parried
+## 實際扣血時發出（格擋成功不算）
+signal damaged(amount: int)
 
 enum State { FREE, ATTACK, DASH, HURT, BLOCK }
 
@@ -230,6 +232,8 @@ func _start_attack() -> void:
 	sword_pivot.position = PIVOT_HOME
 	if _guard_tw and _guard_tw.is_valid():
 		_guard_tw.kill()
+	# 出刀有聲音：附近未察覺的敵人會起疑
+	get_tree().call_group("enemies", "hear_noise", global_position, 5.0)
 	# 揮刀音在「按下」的瞬間就播（而不是等前置蓄力結束），抵銷手機音訊輸出延遲
 	sfx_swing.set_meta("sfx_base", 0.8 if c.heavy else 1.0)
 	Sfx.play(sfx_swing)
@@ -308,7 +312,14 @@ func _check_hits(c: Dictionary) -> void:
 			"kb": Feel.get_p("knockback") * float(c.kb),
 			"heavy": c.heavy,
 			"pos": hitbox.to_global(Vector3(0.38, 0.0, -0.9)),
+			"src": self,
 		}
+		# 未察覺的敵人從背後砍 = 暗殺（一擊必殺、無聲）
+		if tgt.has_method("can_be_assassinated") and tgt.can_be_assassinated(self):
+			tgt.assassinate(info)
+			Feel.shake(0.6)
+			hit_landed.emit(info)
+			continue
 		tgt.take_hit(info)
 		_on_landed(info, c)
 
@@ -380,6 +391,7 @@ func take_hit(info: Dictionary) -> void:
 		return
 	hp = maxi(hp - int(info.dmg), 0)
 	hp_changed.emit(hp)
+	damaged.emit(int(info.dmg))
 	state = State.HURT
 	_hurt_t = 0.0
 	_queued = false
@@ -409,7 +421,8 @@ func take_hit(info: Dictionary) -> void:
 ## 彈反：舉刀後 parry_ms 內擋下 → 刀向外一撥、大片火花、閃白、長頓幀，對方後仰並累積「體幹」。
 func _blocked_hit(info: Dictionary) -> void:
 	var dir: Vector3 = info.dir
-	var perfect := Time.get_ticks_msec() - _block_start_ms <= int(Feel.get_p("parry_ms"))
+	var ranged: bool = info.get("ranged", false)
+	var perfect: bool = (not ranged) and Time.get_ticks_msec() - _block_start_ms <= int(Feel.get_p("parry_ms"))
 	var src = info.get("src")
 	body.scale = Vector3(1.1, 0.92, 1.1)
 	if _jolt_tw and _jolt_tw.is_valid():

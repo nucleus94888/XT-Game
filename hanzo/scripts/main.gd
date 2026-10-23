@@ -21,18 +21,12 @@ var _auto_done := {}
 
 func _ready() -> void:
 	$Sun.rotation_degrees = Vector3(-58.0, 32.0, 0.0)
-	player.touch = touch
-	touch.attack_pressed.connect(player.request_attack)
-	touch.dash_pressed.connect(player.request_dash)
-	touch.block_changed.connect(player.set_block)
+	hud.attach(player, cam_rig)
 	player.parried.connect(func() -> void:
-		hud.say("彈反！", Color(1.0, 0.92, 0.5))
 		if _auto and not _auto_done.has("parry"):
 			_auto_done["parry"] = true
 			_shot("parry"))
-	cam_rig.set_target(player)
 	player.hit_landed.connect(_on_hit_landed)
-	player.hp_changed.connect(hud.set_hp)
 	player.died.connect(func() -> void:
 		hud.say("敗北…", Color(0.9, 0.3, 0.3)))
 	dummy.destroyed.connect(hud.add_kill)
@@ -56,7 +50,6 @@ func _warmup() -> void:
 
 
 func _on_hit_landed(info: Dictionary) -> void:
-	hud.add_hit(bool(info.heavy))
 	if _auto and info.heavy and not _auto_done.has("hit"):
 		_auto_done["hit"] = true
 		_shot("hit")

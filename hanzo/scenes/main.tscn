@@ -1,13 +1,11 @@
-[gd_scene load_steps=34 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="s_main"]
-[ext_resource type="Script" path="res://scripts/player.gd" id="s_player"]
 [ext_resource type="Script" path="res://scripts/dummy.gd" id="s_dummy"]
-[ext_resource type="Script" path="res://scripts/camera_rig.gd" id="s_cam"]
-[ext_resource type="Script" path="res://scripts/hud.gd" id="s_hud"]
-[ext_resource type="Script" path="res://scripts/touch_controls.gd" id="s_touch"]
-[ext_resource type="Script" path="res://scripts/tuning_panel.gd" id="s_panel"]
 [ext_resource type="FontFile" path="res://fonts/ui.otf" id="f_ui"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="sc_player"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="sc_hud"]
+[ext_resource type="PackedScene" path="res://scenes/camera_rig.tscn" id="sc_cam"]
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -16,20 +14,6 @@ ambient_light_source = 2
 ambient_light_color = Color(0.62, 0.66, 0.78, 1)
 ambient_light_energy = 0.45
 tonemap_mode = 2
-
-[sub_resource type="StyleBoxFlat" id="hp_bg"]
-bg_color = Color(0.05, 0.05, 0.06, 0.85)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="hp_fill"]
-bg_color = Color(0.82, 0.2, 0.16, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
 
 [sub_resource type="PlaneMesh" id="ground_mesh"]
 size = Vector2(60, 60)
@@ -40,40 +24,6 @@ roughness = 1.0
 
 [sub_resource type="BoxShape3D" id="ground_shape"]
 size = Vector3(60, 1, 60)
-
-[sub_resource type="CapsuleMesh" id="body_mesh"]
-radius = 0.35
-height = 1.3
-
-[sub_resource type="StandardMaterial3D" id="body_mat"]
-albedo_color = Color(0.12, 0.12, 0.14, 1)
-roughness = 0.9
-
-[sub_resource type="SphereMesh" id="head_mesh"]
-radius = 0.26
-height = 0.52
-
-[sub_resource type="StandardMaterial3D" id="skin_mat"]
-albedo_color = Color(0.85, 0.7, 0.6, 1)
-
-[sub_resource type="BoxMesh" id="sword_mesh"]
-size = Vector3(0.07, 0.04, 1.5)
-
-[sub_resource type="StandardMaterial3D" id="sword_mat"]
-albedo_color = Color(0.85, 0.88, 0.95, 1)
-metallic = 0.9
-roughness = 0.25
-
-[sub_resource type="BoxShape3D" id="hitbox_shape"]
-size = Vector3(0.7, 1.4, 1.7)
-
-[sub_resource type="CapsuleShape3D" id="player_shape"]
-radius = 0.35
-height = 1.3
-
-[sub_resource type="CapsuleShape3D" id="player_hurt_shape"]
-radius = 0.5
-height = 1.6
 
 [sub_resource type="CylinderMesh" id="post_mesh"]
 top_radius = 0.08
@@ -141,71 +91,8 @@ material_override = SubResource("ground_mat")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 shape = SubResource("ground_shape")
 
-[node name="Player" type="CharacterBody3D" parent="."]
+[node name="Player" parent="." instance=ExtResource("sc_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 3.5)
-collision_layer = 1
-collision_mask = 3
-script = ExtResource("s_player")
-
-[node name="Shape" type="CollisionShape3D" parent="Player"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
-shape = SubResource("player_shape")
-
-[node name="Hurtbox" type="Area3D" parent="Player"]
-collision_layer = 8
-collision_mask = 0
-monitoring = false
-
-[node name="S" type="CollisionShape3D" parent="Player/Hurtbox"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
-shape = SubResource("player_hurt_shape")
-
-[node name="Visual" type="Node3D" parent="Player"]
-
-[node name="Body" type="MeshInstance3D" parent="Player/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
-mesh = SubResource("body_mesh")
-material_override = SubResource("body_mat")
-
-[node name="Head" type="MeshInstance3D" parent="Player/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.68, 0)
-mesh = SubResource("head_mesh")
-material_override = SubResource("skin_mat")
-
-[node name="SwordPivot" type="Node3D" parent="Player/Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
-
-[node name="Sword" type="MeshInstance3D" parent="Player/Visual/SwordPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.38, 0, -0.75)
-mesh = SubResource("sword_mesh")
-material_override = SubResource("sword_mat")
-
-[node name="Hitbox" type="Area3D" parent="Player/Visual/SwordPivot"]
-collision_layer = 0
-collision_mask = 4
-monitorable = false
-
-[node name="S" type="CollisionShape3D" parent="Player/Visual/SwordPivot/Hitbox"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.38, 0, -0.9)
-shape = SubResource("hitbox_shape")
-
-[node name="Trail" type="MeshInstance3D" parent="Player/Visual"]
-cast_shadow = 0
-
-[node name="SfxSwing" type="AudioStreamPlayer" parent="Player"]
-volume_db = -8.0
-
-[node name="SfxHit" type="AudioStreamPlayer" parent="Player"]
-volume_db = -3.0
-
-[node name="SfxHeavy" type="AudioStreamPlayer" parent="Player"]
-volume_db = -1.0
-
-[node name="SfxDash" type="AudioStreamPlayer" parent="Player"]
-volume_db = -10.0
-
-[node name="SfxHurt" type="AudioStreamPlayer" parent="Player"]
-volume_db = -4.0
 
 [node name="Dummy" type="CharacterBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, -2)
@@ -288,109 +175,6 @@ scale_amount_max = 1.2
 [node name="SfxBreak" type="AudioStreamPlayer" parent="Dummy"]
 volume_db = -2.0
 
-[node name="CameraRig" type="Node3D" parent="."]
-script = ExtResource("s_cam")
+[node name="CameraRig" parent="." instance=ExtResource("sc_cam")]
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.2, 6.2)
-current = true
-fov = 55.0
-
-[node name="HUD" type="CanvasLayer" parent="."]
-script = ExtResource("s_hud")
-
-[node name="Flash" type="ColorRect" parent="HUD"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-color = Color(1, 0, 0, 0)
-
-[node name="TouchControls" type="Control" parent="HUD"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("s_touch")
-
-[node name="Stats" type="Label" parent="HUD"]
-offset_left = 18.0
-offset_top = 12.0
-offset_right = 700.0
-offset_bottom = 44.0
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 22
-text = "命中 0　連段 0（最高 0）　擊破 0"
-
-[node name="HpBar" type="ProgressBar" parent="HUD"]
-offset_left = 18.0
-offset_top = 50.0
-offset_right = 258.0
-offset_bottom = 64.0
-theme_override_styles/background = SubResource("hp_bg")
-theme_override_styles/fill = SubResource("hp_fill")
-value = 100.0
-show_percentage = false
-
-[node name="Announce" type="Label" parent="HUD"]
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -320.0
-offset_top = -200.0
-offset_right = 320.0
-offset_bottom = -80.0
-grow_horizontal = 2
-grow_vertical = 2
-modulate = Color(1, 1, 1, 0)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 14
-theme_override_font_sizes/font_size = 84
-text = "斬"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="Fps" type="Label" parent="HUD"]
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 18.0
-offset_top = -34.0
-offset_right = 320.0
-offset_bottom = -10.0
-grow_vertical = 0
-modulate = Color(1, 1, 1, 0.6)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 16
-text = "60 fps"
-
-[node name="GearBtn" type="Button" parent="HUD"]
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -190.0
-offset_top = 12.0
-offset_right = -14.0
-offset_bottom = 64.0
-grow_horizontal = 0
-theme_override_font_sizes/font_size = 24
-text = "⚙ 手感調校"
-
-[node name="TuningPanel" type="PanelContainer" parent="HUD"]
-visible = false
-anchors_preset = 11
-anchor_left = 0.56
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 0
-grow_vertical = 2
-script = ExtResource("s_panel")
+[node name="HUD" parent="." instance=ExtResource("sc_hud")]
