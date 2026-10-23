@@ -33,6 +33,16 @@ func _ready() -> void:
 	_place_pillars()
 	hud.say("斬", Color(1, 1, 1))
 	_parse_args()
+	_warmup()
+
+
+## 開場預熱：命中時才會第一次出現的刀光、傷害數字、殘影、粒子、閃白先各畫幾幀，
+## 讓著色器在開場就編譯完，第一刀不會因為編譯而卡住
+func _warmup() -> void:
+	await get_tree().process_frame
+	player.warmup()
+	dummy.warmup()
+	Fx.warmup(player.global_position + Vector3(0.0, 1.5, 0.0), player.body)
 
 
 func _on_hit_landed(info: Dictionary) -> void:

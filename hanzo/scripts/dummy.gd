@@ -38,6 +38,11 @@ func _ready() -> void:
 		var mi := n as MeshInstance3D
 		var src := mi.material_override as StandardMaterial3D
 		var mat := src.duplicate() as StandardMaterial3D
+		# 發光永遠開著、只調強度：切換 emission_enabled 會換著色器變體，
+		# 第一次命中時當場編譯會卡一下（網頁版尤其明顯）
+		mat.emission_enabled = true
+		mat.emission = Color(1, 1, 1)
+		mat.emission_energy_multiplier = 0.0
 		mi.material_override = mat
 		_mats.append(mat)
 	particles.emitting = false
@@ -73,9 +78,19 @@ func _physics_process(delta: float) -> void:
 
 func _set_flash(on: bool) -> void:
 	for m in _mats:
-		m.emission_enabled = on
 		m.emission = Color(1, 1, 1)
 		m.emission_energy_multiplier = 2.5 if on else 0.0
+
+
+## 開場預熱：把命中時才會第一次出現的東西先各畫一幀，讓著色器提前編譯
+func warmup() -> void:
+	_set_flash(true)
+	particles.global_position = global_position + Vector3(0.0, 1.2, 0.0)
+	particles.amount = 12
+	particles.restart()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_set_flash(false)
 
 
 func take_hit(info: Dictionary) -> void:
@@ -111,7 +126,6 @@ func _tick_counter(delta: float) -> void:
 		# 預告：紅光脈動 + 「！」，手臂往後拉
 		var pulse := 0.5 + 0.5 * sin(_counter_t * 40.0)
 		for m in _mats:
-			m.emission_enabled = true
 			m.emission = Color(1.0, 0.15, 0.1)
 			m.emission_energy_multiplier = 0.4 + 0.8 * pulse
 		arms.rotation.y = lerpf(0.0, -1.6, _counter_t / 0.5)

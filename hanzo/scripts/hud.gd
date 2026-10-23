@@ -16,6 +16,10 @@ var best_combo := 0
 var kills := 0
 var _combo_t := 0.0
 var _flash_tw: Tween
+var _last_ms := 0
+var _worst_ms := 0
+var _worst_shown := 0
+var _worst_t := 1.0
 
 
 func _ready() -> void:
@@ -81,7 +85,17 @@ func _process(delta: float) -> void:
 		if _combo_t <= 0.0:
 			combo = 0
 			_refresh()
-	fps.text = "%d fps" % Engine.get_frames_per_second()
+	# 以真實時間量最長一幀（頓幀不算），用來分辨「故意的頓幀」與「真的卡」
+	var now := Time.get_ticks_msec()
+	if _last_ms > 0:
+		_worst_ms = maxi(_worst_ms, now - _last_ms)
+	_last_ms = now
+	_worst_t -= delta
+	if _worst_t <= 0.0:
+		_worst_t = 1.0
+		_worst_shown = _worst_ms
+		_worst_ms = 0
+	fps.text = "%d fps　最長一幀 %d ms" % [Engine.get_frames_per_second(), _worst_shown]
 	_process_panel_state()
 
 

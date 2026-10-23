@@ -364,3 +364,15 @@ func _build_trail(from_deg: float, to_deg: float, tilt: float) -> void:
 
 func _set_trail_alpha(a: float) -> void:
 	_trail_mat.albedo_color.a = clampf(a, 0.0, 1.0)
+
+
+## 開場預熱：刀光網格與材質先畫幾幀（幾乎透明）
+func warmup() -> void:
+	_build_trail(95.0, -75.0, 0.0)
+	_set_trail_alpha(0.02)
+	trail.visible = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if state != State.ATTACK:
+		trail.visible = false

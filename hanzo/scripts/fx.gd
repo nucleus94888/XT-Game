@@ -35,6 +35,35 @@ func damage_number(pos: Vector3, dmg: int, heavy: bool) -> void:
 	tw.chain().tween_callback(l.queue_free)
 
 
+## 開場預熱：數字字形（兩種字級）與殘影材質先各畫幾幀
+func warmup(pos: Vector3, body: MeshInstance3D) -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var labels: Array[Label3D] = []
+	for size in [64, 96]:
+		var l := Label3D.new()
+		l.text = "0123456789！"
+		if ui_font:
+			l.font = ui_font
+		l.font_size = size
+		l.pixel_size = 0.012
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.no_depth_test = true
+		l.outline_size = 16
+		l.modulate = Color(1, 1, 1, 0.02)
+		l.outline_modulate = Color(0, 0, 0, 0.02)
+		scene.add_child(l)
+		l.global_position = pos
+		labels.append(l)
+	afterimage(body, Color(0.6, 0.7, 1.0, 0.02), 0.2)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	for l in labels:
+		l.queue_free()
+
+
 func afterimage(src: MeshInstance3D, color: Color, dur: float = 0.25) -> void:
 	var scene := get_tree().current_scene
 	if scene == null or src == null or src.mesh == null:
