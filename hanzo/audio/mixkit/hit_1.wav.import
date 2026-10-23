@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://c1immiye112r"
-path="res://.godot/imported/straw_break.wav-ae0833354763f79d3953db2fd22d384f.sample"
+uid="uid://d1tilqg3d86i0"
+path="res://.godot/imported/hit_1.wav-d588bfdad1e5d382d18fc737cd925d81.sample"
 
 [deps]
 
-source_file="res://audio/synth/straw_break.wav"
-dest_files=["res://.godot/imported/straw_break.wav-ae0833354763f79d3953db2fd22d384f.sample"]
+source_file="res://audio/mixkit/hit_1.wav"
+dest_files=["res://.godot/imported/hit_1.wav-d588bfdad1e5d382d18fc737cd925d81.sample"]
 
 [params]
 

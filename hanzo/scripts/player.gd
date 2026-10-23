@@ -58,11 +58,11 @@ var _sfx_heavy_wood: AudioStreamPlayer
 
 func _ready() -> void:
 	# 音效：Kenney CC0，各組隨機變化（見 sfx.gd）
-	sfx_swing.stream = Sfx.make("swing", 1.1, 1.0)
-	sfx_hit.stream = Sfx.make("hit")
-	sfx_heavy.stream = Sfx.make("heavy", 1.05, 1.0)
-	sfx_dash.stream = Sfx.make("dash", 1.15, 2.0)
-	sfx_hurt.stream = Sfx.make("hurt")
+	Sfx.bind(sfx_swing, "swing", 1.12)
+	Sfx.bind(sfx_hit, "hit", 1.08)
+	Sfx.bind(sfx_heavy, "heavy", 1.05, 0.95)
+	Sfx.bind(sfx_dash, "dash", 1.15)
+	Sfx.bind(sfx_hurt, "hurt", 1.08)
 	_sfx_heavy_wood = Sfx.player(self, "heavy_wood", -9.0, 0.9)
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -167,8 +167,8 @@ func _start_attack() -> void:
 	velocity.z *= 0.3
 	trail.visible = false
 	# 揮刀音在「按下」的瞬間就播（而不是等前置蓄力結束），抵銷手機音訊輸出延遲
-	sfx_swing.pitch_scale = 0.8 if c.heavy else 1.0
-	sfx_swing.play()
+	sfx_swing.set_meta("sfx_base", 0.8 if c.heavy else 1.0)
+	Sfx.play(sfx_swing)
 
 
 func _tick_attack(delta: float, _input: Vector2) -> void:
@@ -263,13 +263,13 @@ func _on_landed(info: Dictionary, c: Dictionary) -> void:
 	var sp := sfx_heavy if c.heavy else sfx_hit
 	var d := Feel.sec("sfx_delay_ms")
 	if d > 0.0:
-		get_tree().create_timer(d, true, false, true).timeout.connect(sp.play)
+		get_tree().create_timer(d, true, false, true).timeout.connect(Sfx.play.bind(sp))
 		if c.heavy:
-			get_tree().create_timer(d, true, false, true).timeout.connect(_sfx_heavy_wood.play)
+			get_tree().create_timer(d, true, false, true).timeout.connect(Sfx.play.bind(_sfx_heavy_wood))
 	else:
-		sp.play()
+		Sfx.play(sp)
 		if c.heavy:
-			_sfx_heavy_wood.play()
+			Sfx.play(_sfx_heavy_wood)
 	hit_landed.emit(info)
 
 
@@ -287,7 +287,7 @@ func _start_dash() -> void:
 	_queued = false
 	trail.visible = false
 	sword_pivot.rotation_degrees = Vector3.ZERO
-	sfx_dash.play()
+	Sfx.play(sfx_dash)
 	Fx.afterimage(body, Color(0.6, 0.7, 1.0, 0.45), 0.22)
 
 
@@ -327,7 +327,7 @@ func take_hit(info: Dictionary) -> void:
 	_jolt_tw.set_ignore_time_scale(true)
 	_jolt_tw.tween_property(body, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 	Feel.kick(dir, 0.5)
-	sfx_hurt.play()
+	Sfx.play(sfx_hurt)
 	Feel.hitstop(0.8)
 	Feel.shake(1.6)
 	Feel.flash(Color(0.8, 0.1, 0.1, 0.35), 0.25)

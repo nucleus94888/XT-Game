@@ -1,36 +1,22 @@
 extends Node
-## Sfx：音效庫。
-## audio/synth/  → 為「刀砍稻草人」專門合成（tools/sfx/gen.mjs）：揮空破風、砍進乾草、稻草爆開
-## audio/kenney/ → Kenney CC0（LICENSE-kenney-CC0.txt）：木樁、衣物、受傷
-## 每組用 AudioStreamRandomizer 隨機挑變化、隨機微調音高，連按不會聽到同一聲。
+## Sfx：音效庫（低延遲版）。
+## 重點：網頁版只有「直接播 WAV/OGG」能走瀏覽器原生取樣播放（低延遲）；
+## AudioStreamRandomizer 之類的包裝串流會退回混音器路徑、延遲明顯。所以這裡不用包裝，
+## 由程式自己隨機挑檔、隨機音高，並在網頁版把播放器設成 SAMPLE 模式。
+##
+## 來源：audio/mixkit/（Mixkit 免費授權，刀揮、砍中）、audio/kenney/（CC0，木樁、衣物、受傷）
 
-## 名稱 → 檔案路徑清單
 const SETS := {
-	"swing": ["synth/swing_1.wav", "synth/swing_2.wav", "synth/swing_3.wav"],
-	"hit": ["synth/straw_light_1.wav", "synth/straw_light_2.wav", "synth/straw_light_3.wav"],
-	"heavy": ["synth/straw_heavy_1.wav", "synth/straw_heavy_2.wav", "synth/straw_heavy_3.wav"],
+	"swing": ["mixkit/swing.wav"],
+	"hit": ["mixkit/hit_1.wav", "mixkit/hit_2.wav"],
+	"heavy": ["mixkit/heavy.wav"],
 	"heavy_wood": ["kenney/impactWood_medium_000.ogg", "kenney/impactWood_medium_001.ogg", "kenney/impactWood_medium_002.ogg"],
 	"dash": ["kenney/cloth1.ogg", "kenney/cloth2.ogg", "kenney/cloth3.ogg"],
 	"hurt": ["kenney/impactSoft_heavy_000.ogg", "kenney/impactSoft_heavy_001.ogg", "kenney/impactSoft_heavy_002.ogg"],
-	"break": ["synth/straw_break.wav"],
-	"break_wood": ["kenney/impactWood_heavy_000.ogg", "kenney/impactWood_heavy_001.ogg", "kenney/impactWood_heavy_002.ogg"],
+	"break": ["kenney/impactWood_heavy_000.ogg", "kenney/impactWood_heavy_001.ogg", "kenney/impactWood_heavy_002.ogg"],
 }
 
 var _cache := {}
-
-
-func make(set_name: String, pitch_spread: float = 1.08, vol_spread_db: float = 1.5) -> AudioStreamRandomizer:
-	var r := AudioStreamRandomizer.new()
-	r.playback_mode = AudioStreamRandomizer.PLAYBACK_RANDOM_NO_REPEATS
-	r.random_pitch = pitch_spread
-	r.random_volume_offset_db = vol_spread_db
-	var i := 0
-	for path in SETS[set_name]:
-		var s := _load(path)
-		if s:
-			r.add_stream(i, s)
-			i += 1
-	return r
 
 
 func _load(path: String) -> AudioStream:
@@ -39,11 +25,44 @@ func _load(path: String) -> AudioStream:
 	return _cache[path]
 
 
-## 建一個已接好音效的播放器並掛到 parent 下
-func player(parent: Node, set_name: String, volume_db: float = 0.0, pitch: float = 1.0) -> AudioStreamPlayer:
+## 把一組音效綁到現有的 AudioStreamPlayer 上（之後用 Sfx.play(node) 播放）
+func bind(p: AudioStreamPlayer, set_name: String, pitch_spread: float = 1.08, base_pitch: float = 1.0) -> void:
+	var streams: Array = []
+	for path in SETS[set_name]:
+		var s := _load(path)
+		if s:
+			streams.append(s)
+	p.set_meta("sfx_streams", streams)
+	p.set_meta("sfx_spread", pitch_spread)
+	p.set_meta("sfx_base", base_pitch)
+	p.set_meta("sfx_last", -1)
+	if streams.size() > 0:
+		p.stream = streams[0]
+	if OS.has_feature("web"):
+		p.playback_type = AudioServer.PLAYBACK_TYPE_SAMPLE
+
+
+## 建一個新的播放器、綁好、掛到 parent 下
+func player(parent: Node, set_name: String, volume_db: float = 0.0, base_pitch: float = 1.0, pitch_spread: float = 1.08) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
-	p.stream = make(set_name)
 	p.volume_db = volume_db
-	p.pitch_scale = pitch
 	parent.add_child(p)
+	bind(p, set_name, pitch_spread, base_pitch)
 	return p
+
+
+## 隨機挑一個變化（不連續重複）、隨機音高，立刻播
+func play(p: AudioStreamPlayer) -> void:
+	var streams: Array = p.get_meta("sfx_streams", [])
+	if streams.is_empty():
+		return
+	var i := randi() % streams.size()
+	var last: int = p.get_meta("sfx_last", -1)
+	if streams.size() > 1 and i == last:
+		i = (i + 1) % streams.size()
+	p.set_meta("sfx_last", i)
+	p.stream = streams[i]
+	var spread: float = p.get_meta("sfx_spread", 1.0)
+	var base: float = p.get_meta("sfx_base", 1.0)
+	p.pitch_scale = base * randf_range(1.0 / spread, spread)
+	p.play()

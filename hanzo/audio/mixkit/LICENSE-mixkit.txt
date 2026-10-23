@@ -1,0 +1,8 @@
+來源：Mixkit（https://mixkit.co/free-sound-effects/sword/）
+授權：Mixkit Sound Effects Free License — 可免費用於商業與非商業專案（含遊戲），無需標註；不得單獨轉售或重新散布音效本身。
+檔案對應：
+  swing.wav  ← Dagger woosh (id 1487)
+  hit_1.wav  ← Knife fast hit (id 2184)
+  hit_2.wav  ← Sword slashes in battle (id 2763)
+  heavy.wav  ← Sword cutting flesh (id 2788)
+以 tools/sfx/prep.mjs 轉為單聲道 16-bit、去前段靜音、裁短、正規化。
