@@ -1,6 +1,6 @@
 extends Node3D
-## 跟隨鏡頭：可旋轉（yaw）與微調俯角（pitch），創傷式震動（trauma²）與方向性踢擊。
-## 震動與踢擊以「真實時間」推進，頓幀期間畫面仍會動。
+## 跟隨鏡頭：平時俯視環繞（可旋轉 yaw、微調俯角）；瞄準時切到「過肩鏡頭」（像射擊遊戲），
+## 拖曳視角＝瞄準，畫面中心就是準心。創傷式震動與方向性踢擊以真實時間推進。
 
 @export var distance := 12.5
 @export var follow_speed := 7.0
@@ -10,14 +10,20 @@ extends Node3D
 
 ## 水平旋轉角（弧度）。0 = 從 +Z 往 -Z 看（北）
 var yaw := 0.0
-## 俯角（弧度，從水平面算）
+## 俯視環繞的俯角（弧度，從水平面算）
 var pitch := deg_to_rad(49.0)
+## 瞄準中：過肩鏡頭
+var aiming := false
+## 瞄準時的抬頭／低頭（弧度，正 = 向下看）
+var aim_pitch := 0.15
 
 var _target: Node3D
 var _trauma := 0.0
 var _decay := 0.0
 var _kick := Vector3.ZERO
 var _last_ms := 0
+var _blend := 0.0
+var _base_fov := 55.0
 
 
 func _ready() -> void:
@@ -35,10 +41,14 @@ func set_target(t: Node3D) -> void:
 		global_position = _target.global_position
 
 
-## 滑動視角：delta 為螢幕像素位移
+## 滑動視角：delta 為螢幕像素位移。瞄準中靈敏度較低、可上下抬頭低頭。
 func look(delta: Vector2) -> void:
-	yaw -= delta.x * 0.0045
-	pitch = clampf(pitch + delta.y * 0.0025, deg_to_rad(28.0), deg_to_rad(72.0))
+	if aiming:
+		yaw -= delta.x * 0.0032
+		aim_pitch = clampf(aim_pitch + delta.y * 0.0024, -0.75, 0.8)
+	else:
+		yaw -= delta.x * 0.0045
+		pitch = clampf(pitch + delta.y * 0.0025, deg_to_rad(28.0), deg_to_rad(72.0))
 
 
 ## 鏡頭正前方（水平）的世界方向
@@ -46,8 +56,13 @@ func forward() -> Vector3:
 	return Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, yaw)
 
 
+## 瞄準射線：從鏡頭中心往畫面正中央
+func aim_ray() -> Array:
+	return [cam.global_position, -cam.global_transform.basis.z]
+
+
 func _apply_params() -> void:
-	cam.fov = Feel.get_p("cam_fov")
+	_base_fov = Feel.get_p("cam_fov")
 
 
 func _on_shake(amp: float, dur: float) -> void:
@@ -66,6 +81,7 @@ func _process(delta: float) -> void:
 	if _target:
 		var w := 1.0 - exp(-follow_speed * delta)
 		global_position = global_position.lerp(_target.global_position, w)
+	_blend = move_toward(_blend, 1.0 if aiming else 0.0, real_dt * 6.0)
 	var t := float(now) * 0.06
 	var sh := _trauma * _trauma
 	var off := Vector3(
@@ -74,9 +90,21 @@ func _process(delta: float) -> void:
 		0.0
 	) * sh * 1.6
 	var roll := sin(t * 2.9) * sh * 0.09
-	var base := Vector3(0.0, sin(pitch) * distance, cos(pitch) * distance).rotated(Vector3.UP, yaw)
-	cam.position = base + off.rotated(Vector3.UP, yaw) + _kick
-	cam.look_at(global_position + Vector3(0.0, look_height, 0.0) + _kick * 0.5, Vector3.UP)
+	# 俯視環繞
+	var orbit_pos := Vector3(0.0, sin(pitch) * distance, cos(pitch) * distance).rotated(Vector3.UP, yaw)
+	var orbit_look := Vector3(0.0, look_height, 0.0)
+	# 過肩
+	var f := forward()
+	var right := Vector3(1.0, 0.0, 0.0).rotated(Vector3.UP, yaw)
+	# 過肩：偏右上，避免半藏的頭擋住準心
+	var shoulder_pos := Vector3(0.0, 2.05, 0.0) - f * 3.0 + right * 1.05
+	var aim_f := (f * cos(aim_pitch) + Vector3(0.0, -sin(aim_pitch), 0.0)).normalized()
+	var shoulder_look := shoulder_pos + aim_f * 12.0
+	var k := smoothstep(0.0, 1.0, _blend)
+	cam.position = orbit_pos.lerp(shoulder_pos, k) + off.rotated(Vector3.UP, yaw) + _kick
+	var look_at_p := global_position + orbit_look.lerp(shoulder_look, k) + _kick * 0.5
+	cam.look_at(look_at_p, Vector3.UP)
 	cam.rotate_object_local(Vector3(0.0, 0.0, 1.0), roll)
+	cam.fov = lerpf(_base_fov, 42.0, k)
 	_trauma = maxf(_trauma - _decay * real_dt, 0.0)
 	_kick = _kick.lerp(Vector3.ZERO, 1.0 - exp(-14.0 * real_dt))

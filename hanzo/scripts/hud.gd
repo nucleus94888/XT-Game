@@ -248,6 +248,7 @@ func _process(delta: float) -> void:
 		compass.cam_yaw = _cam.yaw
 	if _player:
 		touch.aiming = _player.aim_mode != 0
+		touch.aim_status = _player.aim_status
 	compass.has_target = _has_compass_target and _player != null
 	if compass.has_target:
 		var d := _compass_target - _player.global_position

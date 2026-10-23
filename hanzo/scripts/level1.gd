@@ -92,24 +92,38 @@ func _process(delta: float) -> void:
 		if _walk_t > 1.35 and not _auto_done.has("look"):
 			_auto_done["look"] = true
 			cam_rig.yaw = -PI / 2.0
-		if _walk_t > 1.7 and not _auto_done.has("grapple"):
+			cam_rig.aim_pitch = -0.05
+		if _walk_t > 1.7 and not _auto_done.has("aim"):
+			_auto_done["aim"] = true
+			player.on_hook_down()
+		if _walk_t > 2.5 and not _auto_done.has("shot_aim"):
+			_auto_done["shot_aim"] = true
+			_shot("aim_hook")
+		if _walk_t > 2.6 and not _auto_done.has("grapple"):
 			_auto_done["grapple"] = true
-			player.request_hook()
-		if _walk_t > 2.4 and not _auto_done.has("shot_grapple"):
+			player.on_hook_up()
+		if _walk_t > 3.3 and not _auto_done.has("shot_grapple"):
 			_auto_done["shot_grapple"] = true
 			_shot("grapple")
-		if _walk_t > 3.2 and not _auto_done.has("throw"):
-			_auto_done["throw"] = true
+		if _walk_t > 3.6 and not _auto_done.has("aim2"):
+			_auto_done["aim2"] = true
 			cam_rig.yaw = PI
+			cam_rig.aim_pitch = 0.25
 			player.toggle_weapon()
-			player.request_throw()
-		if _walk_t > 3.5 and not _auto_done.has("shot_throw"):
+			player.on_attack_down()
+		if _walk_t > 4.4 and not _auto_done.has("shot_aim2"):
+			_auto_done["shot_aim2"] = true
+			_shot("aim_shuriken")
+		if _walk_t > 4.5 and not _auto_done.has("throw"):
+			_auto_done["throw"] = true
+			player.on_attack_up()
+		if _walk_t > 4.8 and not _auto_done.has("shot_throw"):
 			_auto_done["shot_throw"] = true
 			_shot("throw")
-		if _walk_t > 6.0 and not _auto_done.has("shot_end"):
+		if _walk_t > 6.5 and not _auto_done.has("shot_end"):
 			_auto_done["shot_end"] = true
 			_shot("end")
-		if _walk_t > 6.5:
+		if _walk_t > 7.0:
 			get_tree().quit()
 
 

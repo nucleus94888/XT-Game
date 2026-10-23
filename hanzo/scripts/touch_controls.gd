@@ -28,6 +28,8 @@ var blockers: Array[Control] = []
 var weapon_label := "刀"
 var shuriken_count := 0
 var aiming := false
+## 準心狀態（player.aim_status）
+var aim_status := ""
 
 var _joy_idx := -1
 var _joy_origin := Vector2.ZERO
@@ -68,7 +70,7 @@ func _hook_center() -> Vector2:
 
 
 func _swap_center() -> Vector2:
-	return Vector2(size.x - 232.0, size.y - 190.0)
+	return Vector2(size.x - 44.0, size.y - 218.0)
 
 
 func _blocked(pos: Vector2) -> bool:
@@ -185,6 +187,24 @@ func _draw() -> void:
 	draw_circle(knob, 28.0, Color(jcol, 0.55 if _joy_idx != -1 else 0.22))
 	if aiming and font:
 		draw_string(font, jc + Vector2(-JOY_R, -JOY_R - 10.0), "瞄準", HORIZONTAL_ALIGNMENT_CENTER, JOY_R * 2.0, 22, Color(1.0, 0.9, 0.5, 0.9))
+	# 準心（瞄準中畫在畫面正中央）
+	if aiming:
+		var c := size / 2.0
+		var ccol := Color(1, 1, 1, 0.9)
+		if aim_status == "lock":
+			ccol = Color(1.0, 0.85, 0.3)
+		elif aim_status == "ok":
+			ccol = Color(0.5, 1.0, 0.6)
+		elif aim_status == "bad":
+			ccol = Color(1.0, 0.35, 0.3)
+		var gap := 10.0 if aim_status == "" else 16.0
+		draw_line(c + Vector2(-gap - 14, 0), c + Vector2(-gap, 0), ccol, 2.5)
+		draw_line(c + Vector2(gap, 0), c + Vector2(gap + 14, 0), ccol, 2.5)
+		draw_line(c + Vector2(0, -gap - 14), c + Vector2(0, -gap), ccol, 2.5)
+		draw_line(c + Vector2(0, gap), c + Vector2(0, gap + 14), ccol, 2.5)
+		draw_circle(c, 2.5, ccol)
+		if aim_status != "":
+			draw_arc(c, gap + 4.0, 0.0, TAU, 32, Color(ccol, 0.6), 1.5, true)
 	# 攻擊（刀＝紅；手裡劍＝紫，顯示數量）
 	var ac := _atk_center()
 	var shuriken := weapon_label == "劍"

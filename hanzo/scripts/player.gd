@@ -56,6 +56,8 @@ const AIM_HOOK := 2
 var weapon_mode := WEAPON_SWORD
 var aim_mode := AIM_NONE
 var aim_dir := Vector3.FORWARD
+## 準心狀態："" / "lock"（鎖定敵人）/ "ok"（可鉤）/ "bad"（不可鉤）
+var aim_status := ""
 var _aim_t := 0.0
 var _aim_target: Node3D = null
 var _hook_ok := false
@@ -214,45 +216,54 @@ func _begin_aim(kind: int) -> void:
 	_aim_t = 0.0
 	_aim_target = null
 	_hook_ok = false
+	aim_status = ""
 	_reticle.visible = true
+	if cam_rig != null:
+		cam_rig.aiming = true
 	_tick_aim(0.0)
 
 
-## 瞄準中：搖桿＝瞄準方向（不推＝鏡頭正前方），人物停下並面向瞄準方向
+## 瞄準中（過肩鏡頭）：拖視角＝瞄準，畫面中心是準心；左搖桿慢速移動；人物面向鏡頭方向
 func _tick_aim(delta: float) -> void:
 	_aim_t += delta
-	velocity.x = move_toward(velocity.x, 0.0, 40.0 * delta)
-	velocity.z = move_toward(velocity.z, 0.0, 40.0 * delta)
-	var v2 := Vector2.ZERO
-	if touch != null:
-		v2 = touch.move_vector
-	var kb := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	if kb.length_squared() > v2.length_squared():
-		v2 = kb
-	var cam_f: Vector3 = cam_rig.forward() if cam_rig != null and cam_rig.has_method("forward") else _forward()
-	var yaw: float = cam_rig.yaw if cam_rig != null else 0.0
-	aim_dir = Vector3(v2.x, 0.0, v2.y).rotated(Vector3.UP, yaw).normalized() if v2.length() > 0.2 else cam_f
-	_facing = atan2(-aim_dir.x, -aim_dir.z)
-	visual.rotation.y = _facing
+	var input := _read_input()
+	velocity.x = move_toward(velocity.x, input.x * SPEED * 0.45, ACCEL * delta)
+	velocity.z = move_toward(velocity.z, input.z * SPEED * 0.45, ACCEL * delta)
+	var origin := global_position + Vector3(0.0, 1.5, 0.0)
+	var dir := _forward()
+	if cam_rig != null and cam_rig.has_method("aim_ray"):
+		var r: Array = cam_rig.aim_ray()
+		origin = r[0]
+		dir = r[1]
+		_facing = cam_rig.yaw
+	aim_dir = dir
+	visual.rotation.y = lerp_angle(visual.rotation.y, _facing, 1.0 - exp(-20.0 * delta))
 	var pose := Vector3(-20.0, -60.0, 0.0) if aim_mode == AIM_SHURIKEN else Vector3(-70.0, 0.0, 0.0)
 	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(pose, 1.0 - exp(-20.0 * delta))
 	if aim_mode == AIM_SHURIKEN:
-		_aim_target = _pick_enemy(aim_dir, 0.75, 16.0)
+		_aim_target = _pick_enemy_ray(origin, dir, 0.992, 22.0)
 		if _aim_target:
+			aim_status = "lock"
 			_reticle_set(_aim_target.global_position + Vector3(0.0, 1.1, 0.0), Color(1.0, 0.85, 0.3), "鎖定")
 		else:
-			_reticle_set(global_position + Vector3(0.0, 1.2, 0.0) + aim_dir * 7.0, Color(1.0, 1.0, 1.0, 0.8), "")
+			aim_status = ""
+			_reticle.visible = false
 	else:
-		var r := _hook_probe(aim_dir)
+		var r := _hook_probe_ray(origin, dir)
 		_hook_ok = r.ok
 		_hook_pos = r.pos
+		aim_status = "ok" if r.ok else "bad"
+		_reticle.visible = true
 		_reticle_set(r.pos, Color(0.5, 1.0, 0.6) if r.ok else Color(1.0, 0.3, 0.3), "鉤" if r.ok else "✕")
 
 
 func _release_aim() -> void:
 	var kind := aim_mode
 	aim_mode = AIM_NONE
+	aim_status = ""
 	_reticle.visible = false
+	if cam_rig != null:
+		cam_rig.aiming = false
 	if state != State.FREE:
 		return
 	if kind == AIM_SHURIKEN:
@@ -265,52 +276,53 @@ func _release_aim() -> void:
 	_aim_target = null
 
 
-## 瞄準方向上角度最小、距離最近的活敵人
-func _pick_enemy(dir: Vector3, min_dot: float, max_dist: float) -> Node3D:
+## 準心附近的敵人（與射線夾角最小者）
+func _pick_enemy_ray(origin: Vector3, dir: Vector3, min_dot: float, max_dist: float) -> Node3D:
 	var best: Node3D = null
-	var best_score := INF
+	var best_dot := min_dot
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not (e is Node3D) or e.get("state") == null or e.state == e.State.DEAD:
 			continue
-		var d: Vector3 = e.global_position - global_position
-		d.y = 0.0
-		var dist := d.length()
-		if dist < 0.5 or dist > max_dist:
+		var to: Vector3 = (e.global_position + Vector3(0.0, 1.1, 0.0)) - origin
+		var dist := to.length()
+		if dist < 1.0 or dist > max_dist:
 			continue
-		var dot := dir.dot(d.normalized())
-		if dot < min_dot:
-			continue
-		var score := dist * (2.0 - dot)
-		if score < best_score:
+		var dot := dir.dot(to / dist)
+		if dot > best_dot:
 			best = e
-			best_score = score
+			best_dot = dot
 	return best
 
 
-## 鉤繩落點探測：水平射線打到牆 → 從牆頂上方往下找站得住的平面
-func _hook_probe(dir: Vector3) -> Dictionary:
+## 鉤繩落點（準心射線）：打到牆頂／屋頂直接用；打到牆面就往上找牆頂
+func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	var space := get_world_3d().direct_space_state
-	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
-	for h in [1.4, 2.75, 0.6]:
-		var from := global_position + Vector3(0.0, h, 0.0)
-		var q := PhysicsRayQueryParameters3D.create(from, from + flat * 13.0, 1)
-		q.exclude = [get_rid()]
-		var hit := space.intersect_ray(q)
-		if hit.is_empty():
-			continue
-		var p: Vector3 = hit.position
+	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * 28.0, 1)
+	q.exclude = [get_rid()]
+	var hit := space.intersect_ray(q)
+	var fail := {"ok": false, "pos": origin + dir * 8.0}
+	if hit.is_empty():
+		return fail
+	var p: Vector3 = hit.position
+	var n: Vector3 = hit.normal
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	flat = flat.normalized() if flat.length() > 0.01 else _forward()
+	var top := p
+	if n.y < 0.7:
+		# 牆面：從牆內側上方往下找站得住的頂面
 		var top_from := p + flat * 0.7 + Vector3(0.0, 9.0, 0.0)
 		var q2 := PhysicsRayQueryParameters3D.create(top_from, top_from + Vector3(0.0, -10.0, 0.0), 1)
 		q2.exclude = [get_rid()]
 		var h2 := space.intersect_ray(q2)
-		if h2.is_empty():
-			continue
-		var top: Vector3 = h2.position
-		var dy := top.y - global_position.y
-		if dy < 0.8 or dy > 7.0 or (h2.normal as Vector3).y < 0.7:
-			continue
-		return {"ok": true, "pos": top + Vector3(0.0, 0.05, 0.0)}
-	return {"ok": false, "pos": global_position + flat * 4.0 + Vector3(0.0, 1.5, 0.0)}
+		if h2.is_empty() or (h2.normal as Vector3).y < 0.7:
+			fail.pos = p
+			return fail
+		top = h2.position
+	var dy := top.y - global_position.y
+	if dy < 0.8 or dy > 7.0 or global_position.distance_to(top) > 16.0:
+		fail.pos = top
+		return fail
+	return {"ok": true, "pos": top + Vector3(0.0, 0.05, 0.0)}
 
 
 func _build_reticle() -> void:
@@ -364,6 +376,15 @@ func _throw(dir: Vector3, target: Node3D) -> void:
 	var d := dir
 	if target:
 		d = ((target.global_position + Vector3(0.0, 1.1, 0.0)) - from).normalized()
+	elif cam_rig != null and cam_rig.has_method("aim_ray"):
+		# 準心射線打到的點（或 35 公尺外），手裡劍從手上飛向那一點
+		var r: Array = cam_rig.aim_ray()
+		var space := get_world_3d().direct_space_state
+		var q := PhysicsRayQueryParameters3D.create(r[0], r[0] + r[1] * 35.0, 1 | 2)
+		q.exclude = [get_rid()]
+		var hit := space.intersect_ray(q)
+		var aim_point: Vector3 = hit.position if not hit.is_empty() else r[0] + r[1] * 35.0
+		d = (aim_point - from).normalized()
 	var flat := Vector3(d.x, 0.0, d.z)
 	if flat.length() > 0.01:
 		_facing = atan2(-flat.x, -flat.z)
@@ -557,7 +578,10 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	if aim_mode != AIM_NONE and state != State.FREE:
 		aim_mode = AIM_NONE
+		aim_status = ""
 		_reticle.visible = false
+		if cam_rig != null:
+			cam_rig.aiming = false
 	if state != State.ATTACK and _combo_window > 0.0:
 		_combo_window -= delta
 		if _combo_window <= 0.0:
