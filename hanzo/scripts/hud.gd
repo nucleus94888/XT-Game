@@ -106,4 +106,6 @@ func _refresh() -> void:
 func _pop(c: Control, s: float) -> void:
 	c.pivot_offset = Vector2(0.0, c.size.y / 2.0)
 	c.scale = Vector2.ONE * s
-	c.create_tween().tween_property(c, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var tw := c.create_tween()
+	tw.set_ignore_time_scale(true)
+	tw.tween_property(c, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

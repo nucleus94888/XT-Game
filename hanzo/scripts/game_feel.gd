@@ -6,6 +6,8 @@ extends Node
 signal params_changed
 signal shake_requested(amp: float, dur: float)
 signal flash_requested(color: Color, dur: float)
+## 頓幀期間每幀發出目前的時間流速，讓火花等效果能用真實時間繼續動
+signal time_scale_changed(ts: float)
 
 const SAVE_PATH := "user://feel.cfg"
 
@@ -16,7 +18,8 @@ const PARAMS := {
 	"active_ms": ["命中窗 ms", 40.0, 250.0, 5.0, 110.0],
 	"recovery_ms": ["收刀硬直 ms", 60.0, 500.0, 5.0, 180.0],
 	"hitstop_ms": ["頓幀 ms", 0.0, 250.0, 5.0, 70.0],
-	"hitstop_scale": ["頓幀時間倍率", 0.0, 0.5, 0.01, 0.05],
+	"hitstop_scale": ["頓幀時間倍率", 0.01, 0.5, 0.01, 0.05],
+	"hitstop_hold": ["頓幀凍結比例", 0.0, 1.0, 0.05, 0.4],
 	"shake_amp": ["鏡頭震幅", 0.0, 0.8, 0.01, 0.18],
 	"shake_ms": ["鏡頭震動 ms", 40.0, 500.0, 5.0, 160.0],
 	"knockback": ["擊退力道", 0.0, 10.0, 0.1, 3.5],
@@ -31,9 +34,9 @@ const PARAMS := {
 ## 盲選用預設：先別看數值，輪流套用去砍，哪個「爽」再回頭看。
 const PRESETS := {
 	"甲・利落": {"windup_ms": 70.0, "active_ms": 100.0, "recovery_ms": 160.0, "hitstop_ms": 60.0, "hitstop_scale": 0.05, "shake_amp": 0.22, "shake_ms": 140.0, "knockback": 3.0, "lunge": 2.0},
-	"乙・沉重": {"windup_ms": 130.0, "active_ms": 120.0, "recovery_ms": 260.0, "hitstop_ms": 130.0, "hitstop_scale": 0.03, "shake_amp": 0.35, "shake_ms": 220.0, "knockback": 6.0, "lunge": 1.2},
-	"丙・流暢": {"windup_ms": 45.0, "active_ms": 90.0, "recovery_ms": 110.0, "hitstop_ms": 35.0, "hitstop_scale": 0.1, "shake_amp": 0.1, "shake_ms": 100.0, "knockback": 2.0, "lunge": 2.6},
-	"丁・電影": {"windup_ms": 110.0, "active_ms": 110.0, "recovery_ms": 220.0, "hitstop_ms": 170.0, "hitstop_scale": 0.0, "shake_amp": 0.08, "shake_ms": 300.0, "knockback": 4.0, "lunge": 1.5},
+	"乙・沉重": {"windup_ms": 130.0, "active_ms": 120.0, "recovery_ms": 260.0, "hitstop_ms": 120.0, "hitstop_scale": 0.04, "hitstop_hold": 0.35, "shake_amp": 0.35, "shake_ms": 220.0, "knockback": 6.0, "lunge": 1.2},
+	"丙・流暢": {"windup_ms": 45.0, "active_ms": 90.0, "recovery_ms": 110.0, "hitstop_ms": 35.0, "hitstop_scale": 0.1, "hitstop_hold": 0.5, "shake_amp": 0.1, "shake_ms": 100.0, "knockback": 2.0, "lunge": 2.6},
+	"丁・電影": {"windup_ms": 110.0, "active_ms": 110.0, "recovery_ms": 220.0, "hitstop_ms": 170.0, "hitstop_scale": 0.01, "hitstop_hold": 0.3, "shake_amp": 0.08, "shake_ms": 300.0, "knockback": 4.0, "lunge": 1.5},
 	"戊・無料": {"hitstop_ms": 0.0, "shake_amp": 0.0, "hit_flash_ms": 0.0, "knockback": 0.5, "trail_alpha": 0.0, "lunge": 0.0},
 }
 
@@ -41,7 +44,6 @@ const PRESETS := {
 const MOBILE_UI_SCALE := 1.6
 
 var p: Dictionary = {}
-var _stop_token := 0
 
 
 func _ready() -> void:
@@ -104,18 +106,46 @@ func apply_preset(preset_name: String) -> void:
 	params_changed.emit()
 
 
-## 頓幀：把全局時間壓到 hitstop_scale，經 hitstop_ms（真實時間）後恢復。
-## 連續命中時以 token 防止早一拍的恢復把後一拍的頓幀提前解除。
+## 頓幀：前 hitstop_hold 比例的時間把流速壓到 hitstop_scale（近乎凍結），
+## 剩下的時間平滑加速回 1.0 —— 「先凍、再滑出」讀起來是撞擊，不是停格。
+## 全程用真實時間推進；連續命中時只延長結束時間，不重算起點。
+var _stopping := false
+var _stop_start_ms := 0
+var _stop_end_ms := 0
+var _stop_scale := 0.05
+
+
 func hitstop(mult: float = 1.0) -> void:
-	var ms := get_p("hitstop_ms") * mult
-	if ms <= 0.0:
+	var ms := int(get_p("hitstop_ms") * mult)
+	if ms <= 0:
 		return
-	_stop_token += 1
-	var token := _stop_token
-	Engine.time_scale = get_p("hitstop_scale")
-	await get_tree().create_timer(ms / 1000.0, true, false, true).timeout
-	if token == _stop_token:
+	var now := Time.get_ticks_msec()
+	if not _stopping:
+		_stop_start_ms = now
+	_stop_end_ms = maxi(_stop_end_ms, now + ms)
+	_stop_scale = get_p("hitstop_scale")
+	_stopping = true
+	_tick_hitstop(now)
+
+
+func _process(_delta: float) -> void:
+	if _stopping:
+		_tick_hitstop(Time.get_ticks_msec())
+
+
+func _tick_hitstop(now: int) -> void:
+	if now >= _stop_end_ms:
+		_stopping = false
 		Engine.time_scale = 1.0
+		time_scale_changed.emit(1.0)
+		return
+	var total := maxi(_stop_end_ms - _stop_start_ms, 1)
+	var t := float(now - _stop_start_ms) / float(total)
+	var hold := get_p("hitstop_hold")
+	var k := 0.0 if t < hold else smoothstep(0.0, 1.0, (t - hold) / maxf(1.0 - hold, 0.001))
+	var ts := lerpf(_stop_scale, 1.0, k)
+	Engine.time_scale = ts
+	time_scale_changed.emit(ts)
 
 
 func shake(mult: float = 1.0) -> void:

@@ -45,7 +45,12 @@ func _ready() -> void:
 		mat.emission_energy_multiplier = 0.0
 		mi.material_override = mat
 		_mats.append(mat)
+	# 粒子數固定（每次改 amount 會重新配置緩衝，命中瞬間會卡一下），輕重只差大小與速度
+	particles.amount = 40
 	particles.emitting = false
+	# 頓幀期間火花改走真實時間，凍結的畫面裡仍有東西在飛
+	Feel.time_scale_changed.connect(func(ts: float) -> void:
+		particles.speed_scale = 1.0 / maxf(ts, 0.01))
 
 
 func _physics_process(delta: float) -> void:
@@ -86,7 +91,7 @@ func _set_flash(on: bool) -> void:
 func warmup() -> void:
 	_set_flash(true)
 	particles.global_position = global_position + Vector3(0.0, 1.2, 0.0)
-	particles.amount = 12
+	particles.scale_amount_max = 0.8
 	particles.restart()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -105,7 +110,8 @@ func take_hit(info: Dictionary) -> void:
 		_set_flash(true)
 	particles.global_position = info.pos
 	particles.direction = _hit_dir + Vector3(0.0, 0.6, 0.0)
-	particles.amount = 36 if info.heavy else 22
+	particles.scale_amount_max = 1.7 if info.heavy else 1.2
+	particles.initial_velocity_max = 10.0 if info.heavy else 7.0
 	particles.restart()
 	Fx.damage_number(info.pos, int(info.dmg), bool(info.heavy))
 	_recent_hits += 1
@@ -159,7 +165,8 @@ func _die() -> void:
 	_set_flash(false)
 	sfx_break.play()
 	Feel.shake(1.2)
-	particles.amount = 60
+	particles.scale_amount_max = 1.7
+	particles.initial_velocity_max = 12.0
 	particles.restart()
 	var tw := create_tween()
 	tw.set_parallel(true)
