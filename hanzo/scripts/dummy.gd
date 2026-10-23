@@ -41,7 +41,7 @@ func _ready() -> void:
 	_spawn = global_position
 	mark.visible = false
 	sfx_break.stream = Sfx.make("break")
-	_sfx_crack = Sfx.player(self, "break_crack", -3.0)
+	_sfx_crack = Sfx.player(self, "break_wood", -4.0)
 	_sfx_sweep = Sfx.player(self, "swing", -6.0, 0.7)
 	for n in [$Visual/Straw, $Visual/Head, $Visual/Arms, $Visual/Post]:
 		var mi := n as MeshInstance3D

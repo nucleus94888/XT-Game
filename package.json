@@ -5,8 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "sfx": "node tools/sfx/gen.mjs",
     "icons": "node tools/icons/gen.mjs",
     "font": "python tools/fonts/subset.py",
-    "assets": "npm run icons && npm run font"
+    "assets": "npm run sfx && npm run icons && npm run font"
   }
 }

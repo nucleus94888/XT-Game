@@ -1,19 +1,19 @@
 extends Node
-## Sfx：音效庫。來源 Kenney（CC0，audio/kenney/LICENSE-kenney-CC0.txt）。
-## 每組音效用 AudioStreamRandomizer 隨機挑變化、隨機微調音高，連按不會聽到同一聲。
+## Sfx：音效庫。
+## audio/synth/  → 為「刀砍稻草人」專門合成（tools/sfx/gen.mjs）：揮空破風、砍進乾草、稻草爆開
+## audio/kenney/ → Kenney CC0（LICENSE-kenney-CC0.txt）：木樁、衣物、受傷
+## 每組用 AudioStreamRandomizer 隨機挑變化、隨機微調音高，連按不會聽到同一聲。
 
-const DIR := "res://audio/kenney/"
-
-## 名稱 → 檔名清單（不含 .ogg）
+## 名稱 → 檔案路徑清單
 const SETS := {
-	"swing": ["knifeSlice", "knifeSlice2"],
-	"hit": ["impactPunch_medium_000", "impactPunch_medium_001", "impactPunch_medium_002"],
-	"heavy": ["impactPunch_heavy_000", "impactPunch_heavy_001", "impactPunch_heavy_002"],
-	"heavy_wood": ["chop", "impactWood_medium_000", "impactWood_medium_001"],
-	"dash": ["cloth1", "cloth2", "cloth3"],
-	"hurt": ["impactSoft_heavy_000", "impactSoft_heavy_001", "impactSoft_heavy_002"],
-	"break": ["impactWood_heavy_000", "impactWood_heavy_001", "impactWood_heavy_002"],
-	"break_crack": ["impactPlank_medium_000", "impactPlank_medium_001", "impactPlank_medium_002"],
+	"swing": ["synth/swing_1.wav", "synth/swing_2.wav", "synth/swing_3.wav"],
+	"hit": ["synth/straw_light_1.wav", "synth/straw_light_2.wav", "synth/straw_light_3.wav"],
+	"heavy": ["synth/straw_heavy_1.wav", "synth/straw_heavy_2.wav", "synth/straw_heavy_3.wav"],
+	"heavy_wood": ["kenney/impactWood_medium_000.ogg", "kenney/impactWood_medium_001.ogg", "kenney/impactWood_medium_002.ogg"],
+	"dash": ["kenney/cloth1.ogg", "kenney/cloth2.ogg", "kenney/cloth3.ogg"],
+	"hurt": ["kenney/impactSoft_heavy_000.ogg", "kenney/impactSoft_heavy_001.ogg", "kenney/impactSoft_heavy_002.ogg"],
+	"break": ["synth/straw_break.wav"],
+	"break_wood": ["kenney/impactWood_heavy_000.ogg", "kenney/impactWood_heavy_001.ogg", "kenney/impactWood_heavy_002.ogg"],
 }
 
 var _cache := {}
@@ -25,18 +25,18 @@ func make(set_name: String, pitch_spread: float = 1.08, vol_spread_db: float = 1
 	r.random_pitch = pitch_spread
 	r.random_volume_offset_db = vol_spread_db
 	var i := 0
-	for name in SETS[set_name]:
-		var s := _load(name)
+	for path in SETS[set_name]:
+		var s := _load(path)
 		if s:
 			r.add_stream(i, s)
 			i += 1
 	return r
 
 
-func _load(name: String) -> AudioStream:
-	if not _cache.has(name):
-		_cache[name] = load(DIR + name + ".ogg")
-	return _cache[name]
+func _load(path: String) -> AudioStream:
+	if not _cache.has(path):
+		_cache[path] = load("res://audio/" + path)
+	return _cache[path]
 
 
 ## 建一個已接好音效的播放器並掛到 parent 下

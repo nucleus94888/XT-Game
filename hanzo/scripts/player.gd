@@ -63,7 +63,7 @@ func _ready() -> void:
 	sfx_heavy.stream = Sfx.make("heavy", 1.05, 1.0)
 	sfx_dash.stream = Sfx.make("dash", 1.15, 2.0)
 	sfx_hurt.stream = Sfx.make("hurt")
-	_sfx_heavy_wood = Sfx.player(self, "heavy_wood", -5.0, 0.9)
+	_sfx_heavy_wood = Sfx.player(self, "heavy_wood", -9.0, 0.9)
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

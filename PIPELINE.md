@@ -9,7 +9,7 @@
 | 引擎 | Godot 4.7.2（GL Compatibility 渲染器，Web / iOS 同一套） | 已裝在 `C:\Users\Win\tools\godot\`，匯出範本已裝 | 免費 |
 | 手感調校 | 遊戲內面板（`game_feel.gd` + `tuning_panel.gd`），五組盲選預設、存檔、複製數值 | 完成 | — |
 | 觸控操作 | 自製浮動搖桿 + 兩鍵（`touch_controls.gd`），桌機滑鼠模擬觸控 | 完成 | — |
-| 音效 | Kenney「Impact Sounds」「RPG Audio」（CC0，直接下載免登入），`sfx.gd` 用 AudioStreamRandomizer 隨機變化與音高 | 24 個檔，288 KB | 免費，免標註 |
+| 音效 | 揮空／砍進乾草／稻草爆開為專門合成（`tools/sfx/gen.mjs`，可重現）；木樁、衣物、受傷用 Kenney CC0；`sfx.gd` 用 AudioStreamRandomizer 隨機變化與音高 | 10 個合成 + 12 個 Kenney | 免費，免標註 |
 | 圖示 | 程式繪製 PNG（`tools/icons/gen.mjs`，1024/512/180/144） | 完成 | 免費 |
 | 中文字型 | Noto Sans TC（OFL）子集化成 203 KB（`tools/fonts/subset.py`，需 `pip install fonttools`） | 完成 | 免費 |
 | 自動試玩截圖 | `--autoplay --shot=` 參數（`main.gd`），AI 可自己看畫面 | 完成 | — |
