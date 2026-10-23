@@ -26,13 +26,20 @@ func _ready() -> void:
 	touch.dash_pressed.connect(player.request_dash)
 	touch.block_changed.connect(player.set_block)
 	player.parried.connect(func() -> void:
-		hud.say("彈反！", Color(1.0, 0.92, 0.5)))
+		hud.say("彈反！", Color(1.0, 0.92, 0.5))
+		if _auto and not _auto_done.has("parry"):
+			_auto_done["parry"] = true
+			_shot("parry"))
 	cam_rig.set_target(player)
 	player.hit_landed.connect(_on_hit_landed)
 	player.hp_changed.connect(hud.set_hp)
 	player.died.connect(func() -> void:
 		hud.say("敗北…", Color(0.9, 0.3, 0.3)))
 	dummy.destroyed.connect(hud.add_kill)
+	dummy.posture_broken.connect(func() -> void:
+		hud.say("體幹崩壞", Color(1.0, 0.55, 0.2)))
+	dummy.executed.connect(func() -> void:
+		hud.say("忍殺", Color(0.95, 0.15, 0.15)))
 	_place_pillars()
 	hud.say("斬", Color(1, 1, 1))
 	_parse_args()
@@ -89,20 +96,23 @@ func _process(delta: float) -> void:
 		_shot("idle")
 	elif _auto_t < 1.3:
 		touch.move_vector = Vector2(0.0, -1.0)
-	elif _auto_t < 1.35:
+	elif _auto_t < 1.85:
 		touch.move_vector = Vector2.ZERO
+	elif _auto_t < 2.35:
+		# 稻草人約 2.0 秒揮出橫掃：1.85 秒舉刀 → 落在彈反窗口內
+		_once("b1", func() -> void: player.set_block(true))
+	elif _auto_t < 2.5:
+		_once("b0", func() -> void: player.set_block(false))
+	elif _auto_t < 2.85:
 		_once("a1", player.request_attack)
-	elif _auto_t < 1.7:
-		_once("a2", player.request_attack)
-	elif _auto_t < 2.1:
-		_once("a3", player.request_attack)
 	elif _auto_t < 3.2:
-		pass
-	elif _auto_t < 3.25:
+		_once("a2", player.request_attack)
+	elif _auto_t < 4.3:
+		_once("a3", player.request_attack)
+	elif _auto_t < 4.35:
 		_once("d", player.request_dash)
-	elif _auto_t > 4.5:
+	elif _auto_t > 5.6:
 		get_tree().quit()
-
 
 func _once(key: String, cb: Callable) -> void:
 	if not _auto_done.has(key):

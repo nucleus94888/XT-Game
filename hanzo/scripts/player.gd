@@ -14,6 +14,10 @@ const ACCEL := 34.0
 const DASH_SPEED := 17.0
 const DASH_TIME := 0.17
 const MAX_HP := 100
+const PIVOT_HOME := Vector3(0.0, 1.15, 0.0)
+## 格擋姿勢（隻狼式）：刀身豎直在身前、略向內收
+const GUARD_ROT := Vector3(-82.0, 18.0, -10.0)
+const GUARD_POS := Vector3(-0.18, 1.1, 0.12)
 
 ## 三段連斬：from/to 為刀的水平掃角（度），tilt 為第三段的下劈抬刀角；
 ## tmul 乘在前置/有效/收刀三段時間上，stop/shake/kb 乘在頓幀/震動/擊退上。
@@ -44,6 +48,9 @@ var _jolt_tw: Tween
 var _block_held := false
 var _block_start_ms := 0
 var _sfx_block: AudioStreamPlayer
+var _sfx_deflect: AudioStreamPlayer
+var _guard_tw: Tween
+var _spark: CPUParticles3D
 
 @onready var visual: Node3D = $Visual
 @onready var body: MeshInstance3D = $Visual/Body
@@ -69,6 +76,9 @@ func _ready() -> void:
 	Sfx.bind(sfx_hurt, "hurt", 1.08)
 	_sfx_heavy_wood = Sfx.player(self, "heavy_wood", -9.0, 0.9)
 	_sfx_block = Sfx.player(self, "block", -6.0, 1.0, 1.1)
+	_sfx_deflect = Sfx.player(self, "deflect", -2.0, 1.05, 1.08)
+	add_to_group("player")
+	_build_spark()
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -132,8 +142,12 @@ func _tick_block(delta: float, input: Vector2) -> void:
 	velocity.z = move_toward(velocity.z, dir.z * SPEED * 0.3, ACCEL * delta)
 	_face_input(input, false)
 	visual.rotation.y = lerp_angle(visual.rotation.y, _facing, 1.0 - exp(-16.0 * delta))
-	body.rotation.x = lerpf(body.rotation.x, 0.1, 1.0 - exp(-12.0 * delta))
-	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(Vector3(-55.0, 38.0, 0.0), 1.0 - exp(-22.0 * delta))
+	# 架刀：身體前傾壓低、刀豎直擋在身前（快速到位，不拖泥帶水）
+	body.rotation.x = lerpf(body.rotation.x, 0.18, 1.0 - exp(-14.0 * delta))
+	visual.position.y = lerpf(visual.position.y, -0.06, 1.0 - exp(-14.0 * delta))
+	if _guard_tw == null or not _guard_tw.is_valid():
+		sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(GUARD_ROT, 1.0 - exp(-40.0 * delta))
+	sword_pivot.position = sword_pivot.position.lerp(GUARD_POS, 1.0 - exp(-30.0 * delta))
 
 
 ## 閃步鍵：空閒可閃；出刀「前置」與「收刀」階段可取消成閃步（有效幀不可）。
@@ -197,6 +211,7 @@ func _tick_free(delta: float, input: Vector2) -> void:
 	body.rotation.x = lerpf(body.rotation.x, -0.14 * spd, 1.0 - exp(-10.0 * delta))
 	visual.position.y = sin(Time.get_ticks_msec() * 0.006) * 0.025 * (1.0 + spd * 2.0)
 	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(Vector3.ZERO, 1.0 - exp(-14.0 * delta))
+	sword_pivot.position = sword_pivot.position.lerp(PIVOT_HOME, 1.0 - exp(-14.0 * delta))
 
 
 func _start_attack() -> void:
@@ -212,6 +227,9 @@ func _start_attack() -> void:
 	velocity.x *= 0.3
 	velocity.z *= 0.3
 	trail.visible = false
+	sword_pivot.position = PIVOT_HOME
+	if _guard_tw and _guard_tw.is_valid():
+		_guard_tw.kill()
 	# 揮刀音在「按下」的瞬間就播（而不是等前置蓄力結束），抵銷手機音訊輸出延遲
 	sfx_swing.set_meta("sfx_base", 0.8 if c.heavy else 1.0)
 	Sfx.play(sfx_swing)
@@ -386,34 +404,86 @@ func take_hit(info: Dictionary) -> void:
 		hp_changed.emit(hp)
 
 
-## 格擋成功：正面擋下不扣血；舉刀 160ms 內擋下 = 彈反，對方硬直
+## 格擋（隻狼式）
+## 一般格擋：刀被震開一下、小火花、小後退，不扣血。
+## 彈反：舉刀後 parry_ms 內擋下 → 刀向外一撥、大片火花、閃白、長頓幀，對方後仰並累積「體幹」。
 func _blocked_hit(info: Dictionary) -> void:
 	var dir: Vector3 = info.dir
-	var perfect := Time.get_ticks_msec() - _block_start_ms <= 160
-	Sfx.play(_sfx_block)
+	var perfect := Time.get_ticks_msec() - _block_start_ms <= int(Feel.get_p("parry_ms"))
+	var src = info.get("src")
 	body.scale = Vector3(1.1, 0.92, 1.1)
 	if _jolt_tw and _jolt_tw.is_valid():
 		_jolt_tw.kill()
 	_jolt_tw = create_tween()
 	_jolt_tw.set_ignore_time_scale(true)
 	_jolt_tw.tween_property(body, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	if _guard_tw and _guard_tw.is_valid():
+		_guard_tw.kill()
+	_guard_tw = create_tween()
+	_guard_tw.set_ignore_time_scale(true)
+	var tip := sword_pivot.to_global(Vector3(0.38, 0.0, -1.3))
 	if perfect:
-		velocity.x = dir.x * 1.5
-		velocity.z = dir.z * 1.5
-		Feel.hitstop(1.4)
-		Feel.shake(0.9)
-		Feel.kick(-dir, 0.4)
-		Feel.flash(Color(1.0, 0.95, 0.8, 0.25), 0.15)
-		var src = info.get("src")
-		if src and src.has_method("stagger"):
-			src.stagger()
+		# 刀向外一撥（70ms）再回到架刀位
+		_guard_tw.tween_property(sword_pivot, "rotation_degrees", Vector3(-70.0, -85.0, 30.0), 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_guard_tw.tween_property(sword_pivot, "rotation_degrees", GUARD_ROT, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		_burst_spark(tip, -dir, 2.0)
+		Sfx.play(_sfx_deflect)
+		Sfx.play(sfx_swing)
+		velocity.x = dir.x * 1.0
+		velocity.z = dir.z * 1.0
+		Feel.hitstop(1.6)
+		Feel.shake(1.0)
+		Feel.kick(-dir, 0.45)
+		Feel.flash(Color(1.0, 0.97, 0.85, 0.3), 0.14)
+		if src and src.has_method("deflected"):
+			src.deflected(-dir)
 		parried.emit()
 	else:
+		# 刀被震開（50ms）再回位
+		_guard_tw.tween_property(sword_pivot, "rotation_degrees", Vector3(-70.0, 58.0, -20.0), 0.05).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_guard_tw.tween_property(sword_pivot, "rotation_degrees", GUARD_ROT, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_burst_spark(tip, -dir, 0.9)
+		Sfx.play(_sfx_block)
 		velocity.x = dir.x * 4.0
 		velocity.z = dir.z * 4.0
 		Feel.hitstop(0.45)
 		Feel.shake(0.45)
 		Feel.kick(dir, 0.2)
+
+
+func _build_spark() -> void:
+	_spark = CPUParticles3D.new()
+	_spark.top_level = true
+	_spark.emitting = false
+	_spark.one_shot = true
+	_spark.explosiveness = 1.0
+	_spark.amount = 36
+	_spark.lifetime = 0.32
+	_spark.spread = 55.0
+	_spark.gravity = Vector3(0.0, -18.0, 0.0)
+	_spark.initial_velocity_min = 5.0
+	_spark.initial_velocity_max = 11.0
+	_spark.scale_amount_min = 0.4
+	_spark.scale_amount_max = 1.0
+	var q := QuadMesh.new()
+	q.size = Vector2(0.12, 0.05)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(1.0, 0.95, 0.7)
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	q.material = m
+	_spark.mesh = q
+	add_child(_spark)
+	Feel.time_scale_changed.connect(func(ts: float) -> void:
+		_spark.speed_scale = 1.0 / maxf(ts, 0.01))
+
+
+func _burst_spark(pos: Vector3, dir: Vector3, power: float) -> void:
+	_spark.global_position = pos
+	_spark.direction = (dir + Vector3(0.0, 0.8, 0.0)).normalized()
+	_spark.initial_velocity_max = 6.0 * power + 4.0
+	_spark.scale_amount_max = 0.6 * power + 0.3
+	_spark.restart()
 
 
 func _tick_hurt(delta: float) -> void:
@@ -479,6 +549,7 @@ func warmup() -> void:
 	_build_trail(95.0, -75.0, 0.0)
 	_set_trail_alpha(0.02)
 	trail.visible = true
+	_burst_spark(global_position + Vector3(0.0, 1.2, 0.0), Vector3.UP, 0.1)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame

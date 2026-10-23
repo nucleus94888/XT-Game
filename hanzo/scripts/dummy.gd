@@ -4,6 +4,8 @@ extends CharacterBody3D
 
 signal destroyed
 signal hit_taken(info: Dictionary)
+signal posture_broken
+signal executed
 
 const MAX_HP := 70
 
@@ -36,6 +38,15 @@ var _react_tw: Tween
 var _sfx_crack: AudioStreamPlayer
 var _stun_t := 0.0
 var _sfx_sweep: AudioStreamPlayer
+## 體幹（隻狼式）：被打、被彈反都會累積；滿了就「崩壞」，下一刀是忍殺
+var posture := 0.0
+var _posture_t := 0.0
+var _broken := false
+var _bar: Node3D
+var _bar_fill: MeshInstance3D
+var _bar_mat: StandardMaterial3D
+var _attack_cd := 1.5
+var _player: Node3D
 
 
 func _ready() -> void:
@@ -61,6 +72,107 @@ func _ready() -> void:
 	# 頓幀期間火花改走真實時間，凍結的畫面裡仍有東西在飛
 	Feel.time_scale_changed.connect(func(ts: float) -> void:
 		particles.speed_scale = 1.0 / maxf(ts, 0.01))
+	_build_bar()
+	_player = get_tree().get_first_node_in_group("player")
+
+
+## 頭上的體幹條（不隨搖晃傾斜）
+func _build_bar() -> void:
+	_bar = Node3D.new()
+	add_child(_bar)
+	_bar.position = Vector3(0.0, 2.75, 0.0)
+	var bg := MeshInstance3D.new()
+	var qbg := QuadMesh.new()
+	qbg.size = Vector2(1.5, 0.14)
+	var mbg := StandardMaterial3D.new()
+	mbg.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mbg.albedo_color = Color(0.05, 0.05, 0.06, 0.8)
+	mbg.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mbg.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mbg.no_depth_test = true
+	qbg.material = mbg
+	bg.mesh = qbg
+	_bar.add_child(bg)
+	_bar_fill = MeshInstance3D.new()
+	var qf := QuadMesh.new()
+	qf.size = Vector2(1.44, 0.1)
+	_bar_mat = StandardMaterial3D.new()
+	_bar_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_bar_mat.albedo_color = Color(1.0, 0.75, 0.2)
+	_bar_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	_bar_mat.no_depth_test = true
+	_bar_mat.render_priority = 1
+	qf.material = _bar_mat
+	_bar_fill.mesh = qf
+	_bar_fill.position = Vector3(0.0, 0.0, 0.01)
+	_bar.add_child(_bar_fill)
+	_update_bar()
+
+
+func _update_bar() -> void:
+	var r := clampf(posture / 100.0, 0.0, 1.0)
+	_bar_fill.scale.x = maxf(r, 0.001)
+	_bar_fill.position.x = -0.72 * (1.0 - r)
+	_bar_fill.visible = r > 0.0
+	_bar_mat.albedo_color = Color(1.0, 0.2, 0.15) if _broken else Color(1.0, 0.75 - 0.5 * r, 0.2)
+
+
+func add_posture(v: float) -> void:
+	if _broken or _dead:
+		return
+	posture = minf(posture + v, 100.0)
+	_posture_t = 1.5
+	_update_bar()
+	if posture >= 100.0:
+		_break_posture()
+
+
+## 體幹崩壞：長硬直 2.5 秒、紅條閃爍，期間任何一刀都是忍殺
+func _break_posture() -> void:
+	_broken = true
+	_stun_t = 2.5
+	_counter_t = -1.0
+	_attack_cd = 3.0
+	mark.visible = false
+	_wob_v += 3.5
+	_flash_t = 0.3
+	_set_flash(true)
+	_update_bar()
+	posture_broken.emit()
+	get_tree().create_timer(2.5).timeout.connect(func() -> void:
+		if _broken and not _dead:
+			_broken = false
+			posture = 35.0
+			_update_bar())
+
+
+## 忍殺：體幹崩壞中被砍 → 一刀致命
+func _execute(info: Dictionary) -> void:
+	_broken = false
+	posture = 0.0
+	_update_bar()
+	_hit_dir = (info.dir as Vector3).normalized()
+	_kb = _hit_dir * 3.0
+	Fx.damage_number(info.pos, hp, true)
+	hp = 0
+	Feel.hitstop(2.4)
+	Feel.shake(1.6)
+	Feel.kick(_hit_dir, 0.5)
+	Feel.flash(Color(0.75, 0.05, 0.05, 0.45), 0.5)
+	particles.global_position = info.pos
+	particles.direction = _hit_dir + Vector3(0.0, 0.8, 0.0)
+	particles.scale_amount_max = 2.0
+	particles.initial_velocity_max = 14.0
+	particles.restart()
+	executed.emit()
+	_die()
+
+
+func _start_counter() -> void:
+	_counter_t = 0.0
+	_sweep_done = false
+	_recent_hits = 0
+	mark.visible = true
 
 
 func _physics_process(delta: float) -> void:
@@ -90,6 +202,17 @@ func _physics_process(delta: float) -> void:
 	_stun_t -= delta
 	if _counter_t >= 0.0:
 		_tick_counter(delta)
+	# 體幹：1.5 秒沒被打就慢慢回復
+	_posture_t -= delta
+	if _posture_t <= 0.0 and not _broken and posture > 0.0:
+		posture = maxf(posture - 12.0 * delta, 0.0)
+		_update_bar()
+	# 玩家靠近時會主動橫掃（練彈反用）
+	_attack_cd -= delta
+	if not _dead and not _broken and _stun_t <= 0.0 and _counter_t < 0.0 and _attack_cd <= 0.0 and _player \
+			and global_position.distance_to(_player.global_position) < 3.2:
+		_start_counter()
+		_attack_cd = 2.8
 
 
 func _set_flash(on: bool) -> void:
@@ -112,6 +235,10 @@ func warmup() -> void:
 func take_hit(info: Dictionary) -> void:
 	if _dead:
 		return
+	if _broken:
+		_execute(info)
+		return
+	add_posture(16.0 if info.heavy else 8.0)
 	hp -= int(info.dmg)
 	_hit_dir = (info.dir as Vector3).normalized()
 	_kb = _hit_dir * float(info.kb)
@@ -132,10 +259,7 @@ func take_hit(info: Dictionary) -> void:
 	if hp <= 0:
 		_die()
 	elif _recent_hits >= 3 and _counter_t < 0.0 and _counter_cd <= 0.0 and _stun_t <= 0.0:
-		_counter_t = 0.0
-		_sweep_done = false
-		_recent_hits = 0
-		mark.visible = true
+		_start_counter()
 
 
 ## 受擊反應（真實時間，頓幀中可見）：整體擠扁再彈回、頭往受擊方向甩、手臂抖一下
@@ -186,27 +310,32 @@ func _tick_counter(delta: float) -> void:
 		arms.rotation.y = 0.0
 
 
-## 被彈反：反擊中斷、大幅搖晃、閃白、1.5 秒內不會再反擊（可盡情連砍）
-func stagger() -> void:
+## 被彈反（隻狼式）：手臂被彈回、整個往後仰、閃白、短暫不能再攻，體幹 +35
+func deflected(push_dir: Vector3) -> void:
 	if _dead:
 		return
-	_counter_t = -1.0
-	_counter_cd = 3.0
-	_stun_t = 1.5
+	_counter_t = 0.72
+	_counter_cd = 1.2
+	_attack_cd = 1.6
+	_stun_t = 0.6
 	mark.visible = false
-	_wob_v += 3.2
-	_flash_t = 0.25
+	_hit_dir = push_dir.normalized()
+	_kb = _hit_dir * 2.5
+	_wob_v += 2.6
+	_flash_t = 0.18
 	_set_flash(true)
-	arms.rotation.y = 0.0
 	if _react_tw and _react_tw.is_valid():
 		_react_tw.kill()
-	visual.scale = Vector3(1.25, 0.8, 1.25)
-	head.rotation = Vector3(0.0, 0.0, 0.9)
+	visual.scale = Vector3(1.12, 0.9, 1.12)
+	head.rotation = Vector3(_hit_dir.z * 0.7, 0.0, -_hit_dir.x * 0.7)
+	arms.rotation.y = -1.2
 	_react_tw = create_tween()
 	_react_tw.set_ignore_time_scale(true)
 	_react_tw.set_parallel(true)
-	_react_tw.tween_property(visual, "scale", Vector3.ONE, 0.5).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
-	_react_tw.tween_property(head, "rotation", Vector3.ZERO, 1.2).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_react_tw.tween_property(visual, "scale", Vector3.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_react_tw.tween_property(head, "rotation", Vector3.ZERO, 0.7).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_react_tw.tween_property(arms, "rotation:y", 0.0, 0.5).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	add_posture(35.0)
 
 
 func _die() -> void:
@@ -248,3 +377,7 @@ func _respawn() -> void:
 	tw.tween_property(visual, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_dead = false
 	hurtbox.monitorable = true
+	_broken = false
+	posture = 0.0
+	_attack_cd = 1.5
+	_update_bar()
