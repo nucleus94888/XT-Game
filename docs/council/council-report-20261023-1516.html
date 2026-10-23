@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：服部半藏動作冒險 — 工具管線該怎麼備？</title>
+<style>
+  :root{--ink:#1d2129;--muted:#5b6470;--line:#e3e6ea;--bg:#fff;--soft:#f6f7f9;
+    --c1:#c75c4c;--c2:#3c6fb0;--c3:#3a9a6e;--c4:#9a6bb8;--c5:#d08a2a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",Roboto,sans-serif;line-height:1.7;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 64px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:.3px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:28px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:18px 0;background:#fff}
+  .card.q{background:var(--soft)}
+  .card h2{font-size:18px;margin:0 0 12px}
+  .verdict h3{font-size:16px;margin:20px 0 6px;padding-left:10px;border-left:4px solid var(--ink)}
+  .verdict p{margin:6px 0}
+  .first{background:#fff8e6;border:1px solid #f0d890;border-radius:8px;padding:14px 16px;margin-top:16px}
+  .first strong{display:block;margin-bottom:4px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+  .adv{border:1px solid var(--line);border-radius:8px;padding:12px;border-top:4px solid}
+  .adv .n{font-weight:700;font-size:14px}
+  .adv .p{font-size:13px;color:var(--muted);margin-top:4px}
+  .adv .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;margin-top:8px;background:var(--soft);border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft);font-weight:600}
+  td.y{color:#1f7a4d;font-weight:600}
+  td.n{color:#a33b2d;font-weight:600}
+  td.m{color:#8a6a12;font-weight:600}
+  details{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:#fff}
+  summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;align-items:center;gap:10px}
+  summary::-webkit-details-marker{display:none}
+  summary .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  details .body{padding:0 18px 16px;color:#2a2f36}
+  details .body p{margin:8px 0}
+  .c1{border-color:var(--c1)} .c2{border-color:var(--c2)} .c3{border-color:var(--c3)} .c4{border-color:var(--c4)} .c5{border-color:var(--c5)}
+  .d1{background:var(--c1)} .d2{background:var(--c2)} .d3{background:var(--c3)} .d4{background:var(--c4)} .d5{background:var(--c5)}
+  .footer{color:var(--muted);font-size:13px;margin-top:36px;border-top:1px solid var(--line);padding-top:14px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:90%}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LLM Council 報告：改做「服部半藏」動作冒險，工具管線該怎麼備？</h1>
+  <div class="sub">2026-10-23 15:16 · 專案 XT-Game · 五位顧問獨立回答 → 匿名互評 → 主席統整 · 前一次議會 2026-10-22（結論「不轉型」）</div>
+
+  <div class="card q">
+    <h2>提問</h2>
+    <p>開發者不喜歡現有戰略玩法，想改以<strong>服部半藏</strong>為主角做<strong>冒險動作遊戲</strong>並上架 Android／iOS。過去幾次動作成品在「遊戲方式、畫面、打擊感、敘事、UI 流程」都遠遠不足，因此要求 <strong>AI 先把各方面工具／管線備齊（免費優先），自主補齊欠缺，再正式開發</strong>。</p>
+    <p style="color:var(--muted);font-size:14px;margin:0">脈絡：單人 + AI 輔助、Windows 10、three.js + Vite + TS、8,500 行戰略遊戲已部署、昨天議會才結論不轉型、最高原則「要好玩不要簡化」、不能用光榮素材。</p>
+  </div>
+
+  <div class="card verdict">
+    <h2>主席裁決</h2>
+
+    <h3>議會一致同意之處</h3>
+    <p>五位顧問獨立得出同一診斷：<strong>「先備齊管線再開發」就是拖延的起點。</strong> 過去五項失敗（打擊感、敘事、UI 流程）沒有一項源於缺工具；打擊感是 hit-stop、鏡頭震動、音效對幀這類 10 毫秒級參數反覆調出來的，Blender 與 TTS 不會替你調。四位顧問獨立提出同一個驗證方式：先做「一個半藏、一個敵人、一刀」的最小切片，以「砍下去爽不爽」為唯一驗收。另有共識：Windows 10 無法匯出 iOS，「免費優先」與「上架 iOS」在起點就矛盾，應延後處理。</p>
+
+    <h3>議會分歧之處</h3>
+    <p><strong>引擎</strong>：反方與第一原理主張不換引擎，用現有 three.js 做灰盒，避免換工具本身成為新的拖延；執行者與局外人主張直接換 Godot 4，因為觸控、動畫狀態機、碰撞框、APK 匯出全內建，three.js 全部要自己寫，等於第三次重蹈覆轍。兩方都講理：前者防「換工具＝逃避」，後者防「造輪子＝離手機永遠三天遠」。</p>
+    <p><strong>8,500 行戰略層的去留</strong>：擴張者主張翻轉為任務生成器與後果系統，是單人靠系統深度撐起長遊玩的唯一方法；其餘四位認為在一刀爽感未證明前談架構，正是「功能多、手感零」的舊病。</p>
+
+    <h3>議會抓到的盲點</h3>
+    <p>互評一致指出五位顧問全部漏掉的事：<strong>開發者明說「請 AI 自主補齊」，五份回答都在反對他，卻沒給 AI 一條可執行的路。</strong> 另外三點：沒人設計 AI 在手感調校中的真正角色（AI 不能替他感覺爽，但能快速出參數面板、批次產出候選手感讓他只做選擇）；沒人設止損與防翻盤機制（24 小時兩次轉向是風險訊號）；沒人說明「灰盒切片」與「不簡化」並不衝突——切片是深度優先，不是砍功能；戰略專案開分支保留即可，放棄不等於刪除。</p>
+
+    <h3>建議</h3>
+    <p><strong>換 Godot 4.5，三天內在 Android 手機上砍倒一個稻草人。</strong> 採執行者路線，理由是議會多數：three.js 缺觸控、動畫狀態機與 APK 匯出，灰盒做完離手機仍遠。</p>
+    <p>對「AI 自主補齊」的明確回答：<strong>AI 不是拒絕，而是把「備齊管線」重新定義為「只接第一刀需要的最小工具組」。</strong> AI 接下來該做：一、裝 Godot 4.5、Blender、Android SDK，走通 Mixamo→Blender→GLB→Godot→APK 這條唯一管線；二、建一個手感參數面板（hit-stop 時長、time_scale、鏡頭震幅、音效偏移），讓開發者在手機上滑桿即時調，AI 負責產出三到五組候選預設值供他盲選；三、開 git 分支封存戰略專案。AI 不該做：素材庫整理、LLM/TTS 接 API、故事、UI 流程、商店帳號、iOS 任何事。其餘工具一律「被實際卡住才裝」，由 AI 在原型後列缺口清單。</p>
+    <p>「不簡化」原則這樣守：切片小不代表淺，一刀要做到連按十分鐘停不下來的深度。擴張者的洞見保留為條件分支：若第三天那一刀爽了，地圖翻轉為任務生成器就是正式的第二階段，不必從零造世界。</p>
+    <p>止損規則現在就簽：三天內不爽，證明病根不在工具，回到戰略專案補回饋感，兩週內不得再改方向。</p>
+
+    <div class="first"><strong>第一件該做的事</strong>今天安裝 Godot 4.5，從 Mixamo 下載一個角色加五個動作（idle、run、攻擊×2、受擊），匯入後在電腦上播放攻擊動畫——只此一步，不做其他任何事。</div>
+  </div>
+
+  <div class="card">
+    <h2>顧問立場一覽</h2>
+    <div class="grid">
+      <div class="adv c1"><div class="n">反方思考者</div><div class="p">先備管線＝逃避。48 小時 three.js 灰盒，不換引擎。</div><span class="tag">不換引擎</span></div>
+      <div class="adv c2"><div class="n">第一原理</div><div class="p">問錯問題。根因是從沒做過 30 秒「爽」切片。three.js 兩天方塊。</div><span class="tag">不換引擎</span></div>
+      <div class="adv c3"><div class="n">擴張者</div><div class="p">8,500 行是世界引擎，翻成任務生成器；管線即產品。</div><span class="tag">保留地圖</span></div>
+      <div class="adv c4"><div class="n">局外人</div><div class="p">採購單＝拖延。兩週一刀一敵，給三個路人玩 30 秒。</div><span class="tag">傾向 Godot</span></div>
+      <div class="adv c5"><div class="n">執行者</div><div class="p">Godot 4.5，三天手機上砍倒稻草人；明列「不做」。</div><span class="tag">換 Godot</span></div>
+    </div>
+    <table>
+      <thead><tr><th>議題</th><th>反方</th><th>第一原理</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr></thead>
+      <tbody>
+        <tr><td>「先備齊管線」是錯誤起點</td><td class="y">同意</td><td class="y">同意</td><td class="n">反對（管線即產品）</td><td class="y">同意</td><td class="y">同意</td></tr>
+        <tr><td>先做「一刀」最小切片驗證爽感</td><td class="y">是</td><td class="y">是</td><td class="m">未提</td><td class="y">是</td><td class="y">是</td></tr>
+        <tr><td>換引擎到 Godot</td><td class="n">不換</td><td class="n">不換</td><td class="m">three.js+Capacitor</td><td class="m">傾向但不重要</td><td class="y">換</td></tr>
+        <tr><td>保留 8,500 行戰略層</td><td class="m">未提</td><td class="m">未提</td><td class="y">翻轉為任務生成器</td><td class="m">未提</td><td class="m">未提</td></tr>
+        <tr><td>iOS 現階段擱置</td><td class="y">矛盾，擱置</td><td class="m">未提</td><td class="m">未提</td><td class="m">未提</td><td class="y">硬牆，擱置</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>各顧問完整回答</h2>
+
+    <details class="c1"><summary><span class="dot d1"></span>反方思考者（The Contrarian）</summary><div class="body">
+      <p>先指出被迴避的問題：「先把管線備齊再開發」本身就是這次最可能致命的決策。他過去五個失敗點——打擊感、敘事、UI 流程——沒有一個是因為缺 Blender 或缺 TTS API。打擊感是 hit-stop、鏡頭震動、音效對齊幀數的反覆調校，是坐在遊戲前改一百次參數得來的，工具鏈不會替他調。把「準備」排在前面，等於買齊全套健身器材來迴避舉重。而且他 24 小時內兩次翻盤，昨天才接受「不轉型」結論，這代表任何需要數週的管線工程，在他失去耐心前都不會有成品可驗證。</p>
+      <p>第二個漏洞：「不喜歡戰略方式」被當成理由直接採信，但沒人追問他是否試玩過自己的遊戲三十分鐘。8,500 行、已部署、昨天剛做完回饋感改造——若今天就判死刑，更像是對「做不出好玩感」的逃避，而這個逃避換了題材會原樣復發，動作遊戲對打擊感的要求只會更殘酷。</p>
+      <p>第三：上架 iOS 需要 Mac 或付費雲端建置、99 美元年費、Xcode 簽章流程；他是 Windows 10 單人。「免費優先」與「上架 iOS」在起點就互相矛盾，卻被列為目標而非風險。</p>
+      <p>我的建議反過來：給自己 48 小時，不換引擎、不裝工具，用現有 three.js 做一個只有一名半藏、一個敵人、一招攻擊的灰盒原型，唯一目標是「打中的瞬間自己覺得爽」。做不出來，問題就不在工具鏈，再多準備也是拖延；做得出來，再根據那個原型缺什麼去補管線，而不是先猜。</p>
+    </div></details>
+
+    <details class="c2"><summary><span class="dot d2"></span>第一原理思考者（The First Principles Thinker）</summary><div class="body">
+      <p>你問錯問題了。你要解的不是「缺哪些工具」，而是「為什麼過去幾次動作遊戲成品，打擊感、敘事、UI 都失敗」。把這個問題剝到底：打擊感不是工具問題，是 hit-stop、鏡頭震動、粒子、音效時機這幾個 10 毫秒級參數的調校功夫；敘事不是缺 TTS，是你還沒寫出一個會讓人想按「下一句」的場景；UI 流程不是缺框架，是沒畫過流程圖就開工。這三者共通的根因是：<strong>從沒做過一個 30 秒長、被真人反覆玩到說「爽」的最小切片</strong>，就直接往成品衝。</p>
+      <p>因此「先把所有管線備齊再開發」是最危險的方向——它把你最不擅長、最需要迭代的部分（感覺）推到最後，把最會自我感覺良好的部分（裝工具）放前面。8,500 行戰略遊戲也是同樣的錯：功能很多，手感為零。</p>
+      <p>正確的第一個問題只有一個：<strong>「服部半藏在一間房間裡、面對一個敵人、按一下攻擊，怎樣才會爽？」</strong> 用你現有的 three.js 兩天內做出來，不要新引擎、不要素材庫、只用方塊。做到你自己連按十分鐘停不下來，才有資格談引擎、商店、Mixamo。如果這個切片做不爽，換成 Godot 也一樣不爽；如果做爽了，剩下的管線清單會從「需求」自然長出來，而不是從想像列出來。</p>
+      <p>順帶一句：昨天議會說「問題在回饋感」，今天你換了題材，問題還是回饋感。題材會變，核心弱點不會自己消失。</p>
+    </div></details>
+
+    <details class="c3"><summary><span class="dot d3"></span>擴張者（The Expansionist）</summary><div class="body">
+      <p><strong>被低估的資產：那 8,500 行不是沉沒成本，是現成的「世界引擎」。</strong></p>
+      <p>大家會盯著「換引擎還是不換」。我看到的是：他已經有一張真實日本地圖、勢力關係、外交狀態、忍者系統、時間推進。這正好是服部半藏動作遊戲最缺、也最難從零做的東西——一個會自己動的戰國世界。半藏不是在空白關卡裡打怪，而是接受來自這張地圖的任務：潛入今川、刺殺武將、偷技術圖紙，任務成敗回寫到地圖，改變勢力版圖。「大戰略層」降級成任務生成器與後果系統，動作層才是主玩法。這是暗殺教條／只狼沒有的結構，也是單人開發者唯一能靠「系統深度」而不是「內容量」撐起 30 小時遊玩的辦法。</p>
+      <p><strong>上行空間一：管線即產品。</strong> 把管線做成可對外重用的「水墨和風動作遊戲工具組」：Mixamo 動作 → Blender 批次重定向 → three.js/Godot 匯入腳本、ChipTone 音效批次表、LLM 生成任務對白。做到第三款遊戲時，這些工具本身就是資產，甚至能開源換社群貢獻者。</p>
+      <p><strong>上行空間二：平台不要只想手機。</strong> three.js 走 Capacitor 的同時，PWA 一鍵就有 Steam Deck 瀏覧器、桌面、itch.io 曝光。手機是終點，網頁是測試場——每個版本先丟 itch.io 拿即時回饋，比閉門造車三個月再上架強十倍。</p>
+      <p><strong>上行空間三：敘事用 LLM 當共筆，不是生成器。</strong> 半藏史料極薄，正好留白；用免費 LLM 以「服部家忍者日誌」格式產出每次任務的事後紀錄，玩家回頭看就是自己的忍者傳。這把他最弱的敘事，變成系統自動長出來的東西。</p>
+      <p>結論：<strong>不要丟掉地圖，把它翻過來。</strong></p>
+    </div></details>
+
+    <details class="c4"><summary><span class="dot d4"></span>局外人（The Outsider）</summary><div class="body">
+      <p><strong>我第一次看到這個計畫，有三件事讓我困惑。</strong></p>
+      <p><strong>一、「準備好所有工具再開始做遊戲」，這句話我沒聽過哪個做出東西的人說過。</strong> 我看到的清單——Blender、Mixamo、Krita、LibreSprite、Audacity、sfxr、TTS、LLM API、Capacitor、簽章、憑證——這是一間工作室的採購單，不是一個人幾週內能用熟的。你說過去五方面都「遠遠不足」，但沒有一項是「因為少了某個工具」造成的；一個人拿著 Blender 不會自動有打擊感。如果我是旁觀者，會覺得這份清單像是在用「準備」延後再次面對「我做出來的動作遊戲不好玩」這件事。</p>
+      <p><strong>二、昨天剛被勸住，今天就推翻，而且理由是「不喜歡」。</strong> 我不是說不能改——做了 8,500 行才發現自己不愛玩戰略，這是真實的訊號，值得尊重。但「不喜歡戰略」和「做動作遊戲會好玩」是兩件事。你有沒有試過，花一個晚上用現有的 three.js 專案，讓一個方塊在手機螢幕上跑、跳、揮刀，然後問自己：手指按下去那一瞬間，我有沒有感覺？沒有這個答案之前，選 Godot 或 Unity 都是在替一個還不存在的遊戲挑餐具。</p>
+      <p><strong>三、對我這種路人來說，「服部半藏」是誰、為什麼要玩他，我完全不知道。</strong> 這代表角色 IP 不會幫你賣遊戲，只有「好不好玩」會。</p>
+      <p><strong>我的建議很單純：</strong> 兩週、一個引擎（Godot 4 內建匯出手機最省事，但真的不重要）、一個關卡、一把刀、一隻敵人、觸控操作。做出來，給三個不認識你的人玩三十秒，看他們臉。管線的缺口到那時候才會真正浮現，而且是具體的缺口，不是採購單。</p>
+    </div></details>
+
+    <details class="c5"><summary><span class="dot d5"></span>執行者（The Executor）</summary><div class="body">
+      <p>「先把管線備齊再開發」就是拖延的起點。工具只有在被某個具體產出逼出來時才值得接上。所以星期一早上只做一件事：<strong>三天內讓半藏砍倒一個稻草人，並在自己的 Android 手機上跑起來。</strong></p>
+      <p>引擎選 <strong>Godot 4.5</strong>，不要 three.js + Capacitor。打擊感需要的 AnimationTree、Area3D 碰撞框、hitstop、鏡頭震動、TouchScreenButton、一鍵匯出 APK，Godot 全部內建；three.js 這些要自己從零寫，等於第三次重蹈覆轍。GDScript 對 TS 使用者一天就上手。</p>
+      <p>具體順序：1. 裝 Godot 4.5、Blender 4.x，註冊 Mixamo。2. Mixamo 抓一個角色 + 五個動作（idle/run/攻擊×2/受擊），FBX → Blender 合併 → GLB 匯入 Godot。3. CharacterBody3D + AnimationTree，攻擊幀開 Area3D，命中時 <code>Engine.time_scale</code> 壓到 0.05 持續 80ms、鏡頭震、噴粒子、freesound 抓三個音效。4. Android Studio 裝 SDK，debug keystore 匯出 APK 裝到手機。</p>
+      <p><strong>不做</strong>：素材庫整理、LLM/TTS API、故事、UI 流程、商店上架。Apple 99 美元先不付——他是 Windows 10，iOS 匯出必須有 macOS + Xcode，這是硬牆，等遊戲存在再想（租 Mac 雲端或借機器）。</p>
+      <p>驗收標準很單純：第三天晚上，手機上那一刀砍下去「爽不爽」。爽，就有基底往上堆；不爽，證明問題從來不是工具，再多管線也救不了。</p>
+    </div></details>
+  </div>
+
+  <div class="card">
+    <h2>互評重點</h2>
+    <details><summary>五位評審的共同結論與全體盲點</summary><div class="body">
+      <p><strong>最強回答：五票一致選「執行者」。</strong> 理由：唯一把診斷翻成可執行到小時級的三天計畫、附引擎選擇理由、有明確「不做」清單、驗收標準單一、正面處理 Windows 無法匯出 iOS 的硬牆。反方與第一原理診斷同樣準確，但「用 three.js 做灰盒」忽略了 three.js 缺觸控、動畫狀態機與 APK 匯出，三天後離手機仍遠。</p>
+      <p><strong>最大盲點：五票一致指「擴張者」。</strong> 在一刀爽感尚未證明前就疊上任務生成、後果系統、LLM 日誌、工具組，複製了「功能多、手感零」的舊病；也是唯一沒碰「先備管線」陷阱的回答。但有評審指出它是唯一真正尊重「要好玩不要簡化」且給出長期深度的，應保留為條件分支。</p>
+      <p><strong>全體漏掉的事：</strong></p>
+      <p>1. 開發者明說「由 AI 自主補齊」，五位都在反對卻沒給 AI 一條可執行的路——AI 應限定在「第一刀逼出的最小工具組」，其餘「被實際卡住才裝」。</p>
+      <p>2. 沒人設計 AI 在手感調校中的角色：AI 不能替他「感覺」爽，但能出參數面板、批次產出候選預設值讓他盲選。</p>
+      <p>3. 沒人設止損與防翻盤機制：24 小時兩次轉向是風險訊號，應先簽「三天不爽就回頭、兩週不改方向」。</p>
+      <p>4. 「灰盒切片」與「不簡化」不衝突：切片是深度優先，不是砍功能。</p>
+      <p>5. 戰略專案開 git 分支保留即可，放棄不等於刪除。</p>
+    </div></details>
+  </div>
+
+  <div class="footer">
+    產出時間 2026-10-23 15:16 · 議題：XT-Game 改做服部半藏動作冒險遊戲，工具管線該怎麼備（免費優先、上架 Android/iOS） · 完整逐字稿：council-transcript-20261023-1516.md
+  </div>
+</div>
+</body>
+</html>

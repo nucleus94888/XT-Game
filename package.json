@@ -1,30 +1,13 @@
 {
-  "name": "xt-game",
+  "name": "xt-game-hanzo",
   "version": "0.1.0",
-  "description": "日本戰國時期遊戲 (three.js)",
+  "description": "半藏 HANZO — 服部半藏動作冒險（Godot 4.7）；此 package.json 只放純 Node 的資產產生工具，遊戲本體不依賴 npm",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "three": "^0.186.1"
-  },
-  "devDependencies": {
-    "@types/geojson": "^7946.0.16",
-    "@types/three": "^0.186.0",
-    "@types/topojson-client": "^3.1.5",
-    "@types/topojson-server": "^3.0.4",
-    "@types/topojson-simplify": "^3.0.3",
-    "@types/topojson-specification": "^1.0.5",
-    "puppeteer-core": "^25.15.0",
-    "topojson-client": "^3.1.0",
-    "topojson-server": "^3.0.1",
-    "topojson-simplify": "^3.0.3",
-    "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "sfx": "node tools/sfx/gen.mjs",
+    "icons": "node tools/icons/gen.mjs",
+    "font": "python tools/fonts/subset.py",
+    "assets": "npm run sfx && npm run icons && npm run font"
   }
 }

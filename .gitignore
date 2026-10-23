@@ -1,5 +1,7 @@
 node_modules
-dist
+build/
 .env
-tools/*.png
-tools/geo/japan.topojson
+hanzo/.godot/
+tools/fonts/NotoSansTC-Regular.otf
+tools/ios/secrets/*
+!tools/ios/secrets/.gitignore

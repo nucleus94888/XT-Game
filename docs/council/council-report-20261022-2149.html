@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：戰國 XT 是否改為動作 / 跑酷</title>
+<style>
+  :root {
+    --ink: #1f2328; --muted: #656d76; --line: #d0d7de; --bg: #ffffff; --soft: #f6f8fa;
+    --contrarian: #b3261e; --first: #5b4fcf; --expan: #0f7b3e; --outsider: #b26a00; --exec: #0969da;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", Roboto, sans-serif; line-height: 1.7; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 40px 20px 60px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 28px; }
+  .eyebrow { color: var(--muted); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font-size: 26px; margin: 6px 0 10px; }
+  .question { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; font-size: 15px; }
+  .question p { margin: 6px 0; }
+  h2 { font-size: 20px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 20px 0 6px; }
+  .verdict { border: 2px solid var(--ink); border-radius: 10px; padding: 22px 24px; }
+  .verdict h2 { margin-top: 0; border: none; font-size: 22px; }
+  .verdict h3 { color: var(--ink); }
+  .reco { background: #fff8e6; border-left: 4px solid var(--outsider); padding: 12px 16px; border-radius: 4px; }
+  .first { background: #eef6ff; border-left: 4px solid var(--exec); padding: 12px 16px; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); font-weight: 600; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; }
+  .t-contrarian { background: var(--contrarian); } .t-first { background: var(--first); } .t-expan { background: var(--expan); } .t-outsider { background: var(--outsider); } .t-exec { background: var(--exec); }
+  .spectrum { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 14px 0 6px; }
+  .cell { border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 13px; background: var(--soft); }
+  .cell b { display: block; margin-bottom: 4px; }
+  .axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+  details { border: 1px solid var(--line); border-radius: 8px; margin: 10px 0; background: #fff; }
+  summary { cursor: pointer; padding: 12px 16px; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 10px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸"; color: var(--muted); transition: transform .15s; }
+  details[open] summary::before { transform: rotate(90deg); }
+  .body { padding: 0 16px 16px; border-top: 1px solid var(--line); font-size: 15px; }
+  .body p { margin: 10px 0; }
+  .b-contrarian { border-left: 4px solid var(--contrarian); } .b-first { border-left: 4px solid var(--first); } .b-expan { border-left: 4px solid var(--expan); } .b-outsider { border-left: 4px solid var(--outsider); } .b-exec { border-left: 4px solid var(--exec); }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  ul { padding-left: 22px; } li { margin: 4px 0; }
+  @media (max-width: 640px) { .spectrum { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">LLM Council · 2026-10-22 21:49</div>
+  <h1>戰國 XT 該不該改成動作 / 跑酷玩法？</h1>
+  <div class="question">
+    <p><b>核心決策：</b>一款 three.js 製作、手機優先、和風水墨的日本戰國大戰略遊戲（已完成 19 區地圖、17 勢力、武將、技術樹、外交、忍者、事件、AI、回合制、簡化 3D 戰場、多語系、存檔，已部署），單人開發者在問：玩法是否該改成偏動作類或跑酷類？若改，怎麼改？</p>
+    <p><b>候選方向：</b>(一) 保留戰略層，把戰鬥 / 忍者任務改成動作或跑酷關卡；(二) 整個轉型成動作 / 跑酷遊戲。</p>
+    <p><b>硬限制：</b>單人開發時間、three.js 在手機瀏覽器的即時動作效能、開發者原則「要好玩、不往簡單方向做、每個系統都要有代價的選擇」。</p>
+  </div>
+</header>
+
+<section class="verdict">
+  <h2>主席裁決</h2>
+
+  <h3>議會一致同意的地方</h3>
+  <p>五位顧問零例外地反對方向（二）全面轉型。36 萬字元、互相耦合的戰略系統是真正的資產，報廢它去打手機跑酷這條最擁擠的賽道，又用 three.js 瀏覽器這個在觸控延遲、幀率、電量上先天劣勢的技術棧，是最差的交易。</p>
+  <p>第二個共識：這不是類型問題。反方、第一性原理、局外人三位獨立得出同一診斷：「想換類型」是症狀，病因是現有戰略層的回饋感不足。玩家做了選擇，卻感受不到後果砸在哪裡。</p>
+  <p>第三個共識：跑酷手感調校是單人開發者至少六到八週的黑洞，與「不往簡單方向做」的原則直接衝突，因為要穩 60fps 就得砍掉水墨描邊後處理。</p>
+
+  <h3>議會意見衝突的地方</h3>
+  <p>真正的分歧只有一條：下一步是「驗證」還是「建造」。第一性原理與反方主張先停手，找三個人玩現版本、寫出「為什麼不好玩」的具體診斷，再動程式碼。執行者主張直接把 BattleScene 改成 20 到 40 秒即時單畫面戰鬥，用十天的可證偽里程碑取代訪談。兩邊都合理：前者怕在錯誤診斷上蓋房子；後者認為一個可玩原型本身就是最好的訪談工具，而且失敗零損失。</p>
+  <p>擴張者的「疊加」論點（戰略決策作為動作關卡的輸入、結果回寫忠誠民心）在架構上最漂亮，但五份互評一致判定它迴避了工時現實。它不是錯的方向，是錯的時機。</p>
+
+  <h3>議會抓到的盲點</h3>
+  <ul>
+    <li>沒人問開發者本人為何此刻想轉型。單人專案最大的死因是倦怠，不是設計錯誤。</li>
+    <li>所有手機效能判斷全靠猜。沒人要求先花一小時把現有 build 放上中階 Android 實測幀率與觸控延遲。</li>
+    <li>沒人提議用現有存檔系統記錄玩家在第幾回合棄玩。這比訪談更便宜客觀，也能提供「不改」的對照組。</li>
+  </ul>
+
+  <h3>建議</h3>
+  <div class="reco">
+    <p><b>不轉型，也不做跑酷。</b>保留全部戰略層，把 BattleScene.ts 的回合制選戰術改成一場 20 到 40 秒的即時單畫面水墨戰鬥。只加兩個觸控輸入：拖曳移動本陣、點擊發動家徽技能。沿用五維、剋制、現有美術。原型期用方塊代替模型、鎖 30fps。</p>
+    <p>同時採納局外人的建議：讓這場戰鬥成為開場第一幕，打完才進地圖，解決前 60 秒留不住人的問題。</p>
+    <p>忍者潛入、單騎衝鋒等關卡，只在即時戰鬥原型通過第十天驗收後，才用同一套引擎做第二種關卡。擴張者的「決策輸入、結果回寫」架構留到那時再用。</p>
+    <p><b>驗收標準：</b>同一場仗打五次，你會因為移動時機不同而輸贏不同，且在中階 Android 上不掉幀。達不到就退回回合制，什麼都沒浪費。</p>
+  </div>
+
+  <h3>第一件該做的事</h3>
+  <div class="first">
+    <p>在動任何程式碼之前，先誠實回答並寫下來：「我此刻想轉型，是因為玩家訊號、技術判斷，還是我自己對戰略層膩了？」如果是第三個，該做的不是即時戰鬥，而是重新找回想做這款遊戲的理由。如果是前兩者，星期一早上開始改 BattleScene.ts。</p>
+  </div>
+</section>
+
+<h2>顧問立場一覽</h2>
+<div class="axis"><span>◀ 先診斷、先驗證</span><span>先建造、先擴張 ▶</span></div>
+<div class="spectrum">
+  <div class="cell"><b><span class="tag t-contrarian">反方</span></b>兩個方向都反對。先寫出「現在為什麼不好玩」的診斷。</div>
+  <div class="cell"><b><span class="tag t-first">第一性原理</span></b>問錯問題。缺的是回饋觸感，不是類型。先找三人試玩。</div>
+  <div class="cell"><b><span class="tag t-outsider">局外人</span></b>前 60 秒留不住人。把現有戰鬥變成開場第一幕。</div>
+  <div class="cell"><b><span class="tag t-exec">執行者</span></b>不轉型。10 天做出兩輸入即時戰鬥原型，可證偽。</div>
+  <div class="cell"><b><span class="tag t-expan">擴張者</span></b>不換而是疊。動作關卡掛在戰略決策上，加 UGC 與賽季。</div>
+</div>
+
+<table style="margin-top:18px">
+  <tr><th>議題</th><th>反方</th><th>第一性原理</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr>
+  <tr><td>方向（二）全面轉型</td><td>反對</td><td>反對</td><td>反對</td><td>反對</td><td>反對</td></tr>
+  <tr><td>方向（一）加動作關卡</td><td>反對（雙倍工作量）</td><td>有條件（補丁）</td><td>贊成（疊加）</td><td>未置可否</td><td>有條件（第 10 天後）</td></tr>
+  <tr><td>先做什麼</td><td>診斷</td><td>試玩訪談</td><td>疊加架構</td><td>開場第一幕</td><td>即時戰鬥原型</td></tr>
+  <tr><td>互評「最強」得票</td><td>0</td><td>1</td><td>0</td><td>0</td><td>4</td></tr>
+  <tr><td>互評「盲點最大」得票</td><td>0</td><td>0</td><td>5</td><td>0</td><td>0</td></tr>
+</table>
+
+<h2>顧問完整回答</h2>
+
+<details class="b-contrarian"><summary><span class="tag t-contrarian">反方思考者</span> 問題本身是逃避訊號，缺的是診斷</summary><div class="body">
+<p>致命缺陷不在「選哪個方向」，而在這個問題本身：一個做了兩次 commit、連核心迴圈都還沒被真實玩家驗證過的戰略遊戲，為什麼已經在考慮轉型？這通常不是設計洞察，是「現有東西玩起來不夠爽」的逃避訊號。改成動作類不會修好這件事，只會把問題藏到新系統後面。</p>
+<p>方向（二）全面轉型是最爛的交易：三十六萬字元的外交、忍者、技術樹、AI 勢力全數報廢，換來一個 three.js 手機跑酷，而手機跑酷市場已被原生引擎遊戲塞滿，瀏覽器版在觸控延遲、60fps 穩定度、電量上全面劣勢，水墨 toon shading 加描邊更是雪上加霜。你拿最弱的技術棧去打最紅的海。</p>
+<p>方向（一）看似折衷，實際是雙倍工作量：動作關卡要有手感需要數百小時調校，單人開發一邊做戰略一邊做動作，結果是兩個都半生不熟。更危險的是，戰略玩家最討厭的就是被迫打動作小遊戲，每月回合被跑酷關卡打斷，等於懲罰你唯一的核心受眾。</p>
+<p>缺了什麼？缺一份「現在這款戰略遊戲為什麼不好玩」的具體診斷。「有代價的選擇」做到了嗎？十回合後玩家會不會覺得只是在點按鈕？先回答這個，再談轉型。否則任何方向都是在用新玩法掩蓋舊問題。</p>
+</div></details>
+
+<details class="b-first"><summary><span class="tag t-first">第一性原理思考者</span> 缺的是回饋觸感，不是反射操作</summary><div class="body">
+<p>你問錯問題了。「大戰略還是動作／跑酷」是類型標籤之爭，不是問題本身。剝開看，你真正在問的是：<b>我做出來的東西，玩家為什麼會想按下一回合？</b>這個問題在現有版本沒被回答，所以才會往「換個類型」找出口。但換類型不會製造好玩，只會換一組你還沒解決的問題。</p>
+<p>從根本重建：一款遊戲的好玩來自「有代價的選擇 + 選擇的後果能被感受到」。你的戰略層已有大量「選擇」，缺的是「後果的觸感」：一個月一回合、數字跳動，玩家感覺不到自己的決定砸在哪。動作／跑酷的誘惑，其實是對「即時回饋」的渴望，而不是對「反射操作」的需要。這兩者可以分開。</p>
+<p>所以方向是：<b>不要換類型，而是把現有戰鬥的回饋變成可感受的。</b>讓每個戰術選擇在三秒內用水墨筆觸、家徽碰撞、墨量消長演出來。那才是你缺的東西，成本遠低於重寫成動作遊戲。</p>
+<p>兩個硬證據：一、單人開發加 three.js 手機即時動作，是技術與時間的雙重賭注，一旦性能不達標，整個作品歸零；二、現有 36 萬字元的系統互相耦合，這是真正的護城河，動作遊戲做不出這種深度。</p>
+<p>結論：先用兩週找三個人玩現版本，問「哪一刻你覺得無聊」。如果答案是「我不知道我的決定有沒有用」，那是回饋問題，不是類型問題。方向（一）中的忍者潛入小關卡可作為補丁，但前提是它要回答同一個問題。</p>
+</div></details>
+
+<details class="b-expan"><summary><span class="tag t-expan">擴張者</span> 不是換，是疊：戰國沙盒平台</summary><div class="body">
+<p>大家都在問「要不要放棄戰略層」，這是把最大的資產看成包袱。被低估的真相是：你手上有一個市面上幾乎沒人做的東西：<b>瀏覽器可玩、手機優先、水墨風的戰國大戰略</b>。光榮不做手機瀏覽器版，獨立開發者多半做像素風。這個空位本身就是上行空間。</p>
+<p>所以答案不是「換」，而是「疊」。戰略層是地基，動作關卡是樓層：忍者潛入、單騎衝鋒、攻城跑酷，全部當成「戰略決策的執行方式」掛進去。每一關的輸入是你在地圖上的選擇（派誰、帶多少墨量、哪個季節），輸出回寫到武將忠誠、區域民心。一個系統養活另一個系統，內容量乘法成長。</p>
+<p>更大的相鄰機會：1. 家徽即內容管線，SVG 程式繪製代表能生成無限勢力，開放玩家自創家紋，UGC 成本近乎零。2. 季節卷軸 = 賽季制，每回合一個月的結構天生適合「每週一個月」的非同步聯機。3. 墨量體力是貫穿全遊戲的統一貨幣，一個機制賣兩次。</p>
+<p>如果比預期更成功？你會擁有一個「戰國沙盒平台」，不是一款跑酷遊戲。別把護城河填平去蓋滑梯。</p>
+</div></details>
+
+<details class="b-outsider"><summary><span class="tag t-outsider">局外人</span> 前 60 秒我在做什麼？</summary><div class="body">
+<p>我是隨手在手機上點開這個網址的人，先說我看到什麼：一張 19 格的地圖、十幾個我不認識的家名、一堆五項數字的人、科技樹、外交、忍者、事件。我不知道「信長之野望風格」是什麼，我只知道 30 秒內沒東西讓我按下去就會關掉。</p>
+<p>所以我的答案：你問錯問題了。「改成動作還是跑酷」對我沒差，因為兩邊我都還沒有被抓住。真正的問題是「前 60 秒我在做什麼」。</p>
+<p>兩個具體警告：1. 跑酷在手機瀏覽器上，我會直接拿 Subway Surfers 當標準。three.js 掉幀、觸控延遲，我一秒就判死刑。這是你最輸不起的賽道。2. 「一騎討」「落武者」「飛腳」「家徽」「墨量即體力」這些詞對你是靈感，對我是一堵牆。我連「家徽」是什麼都不知道，它卻是主角。</p>
+<p>我會怎麼做：不要換類型，把你已經做好的 3D 水墨戰鬥變成「開門第一幕」。點開網頁就在戰場上，三個戰術按鈕、有剋制、看到結果，沒有名詞。打完這一仗才告訴我「這是你的地盤，要不要管一下」。戰略層留著，但它是獎勵，不是門票。</p>
+<p>另外，忠誠、特性、五維，請用「發生了什麼事」告訴我，不要用數字。數字對開發者是資訊，對我是噪音。</p>
+</div></details>
+
+<details class="b-exec"><summary><span class="tag t-exec">執行者</span> 十天做出可證偽的即時戰鬥原型</summary><div class="body">
+<p>不要轉型，也不要先做跑酷。星期一早上該做的事是：把 BattleScene.ts 那 580 行「選戰術」的回合戰鬥，改成<b>一場 20 到 40 秒的即時單畫面戰鬥</b>，只加兩個觸控輸入：左右拖曳移動本陣、點擊發動一次家徽技能。這是現有程式碼、現有數值、現有美術全部沿用的最小改動。</p>
+<p>為什麼不是跑酷：無限跑酷要做出「好玩」需要手感調校（跳躍曲線、碰撞寬容、節奏生成），這是單人至少 6 到 8 週反覆試錯的工作，而且 three.js 在中階 Android 上要穩 60fps，意味著墨線描邊後處理大概得砍掉。你會花兩個月換一個手感普通的跑酷，然後戰略系統閒置。</p>
+<p>工時估計：即時戰鬥原型（方塊代替美術、鎖 30fps、兩個輸入）5 到 7 天；接回戰略層勝負與武將數值 2 天；手機實測三台裝置效能 1 天。</p>
+<p>第一個可驗證里程碑（第 10 天）：同一場仗打五次，你自己會因為「移動時機」輸贏不同，而且手機上不掉幀。達不到就回去用回合制，什麼都沒浪費。達到了，忍者任務再用同一套引擎做第二個關卡類型。</p>
+</div></details>
+
+<h2>互評重點</h2>
+<details><summary>五份匿名互評（A = 局外人、B = 執行者、C = 反方、D = 擴張者、E = 第一性原理）</summary><div class="body">
+<p><b>最強回應：</b>執行者（B）獲 4 票，理由一致是「唯一可執行、可證偽、失敗零損失」。第一性原理（E）獲 1 票，理由是把類型之爭拆成「即時回饋 vs 反射操作」，診斷最準。多位審查者指出 B 是 E 診斷的實作路徑。</p>
+<p><b>盲點最大：</b>擴張者（D）獲 5 票。共同理由：UGC、賽季聯機、沙盒平台全疊在尚未驗證的核心迴圈上，迴避單人工時現實，等於同時做兩款遊戲。</p>
+<p><b>全體漏掉的：</b></p>
+<ul>
+  <li>沒人看過實際遊戲或程式碼，五位都是從題目文字推論。</li>
+  <li>沒人問開發者「為何此刻想轉型」。單人專案最大風險是倦怠棄坑。</li>
+  <li>沒人要求先在中階 Android 實測現有 build 的幀率與觸控延遲，這是任何動作化方向的技術前提。</li>
+  <li>沒人提議用現有存檔系統記錄玩家在第幾回合棄玩，作為「不改」的對照組。</li>
+</ul>
+</div></details>
+
+<footer>
+  <p>LLM Council · 2026-10-22 21:49 · 議題：戰國 XT 玩法是否改為動作 / 跑酷 · 5 位顧問 + 5 份互評 + 主席統整</p>
+  <p>完整逐字稿：council-transcript-20261022-2149.md</p>
+</footer>
+
+</div>
+</body>
+</html>
