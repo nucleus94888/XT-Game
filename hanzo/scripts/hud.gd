@@ -4,6 +4,8 @@ extends CanvasLayer
 
 @onready var stats: Label = $Stats
 @onready var hp_bar: ProgressBar = $HpBar
+@onready var stamina_bar: ProgressBar = $StaminaBar
+@onready var compass: Control = $Compass
 @onready var objective: Label = $Objective
 @onready var announce: Label = $Announce
 @onready var flash: ColorRect = $Flash
@@ -23,6 +25,11 @@ var _worst_ms := 0
 var _worst_shown := 0
 var _worst_t := 1.0
 var _overlay: Control
+var _player: Node3D
+var _cam: Node3D
+var _compass_target := Vector3.ZERO
+var _has_compass_target := false
+var _stam_tw: Tween
 
 
 func _ready() -> void:
@@ -38,7 +45,13 @@ func _ready() -> void:
 
 ## 把觸控與玩家接起來（道場、關卡共用）
 func attach(player: Node, cam_rig: Node) -> void:
+	_player = player
+	_cam = cam_rig
 	player.touch = touch
+	player.cam_rig = cam_rig
+	touch.look_delta.connect(cam_rig.look)
+	player.stamina_changed.connect(set_stamina)
+	player.exhausted.connect(flash_stamina)
 	touch.attack_pressed.connect(player.request_attack)
 	touch.dash_pressed.connect(player.request_dash)
 	touch.block_changed.connect(player.set_block)
@@ -77,6 +90,31 @@ func add_kill(text: String = "擊破！", color: Color = Color(1.0, 0.85, 0.4)) 
 
 func set_hp(v: int) -> void:
 	hp_bar.value = v
+
+
+func set_stamina(v: float, max_v: float) -> void:
+	stamina_bar.max_value = max_v
+	stamina_bar.value = v
+
+
+## 體力不足時閃紅
+func flash_stamina() -> void:
+	if _stam_tw and _stam_tw.is_valid():
+		_stam_tw.kill()
+	stamina_bar.modulate = Color(1.0, 0.3, 0.3)
+	_stam_tw = stamina_bar.create_tween()
+	_stam_tw.set_ignore_time_scale(true)
+	_stam_tw.tween_property(stamina_bar, "modulate", Color.WHITE, 0.4)
+
+
+func set_compass_target(pos: Vector3, color: Color = Color(0.6, 0.9, 1.0)) -> void:
+	_compass_target = pos
+	_has_compass_target = true
+	compass.target_color = color
+
+
+func clear_compass_target() -> void:
+	_has_compass_target = false
 
 
 func set_objective(text: String) -> void:
@@ -188,6 +226,20 @@ func _process(delta: float) -> void:
 		_worst_ms = 0
 	fps.text = "%d fps　最長一幀 %d ms" % [Engine.get_frames_per_second(), _worst_shown]
 	_process_panel_state()
+	# 鍵盤轉視角（Q / E）與指南針
+	if _cam:
+		var turn := 0.0
+		if Input.is_action_pressed("look_left"):
+			turn -= 1.0
+		if Input.is_action_pressed("look_right"):
+			turn += 1.0
+		if turn != 0.0:
+			_cam.look(Vector2(turn * 420.0 * delta, 0.0))
+		compass.cam_yaw = _cam.yaw
+	compass.has_target = _has_compass_target and _player != null
+	if compass.has_target:
+		var d := _compass_target - _player.global_position
+		compass.target_bearing = atan2(d.x, -d.z)
 
 
 func _refresh() -> void:

@@ -8,6 +8,8 @@ signal died
 signal parried
 ## 實際扣血時發出（格擋成功不算）
 signal damaged(amount: int)
+signal stamina_changed(v: float, max_v: float)
+signal exhausted
 
 enum State { FREE, ATTACK, DASH, HURT, BLOCK }
 
@@ -16,6 +18,11 @@ const ACCEL := 34.0
 const DASH_SPEED := 17.0
 const DASH_TIME := 0.17
 const MAX_HP := 100
+const MAX_STAM := 100.0
+const STAM_ATTACK := [12.0, 12.0, 20.0]
+const STAM_DASH := 20.0
+const STAM_BLOCK_HIT := 15.0
+const STAM_REGEN := 28.0
 const PIVOT_HOME := Vector3(0.0, 1.15, 0.0)
 ## 格擋姿勢（隻狼式）：刀身豎直在身前、略向內收
 const GUARD_ROT := Vector3(-82.0, 18.0, -10.0)
@@ -31,7 +38,11 @@ const COMBO := [
 
 var state := State.FREE
 var touch: Node = null
+var cam_rig: Node = null
 var hp := MAX_HP
+var stamina := MAX_STAM
+var _stam_delay := 0.0
+var _exhausted := false
 
 var _facing := 0.0
 var _combo_idx := 0
@@ -110,7 +121,33 @@ func request_attack() -> void:
 		State.ATTACK:
 			_queued = true
 		State.FREE, State.DASH, State.BLOCK:
-			_start_attack()
+			if _spend(STAM_ATTACK[_combo_idx]):
+				_start_attack()
+
+
+## 體力：攻擊、閃步、普通格擋都要花；耗盡會「疲憊」，回到 35 以上才解除
+func _spend(v: float) -> bool:
+	if _exhausted or stamina < v:
+		exhausted.emit()
+		return false
+	stamina -= v
+	_stam_delay = 0.7
+	if stamina <= 0.0:
+		stamina = 0.0
+		_exhausted = true
+	stamina_changed.emit(stamina, MAX_STAM)
+	return true
+
+
+func _tick_stamina(delta: float) -> void:
+	_stam_delay -= delta
+	if _stam_delay > 0.0 or stamina >= MAX_STAM:
+		return
+	var r := STAM_REGEN * (0.45 if state == State.BLOCK else 1.0) * (0.6 if _exhausted else 1.0)
+	stamina = minf(stamina + r * delta, MAX_STAM)
+	if _exhausted and stamina >= 35.0:
+		_exhausted = false
+	stamina_changed.emit(stamina, MAX_STAM)
 
 
 ## 格擋鍵：按住生效。空閒時立刻舉刀；攻擊收刀/閃步結束後若仍按著會自動回到格擋。
@@ -138,8 +175,8 @@ func _after_action() -> State:
 	return State.FREE
 
 
-func _tick_block(delta: float, input: Vector2) -> void:
-	var dir := Vector3(input.x, 0.0, input.y)
+func _tick_block(delta: float, input: Vector3) -> void:
+	var dir := input
 	velocity.x = move_toward(velocity.x, dir.x * SPEED * 0.3, ACCEL * delta)
 	velocity.z = move_toward(velocity.z, dir.z * SPEED * 0.3, ACCEL * delta)
 	_face_input(input, false)
@@ -155,7 +192,8 @@ func _tick_block(delta: float, input: Vector2) -> void:
 ## 閃步鍵：空閒可閃；出刀「前置」與「收刀」階段可取消成閃步（有效幀不可）。
 func request_dash() -> void:
 	if state == State.FREE or state == State.BLOCK or (state == State.ATTACK and _phase != 1):
-		_start_dash()
+		if _spend(STAM_DASH):
+			_start_dash()
 
 
 func _physics_process(delta: float) -> void:
@@ -171,6 +209,7 @@ func _physics_process(delta: float) -> void:
 			_tick_hurt(delta)
 		State.BLOCK:
 			_tick_block(delta, input)
+	_tick_stamina(delta)
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
 	else:
@@ -182,29 +221,32 @@ func _physics_process(delta: float) -> void:
 			_combo_idx = 0
 
 
-func _read_input() -> Vector2:
+## 讀搖桿/鍵盤，轉成「相對鏡頭」的世界方向（搖桿往上 = 往畫面深處）
+func _read_input() -> Vector3:
 	var v := Vector2.ZERO
 	if touch != null:
 		v = touch.move_vector
 	var kb := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if kb.length_squared() > v.length_squared():
 		v = kb
-	return v.limit_length(1.0)
+	v = v.limit_length(1.0)
+	var yaw: float = cam_rig.yaw if cam_rig != null else 0.0
+	return Vector3(v.x, 0.0, v.y).rotated(Vector3.UP, yaw)
 
 
 func _forward() -> Vector3:
 	return Vector3(-sin(_facing), 0.0, -cos(_facing))
 
 
-func _face_input(input: Vector2, snap: bool) -> void:
+func _face_input(input: Vector3, snap: bool) -> void:
 	if input.length() > 0.2:
-		_facing = atan2(-input.x, -input.y)
+		_facing = atan2(-input.x, -input.z)
 		if snap:
 			visual.rotation.y = _facing
 
 
-func _tick_free(delta: float, input: Vector2) -> void:
-	var dir := Vector3(input.x, 0.0, input.y)
+func _tick_free(delta: float, input: Vector3) -> void:
+	var dir := input
 	velocity.x = move_toward(velocity.x, dir.x * SPEED, ACCEL * delta)
 	velocity.z = move_toward(velocity.z, dir.z * SPEED, ACCEL * delta)
 	_face_input(input, false)
@@ -239,7 +281,7 @@ func _start_attack() -> void:
 	Sfx.play(sfx_swing)
 
 
-func _tick_attack(delta: float, _input: Vector2) -> void:
+func _tick_attack(delta: float, _input: Vector3) -> void:
 	var c: Dictionary = COMBO[_combo_idx]
 	_phase_t += delta
 	var k := clampf(_phase_t / maxf(_phase_len, 0.001), 0.0, 1.0)
@@ -288,9 +330,12 @@ func _tick_attack(delta: float, _input: Vector2) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, 22.0 * delta)
 			velocity.z = move_toward(velocity.z, 0.0, 22.0 * delta)
 			if _queued and k >= 0.5:
-				_combo_idx = (_combo_idx + 1) % COMBO.size()
-				_start_attack()
-				return
+				var next_idx := (_combo_idx + 1) % COMBO.size()
+				if _spend(STAM_ATTACK[next_idx]):
+					_combo_idx = next_idx
+					_start_attack()
+					return
+				_queued = false
 			if k >= 1.0:
 				trail.visible = false
 				_combo_idx = (_combo_idx + 1) % COMBO.size()
@@ -353,7 +398,7 @@ func _start_dash() -> void:
 	_dash_t = 0.0
 	var input := _read_input()
 	if input.length() > 0.2:
-		_dash_dir = Vector3(input.x, 0.0, input.y).normalized()
+		_dash_dir = input.normalized()
 		_facing = atan2(-_dash_dir.x, -_dash_dir.z)
 	else:
 		_dash_dir = _forward()
@@ -424,6 +469,22 @@ func _blocked_hit(info: Dictionary) -> void:
 	var ranged: bool = info.get("ranged", false)
 	var perfect: bool = (not ranged) and Time.get_ticks_msec() - _block_start_ms <= int(Feel.get_p("parry_ms"))
 	var src = info.get("src")
+	# 普通格擋要花體力；體力不夠 = 破防，吃一半傷害並被打退
+	if not perfect:
+		if _exhausted or stamina < STAM_BLOCK_HIT:
+			stamina = 0.0
+			_exhausted = true
+			stamina_changed.emit(stamina, MAX_STAM)
+			exhausted.emit()
+			state = State.FREE
+			var half := info.duplicate()
+			half.dmg = int(info.dmg) / 2
+			take_hit(half)
+			return
+		_spend(STAM_BLOCK_HIT)
+	else:
+		stamina = minf(stamina + 10.0, MAX_STAM)
+		stamina_changed.emit(stamina, MAX_STAM)
 	body.scale = Vector3(1.1, 0.92, 1.1)
 	if _jolt_tw and _jolt_tw.is_valid():
 		_jolt_tw.kill()

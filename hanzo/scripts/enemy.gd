@@ -30,6 +30,10 @@ var hp := 0
 var posture := 0.0
 var state := State.IDLE
 var alerted_once := false
+## 體力：出手要花，耗盡會喘氣停手（破綻）
+var stamina := 100.0
+const STAM_ATTACK := 25.0
+var stam_fill: MeshInstance3D
 
 var _player: Node3D
 var _facing := 0.0
@@ -226,6 +230,20 @@ func _build() -> void:
 	bar_fill.mesh = qf
 	bar_fill.position = Vector3(0, 0, 0.01)
 	bar.add_child(bar_fill)
+	# 體力細條（綠）在體幹條下方
+	stam_fill = MeshInstance3D.new()
+	var qs := QuadMesh.new()
+	qs.size = Vector2(1.24, 0.045)
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.albedo_color = Color(0.35, 0.85, 0.4)
+	sm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	sm.no_depth_test = true
+	sm.render_priority = 1
+	qs.material = sm
+	stam_fill.mesh = qs
+	stam_fill.position = Vector3(0, -0.1, 0.01)
+	bar.add_child(stam_fill)
 	bar.visible = false
 
 	particles = CPUParticles3D.new()
@@ -266,6 +284,8 @@ func _physics_process(delta: float) -> void:
 	_attack_cd -= delta
 	_stun_t -= delta
 	_posture_t -= delta
+	if state != State.ATTACK:
+		stamina = minf(stamina + 18.0 * delta, 100.0)
 	if _posture_t <= 0.0 and state != State.BROKEN and posture > 0.0:
 		posture = maxf(posture - 10.0 * delta, 0.0)
 	if _flash_t > 0.0:
@@ -457,7 +477,7 @@ func _do_alert(delta: float) -> void:
 			_stop()
 		_face_player(delta)
 		if _attack_cd <= 0.0 and dist > 2.0 and dist < float(spec.reach) and _los():
-			_start_attack()
+			_try_attack()
 	else:
 		if dist > float(spec.reach) * 0.85:
 			_move_to(_player.global_position, speed, delta)
@@ -466,7 +486,20 @@ func _do_alert(delta: float) -> void:
 			_face_player(delta)
 		_guard = (kind == Kind.SAMURAI or kind == Kind.TARGET) and dist < 4.5 and _attack_cd > 0.35
 		if _attack_cd <= 0.0 and dist < float(spec.reach) * 1.05 and _forward().dot(to.normalized()) > 0.5:
-			_start_attack()
+			_try_attack()
+
+
+## 體力不夠就喘氣停手 1.1 秒（頭上「喘」），這是玩家的破綻機會
+func _try_attack() -> void:
+	if stamina < STAM_ATTACK:
+		state = State.STAGGER
+		_stun_t = 1.1
+		_attack_cd = 1.0
+		_guard = false
+		_show_mark("喘", Color(0.75, 0.85, 1.0), 1.0)
+		return
+	stamina -= STAM_ATTACK
+	_start_attack()
 
 
 func _start_attack() -> void:
@@ -583,6 +616,11 @@ func take_hit(info: Dictionary) -> void:
 	# 武士架刀：正面的輕攻擊被擋下（體幹仍會累積，重擊能破）
 	if _guard and not heavy and _forward().dot(-dir) > 0.3:
 		Sfx.play(_sfx_block)
+		stamina = maxf(stamina - 10.0, 0.0)
+		if stamina <= 0.0:
+			_guard = false
+			state = State.STAGGER
+			_stun_t = 0.6
 		posture += 12.0
 		_posture_t = 1.5
 		_kb = dir * 1.5
@@ -739,10 +777,15 @@ func _update_visual(delta: float) -> void:
 			color = Color(1.0, 0.2, 0.15) if state == State.BROKEN else Color(1.0, 0.75 - 0.5 * ratio, 0.2)
 		_:
 			ratio = _detect
-	bar.visible = ratio > 0.01
+	bar.visible = ratio > 0.01 or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]
 	bar_fill.scale.x = maxf(ratio, 0.001)
 	bar_fill.position.x = -0.62 * (1.0 - ratio)
+	bar_fill.visible = ratio > 0.001
 	bar_mat.albedo_color = color
+	var sr := stamina / 100.0
+	stam_fill.visible = state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN]
+	stam_fill.scale.x = maxf(sr, 0.001)
+	stam_fill.position.x = -0.62 * (1.0 - sr)
 	if state == State.SUSPICIOUS and not mark.visible:
 		_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
 	elif state != State.SUSPICIOUS and mark.text == "？":

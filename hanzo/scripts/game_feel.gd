@@ -16,9 +16,9 @@ const SAVE_PATH := "user://feel.cfg"
 ## key: [顯示名稱, 最小, 最大, 步進, 預設]
 const PARAMS := {
 	"ui_scale": ["介面大小", 0.8, 2.4, 0.05, 1.0],
-	"windup_ms": ["出刀前置 ms", 20.0, 300.0, 5.0, 90.0],
-	"active_ms": ["命中窗 ms", 40.0, 250.0, 5.0, 110.0],
-	"recovery_ms": ["收刀硬直 ms", 60.0, 500.0, 5.0, 180.0],
+	"windup_ms": ["出刀前置 ms", 20.0, 400.0, 5.0, 140.0],
+	"active_ms": ["命中窗 ms", 40.0, 250.0, 5.0, 120.0],
+	"recovery_ms": ["收刀硬直 ms", 60.0, 600.0, 5.0, 260.0],
 	"hitstop_ms": ["頓幀 ms", 0.0, 250.0, 5.0, 70.0],
 	"hitstop_scale": ["頓幀時間倍率", 0.01, 0.5, 0.01, 0.05],
 	"hitstop_hold": ["頓幀凍結比例", 0.0, 1.0, 0.05, 0.4],
@@ -36,10 +36,10 @@ const PARAMS := {
 
 ## 盲選用預設：先別看數值，輪流套用去砍，哪個「爽」再回頭看。
 const PRESETS := {
-	"甲・利落": {"windup_ms": 70.0, "active_ms": 100.0, "recovery_ms": 160.0, "hitstop_ms": 60.0, "hitstop_scale": 0.05, "shake_amp": 0.22, "shake_ms": 140.0, "knockback": 3.0, "lunge": 2.0},
-	"乙・沉重": {"windup_ms": 130.0, "active_ms": 120.0, "recovery_ms": 260.0, "hitstop_ms": 120.0, "hitstop_scale": 0.04, "hitstop_hold": 0.35, "shake_amp": 0.35, "shake_ms": 220.0, "knockback": 6.0, "lunge": 1.2},
-	"丙・流暢": {"windup_ms": 45.0, "active_ms": 90.0, "recovery_ms": 110.0, "hitstop_ms": 35.0, "hitstop_scale": 0.1, "hitstop_hold": 0.5, "shake_amp": 0.1, "shake_ms": 100.0, "knockback": 2.0, "lunge": 2.6},
-	"丁・電影": {"windup_ms": 110.0, "active_ms": 110.0, "recovery_ms": 220.0, "hitstop_ms": 170.0, "hitstop_scale": 0.01, "hitstop_hold": 0.3, "shake_amp": 0.08, "shake_ms": 300.0, "knockback": 4.0, "lunge": 1.5},
+	"甲・利落": {"windup_ms": 110.0, "active_ms": 110.0, "recovery_ms": 220.0, "hitstop_ms": 60.0, "hitstop_scale": 0.05, "shake_amp": 0.22, "shake_ms": 140.0, "knockback": 3.0, "lunge": 2.0},
+	"乙・沉重": {"windup_ms": 170.0, "active_ms": 130.0, "recovery_ms": 320.0, "hitstop_ms": 120.0, "hitstop_scale": 0.04, "hitstop_hold": 0.35, "shake_amp": 0.35, "shake_ms": 220.0, "knockback": 6.0, "lunge": 1.2},
+	"丙・流暢": {"windup_ms": 90.0, "active_ms": 100.0, "recovery_ms": 170.0, "hitstop_ms": 35.0, "hitstop_scale": 0.1, "hitstop_hold": 0.5, "shake_amp": 0.1, "shake_ms": 100.0, "knockback": 2.0, "lunge": 2.6},
+	"丁・電影": {"windup_ms": 150.0, "active_ms": 120.0, "recovery_ms": 280.0, "hitstop_ms": 170.0, "hitstop_scale": 0.01, "hitstop_hold": 0.3, "shake_amp": 0.08, "shake_ms": 300.0, "knockback": 4.0, "lunge": 1.5},
 	"戊・無料": {"hitstop_ms": 0.0, "shake_amp": 0.0, "hit_flash_ms": 0.0, "knockback": 0.5, "trail_alpha": 0.0, "lunge": 0.0},
 }
 
@@ -198,6 +198,8 @@ func _setup_input_map() -> void:
 	_add_action("attack", [KEY_J, KEY_SPACE])
 	_add_action("dash", [KEY_K, KEY_SHIFT])
 	_add_action("block", [KEY_L, KEY_CTRL])
+	_add_action("look_left", [KEY_Q])
+	_add_action("look_right", [KEY_E])
 	_add_action("toggle_panel", [KEY_P, KEY_TAB])
 
 

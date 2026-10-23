@@ -1,12 +1,17 @@
 extends Node3D
-## 跟隨鏡頭 + 創傷式震動（trauma²）。
-## 震動以「真實時間」推進，所以頓幀期間畫面仍會顫動，撞擊感不會被凍住。
+## 跟隨鏡頭：可旋轉（yaw）與微調俯角（pitch），創傷式震動（trauma²）與方向性踢擊。
+## 震動與踢擊以「真實時間」推進，頓幀期間畫面仍會動。
 
-@export var offset := Vector3(0.0, 7.2, 6.2)
+@export var distance := 9.5
 @export var follow_speed := 7.0
 @export var look_height := 1.0
 
 @onready var cam: Camera3D = $Camera3D
+
+## 水平旋轉角（弧度）。0 = 從 +Z 往 -Z 看（北）
+var yaw := 0.0
+## 俯角（弧度，從水平面算）
+var pitch := deg_to_rad(49.0)
 
 var _target: Node3D
 var _trauma := 0.0
@@ -28,6 +33,17 @@ func set_target(t: Node3D) -> void:
 	_target = t
 	if _target:
 		global_position = _target.global_position
+
+
+## 滑動視角：delta 為螢幕像素位移
+func look(delta: Vector2) -> void:
+	yaw -= delta.x * 0.0045
+	pitch = clampf(pitch + delta.y * 0.0025, deg_to_rad(28.0), deg_to_rad(72.0))
+
+
+## 鏡頭正前方（水平）的世界方向
+func forward() -> Vector3:
+	return Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, yaw)
 
 
 func _apply_params() -> void:
@@ -58,7 +74,8 @@ func _process(delta: float) -> void:
 		0.0
 	) * sh * 1.6
 	var roll := sin(t * 2.9) * sh * 0.09
-	cam.position = offset + off + _kick
+	var base := Vector3(0.0, sin(pitch) * distance, cos(pitch) * distance).rotated(Vector3.UP, yaw)
+	cam.position = base + off.rotated(Vector3.UP, yaw) + _kick
 	cam.look_at(global_position + Vector3(0.0, look_height, 0.0) + _kick * 0.5, Vector3.UP)
 	cam.rotate_object_local(Vector3(0.0, 0.0, 1.0), roll)
 	_trauma = maxf(_trauma - _decay * real_dt, 0.0)

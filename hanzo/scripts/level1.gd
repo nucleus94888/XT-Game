@@ -54,6 +54,7 @@ func _ready() -> void:
 	_build_world()
 	_spawn_enemies()
 	hud.set_objective("潛入山村，暗殺今川家的武將")
+	hud.set_compass_target(TARGET_POS, Color(1.0, 0.8, 0.3))
 	hud.say("伊賀夜襲", Color(0.95, 0.9, 0.8))
 	_warmup()
 	_parse_args()
@@ -276,6 +277,7 @@ func _on_enemy_died(e: Enemy, stealth: bool) -> void:
 		_target_dead = true
 		_exit_beacon.visible = true
 		hud.set_objective("目標已除。回到南邊山門撤離")
+		hud.set_compass_target(EXIT_POS, Color(0.6, 0.9, 1.0))
 		get_tree().create_timer(1.2).timeout.connect(func() -> void:
 			hud.say("撤離！", Color(0.6, 0.9, 1.0)))
 

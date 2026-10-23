@@ -6,6 +6,8 @@ extends Control
 signal attack_pressed
 signal dash_pressed
 signal block_changed(on: bool)
+## 右側空白處拖曳：轉視角（螢幕像素位移）
+signal look_delta(delta: Vector2)
 
 const JOY_R := 78.0
 const ATK_R := 70.0
@@ -23,6 +25,8 @@ var _btn_touch := {}
 var _atk_flash := 0.0
 var _dash_flash := 0.0
 var _block_on := false
+var _look_idx := -1
+var _look_last := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -90,10 +94,16 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_joy_pos = t.position
 				move_vector = Vector2.ZERO
 				get_viewport().set_input_as_handled()
+			elif _look_idx == -1 and t.position.x >= size.x * 0.6:
+				_look_idx = t.index
+				_look_last = t.position
+				get_viewport().set_input_as_handled()
 		else:
 			if t.index == _joy_idx:
 				_joy_idx = -1
 				move_vector = Vector2.ZERO
+			if t.index == _look_idx:
+				_look_idx = -1
 			if _btn_touch.get(t.index, "") == "block":
 				_set_block(false)
 			_btn_touch.erase(t.index)
@@ -109,6 +119,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 				l = JOY_R
 			var n := l / JOY_R
 			move_vector = Vector2.ZERO if n < 0.12 else v / JOY_R
+			get_viewport().set_input_as_handled()
+		elif d.index == _look_idx:
+			look_delta.emit(d.position - _look_last)
+			_look_last = d.position
 			get_viewport().set_input_as_handled()
 		elif _btn_touch.get(d.index, "") == "block":
 			# 手指滑出格擋鍵太遠就視為放開

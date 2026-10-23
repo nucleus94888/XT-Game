@@ -35,6 +35,7 @@ func _ready() -> void:
 	dummy.executed.connect(func() -> void:
 		hud.say("忍殺", Color(0.95, 0.15, 0.15)))
 	_place_pillars()
+	hud.set_compass_target(dummy.global_position, Color(1.0, 0.8, 0.3))
 	hud.say("斬", Color(1, 1, 1))
 	_parse_args()
 	_warmup()
