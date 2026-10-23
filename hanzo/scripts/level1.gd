@@ -9,7 +9,7 @@ const WALL_H := 2.6
 const EXIT_POS := Vector3(0.0, 0.0, 29.0)
 const TARGET_POS := Vector3(0.0, 0.0, -18.0)
 
-## [中心x, 中心z, 寬x, 長z, (高度)]；外牆 12 公尺高，鉤繩鉤不上去（不然會跑出地圖）
+## [中心x, 中心z, 寬x, 長z, (碰撞高度)]；外牆看起來一樣高，但碰撞是 12 公尺的透明牆，鉤繩鉤不上去、人翻不出去
 const WALLS := [
 	[-13.0, 4.5, 1.0, 58.0, 12.0], [13.0, 4.5, 1.0, 58.0, 12.0], [0.0, -23.5, 27.0, 1.0, 12.0], [0.0, 32.5, 27.0, 1.0, 12.0],
 	[-8.75, 24.0, 7.5, 12.0], [8.75, 24.0, 7.5, 12.0],
@@ -235,8 +235,7 @@ func _build_world() -> void:
 		sb.collision_mask = 0
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		var h: float = float(w[4]) if w.size() > 4 else WALL_H
-		bm.size = Vector3(w[2], h, w[3])
+		bm.size = Vector3(w[2], WALL_H, w[3])
 		mi.mesh = bm
 		mi.material_override = wall_mesh_mat
 		sb.add_child(mi)
@@ -245,8 +244,17 @@ func _build_world() -> void:
 		bs.size = bm.size
 		cs.shape = bs
 		sb.add_child(cs)
-		sb.position = Vector3(w[0], h / 2.0, w[1])
+		sb.position = Vector3(w[0], WALL_H / 2.0, w[1])
 		region.add_child(sb)
+		# 透明牆：碰撞往上延伸（沒有網格，不擋畫面）
+		if w.size() > 4:
+			var h: float = float(w[4])
+			var cs2 := CollisionShape3D.new()
+			var bs2 := BoxShape3D.new()
+			bs2.size = Vector3(w[2], h - WALL_H, w[3])
+			cs2.shape = bs2
+			cs2.position = Vector3(0.0, (h - WALL_H) / 2.0 + WALL_H / 2.0, 0.0)
+			sb.add_child(cs2)
 	# 鉤繩只能到外牆以內
 	player.hook_bounds = AABB(Vector3(-12.4, -1.0, -22.9), Vector3(24.8, 20.0, 54.8))
 
