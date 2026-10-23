@@ -2,6 +2,7 @@ name: iOS（雲端 Mac 建置）
 
 # 兩個工作：
 #  simulator  — 每次 push 都跑：Godot 匯出 Xcode 專案 → xcodebuild 編譯 iOS 模擬器版（免簽章、免 Apple 帳號）。
+#               Godot 4.7.2 的模擬器函式庫只有 x86_64，所以指定 ARCHS=x86_64（Apple Silicon 的 Rosetta 模擬器可跑）。
 #               這證明「Windows 寫碼 → GitHub 的 Mac 幫你編 iOS」整條路是通的。
 #  testflight — 手動觸發且勾選 testflight 才跑：用你提供的憑證簽章、打包 .ipa、上傳 TestFlight。
 #               需要 7 個 Secrets，見 PIPELINE.md。
@@ -81,7 +82,7 @@ jobs:
             -destination "generic/platform=iOS Simulator" \
             -derivedDataPath build/ios/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            ONLY_ACTIVE_ARCH=NO \
+            ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
             build > build/ios/xcodebuild.log 2>&1 || true
           grep -E "BUILD SUCCEEDED|BUILD FAILED" build/ios/xcodebuild.log || true
           if ! grep -q "BUILD SUCCEEDED" build/ios/xcodebuild.log; then
