@@ -234,7 +234,46 @@ func _detect_test() -> void:
 	get_tree().quit()
 
 
+## evade：甩掉追兵量測。敵人看到你進入警戒 → 你瞬間移到遠處暗處 → 記錄敵人狀態變化（追丟、搜索、回巡邏）的時間點
+func _evade_test() -> void:
+	for n in get_tree().get_nodes_in_group("enemies"):
+		n.queue_free()
+	await get_tree().process_frame
+	var e := Enemy.new()
+	e.kind = kind
+	e.face_dir = Vector3(0, 0, 1)
+	e.patrol = [Vector3(17, 0, 2), Vector3(17, 0, 8)]
+	level.add_child(e)
+	e.global_position = Vector3(17, 0, 4)
+	player.revive()
+	player.global_position = Vector3(17, 0.1, 6.5)
+	var t := 0.0
+	var last := ""
+	var hide_at := -1.0
+	while t < 40.0:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+		var s: String = e.State.keys()[e.state]
+		if e.state == e.State.ALERT and float(e._lost_t) > 0.15:
+			s = "ALERT(追丟)"
+		if s != last:
+			last = s
+			print("EVADE [%5.2f] %s  敵人位置 (%.1f, %.1f)  殘影=%s" % [t, s, e.global_position.x, e.global_position.z, str(level._ghost.visible) if level._ghost else "-"])
+		if hide_at < 0.0 and e.state in [e.State.ALERT, e.State.ATTACK]:
+			hide_at = t + 0.5
+		if hide_at > 0.0 and t >= hide_at and t < hide_at + 0.1:
+			player.global_position = Vector3(-18.0, 0.1, 22.0)
+			print("EVADE [%5.2f] 玩家躲到遠處 (-18, 22)" % t)
+		if e.state in [e.State.PATROL, e.State.IDLE] and hide_at > 0.0 and t > hide_at + 1.0:
+			print("EVADE [%5.2f] 回巡邏，提高警覺 %.0f 秒" % [t, e._wary_t])
+			break
+	get_tree().quit()
+
+
 func _begin_run() -> void:
+	if mode == "evade":
+		_evade_test()
+		return
 	if mode == "detect":
 		_detect_test()
 		return
@@ -334,7 +373,7 @@ var _trace := false
 
 
 func _physics_process(delta: float) -> void:
-	if mode in ["throw", "plunge", "ui", "detect"]:
+	if mode in ["throw", "plunge", "ui", "detect", "evade"]:
 		return
 	if _done or not is_instance_valid(enemy) or player == null:
 		return

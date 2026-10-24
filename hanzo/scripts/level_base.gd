@@ -173,6 +173,52 @@ func _process(delta: float) -> void:
 			get_tree().create_timer(0.9).timeout.connect(_shot.bind("tour%d" % _tour_i))
 
 
+## 甩掉追兵的回饋：
+##   地上的灰色殘影＝敵人以為你在哪（追丟或搜索中的敵人回報的最後位置）——你人已經不在那裡就代表甩開了
+##   最後一個在追你的敵人追丟 → 輕震一下（輔助文字開著才說「甩掉了」）
+var _ghost: MeshInstance3D
+var _ghost_mat: StandardMaterial3D
+var _was_chased := false
+
+
+func _update_hunt() -> void:
+	if _ghost == null:
+		_ghost = MeshInstance3D.new()
+		var cm := CapsuleMesh.new()
+		cm.radius = 0.36
+		cm.height = 1.5
+		_ghost.mesh = cm
+		_ghost_mat = StandardMaterial3D.new()
+		_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_ghost_mat.albedo_color = Color(0.85, 0.85, 0.95, 0.22)
+		_ghost.material_override = _ghost_mat
+		_ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_ghost)
+		_ghost.visible = false
+	var marker = null
+	var chased := false
+	for e in _enemies:
+		if not is_instance_valid(e) or e.state == e.State.DEAD:
+			continue
+		if e.state in [e.State.ALERT, e.State.ATTACK] and float(e._lost_t) <= 0.0:
+			chased = true
+		var m = e.hunt_marker()
+		if m != null and marker == null:
+			marker = m
+	# 殘影只在你已經離開那個位置 1.5 公尺以上時才顯示（不然它就疊在你身上）
+	if marker != null and (marker as Vector3).distance_to(player.global_position) > 1.5:
+		_ghost.visible = true
+		_ghost.global_position = (marker as Vector3) + Vector3(0.0, 0.95, 0.0)
+		_ghost_mat.albedo_color.a = 0.18 + 0.06 * sin(Time.get_ticks_msec() * 0.006)
+	else:
+		_ghost.visible = false
+	if _was_chased and not chased:
+		Feel.haptic(30)
+		hud.say_hint("甩掉了", Color(0.75, 0.85, 1.0))
+	_was_chased = chased
+
+
 ## 保險：關卡範圍（bounds）四周一圈透明牆，柵欄有縫或忘了加透明牆也跑不出去
 func _build_bounds_walls() -> void:
 	var b := bounds
@@ -212,6 +258,7 @@ func _physics_process(_delta: float) -> void:
 			break
 	player.in_light = lit
 	_update_covers()
+	_update_hunt()
 	if _exit_ready and not _finished and not _dead:
 		if player.global_position.distance_to(exit_pos) < 3.0:
 			_finish()

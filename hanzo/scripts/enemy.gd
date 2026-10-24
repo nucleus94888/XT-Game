@@ -358,6 +358,7 @@ func _physics_process(delta: float) -> void:
 	_hook_immune_t -= delta
 	_pant_t -= delta
 	_heads_up_t -= delta
+	_wary_t -= delta
 	_bar_flash_t -= delta
 	_swing_rest_t -= delta
 	if _swing_rest_t <= 0.0:
@@ -477,12 +478,14 @@ func _perceive(delta: float) -> void:
 	var lit := _player_lit()
 	var view := effective_view()
 	if state == State.ALERT:
+		# 甩掉追兵：切斷視線（牆、屋頂、轉角）或拉開距離。躲進暗處追蹤距離也縮短
 		if dist < view * 1.6 and _los():
 			_lost_t = 0.0
 			_last_known = _player.global_position
+			_share_sighting(delta)
 		else:
 			_lost_t += delta
-			if _lost_t > 2.5:
+			if _lost_t > (LOSE_TIME_LIT if lit else LOSE_TIME_DARK) + 2.0:
 				_lost_t = 0.0
 				_guard = false
 				_start_search(_last_known)
@@ -494,6 +497,8 @@ func _perceive(delta: float) -> void:
 	if sees:
 		var rate := 2.4 if dist < 3.5 else 1.1
 		rate *= 1.5 if lit else 0.5
+		if _wary_t > 0.0:
+			rate *= 1.3
 		if state == State.SEARCH:
 			rate *= 2.0
 		_detect = minf(_detect + delta * rate, 1.0)
@@ -513,13 +518,55 @@ func _perceive(delta: float) -> void:
 			state = State.PATROL if patrol.size() > 0 else State.IDLE
 
 
+## 甩掉追兵：看不到你超過這個時間就只追「最後看到的位置」（_lost_t > 0 起就已經不知道你真正在哪）
+const LOSE_TIME_LIT := 1.5
+const LOSE_TIME_DARK := 0.8
+## 搜索結束回巡邏後的「提高警覺」：視野 ×1.25、警覺累積 ×1.3，持續 20 秒
+const WARY_TIME := 20.0
+var _wary_t := 0.0
+var _share_t := 0.0
+## 搜索：到最後位置張望後，再去附近兩個點看看
+var _search_pts: Array = []
+
+
+## 看到你的守衛會告訴附近 12 公尺內正在追你或搜索的同伴「人在這裡」
+func _share_sighting(delta: float) -> void:
+	_share_t -= delta
+	if _share_t > 0.0:
+		return
+	_share_t = 0.3
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e != self and e is Node3D and e.has_method("hear_sighting") and (e as Node3D).global_position.distance_to(global_position) < 12.0:
+			e.hear_sighting(_player.global_position)
+
+
+func hear_sighting(pos: Vector3) -> void:
+	if state == State.ALERT:
+		_last_known = pos
+		_lost_t = minf(_lost_t, 0.01) if _lost_t > 0.0 else 0.0
+	elif state == State.SEARCH:
+		_last_known = pos
+		_search_t = 0.0
+		_search_look = 0.0
+		_search_pts.clear()
+
+
+## 給關卡畫「敵人以為你在哪」的殘影：追丟中或搜索中才回傳位置
+func hunt_marker() -> Variant:
+	if state == State.ALERT and _lost_t > 0.15:
+		return _last_known
+	if state == State.SEARCH:
+		return _last_known
+	return null
+
+
 const INSTANT_COS := 0.766   # 正面 ±40 度
 const INSTANT_LIT := 3.0
 const INSTANT_DARK := 1.5
 
 
 func effective_view() -> float:
-	return float(spec.view) * (1.0 if _player_lit() else 0.5)
+	return float(spec.view) * (1.0 if _player_lit() else 0.5) * (1.25 if _wary_t > 0.0 else 1.0)
 
 
 func instant_range() -> float:
@@ -542,6 +589,7 @@ func _start_search(pos: Vector3) -> void:
 	_last_known = pos
 	_search_t = 0.0
 	_search_look = 0.0
+	_search_pts.clear()
 	_detect = maxf(_detect, 0.5)
 	_guard = false
 	_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
@@ -576,20 +624,48 @@ func _do_suspicious(delta: float) -> void:
 		_stop()
 
 
+## 搜索：走到最後位置 → 張望 2.5 秒 → 再去附近兩個點各看 1.5 秒 → 回巡邏（之後 20 秒提高警覺）
 func _do_search(delta: float) -> void:
 	_search_t += delta
-	var d := _last_known - global_position
+	var goal: Vector3 = _last_known if _search_pts.is_empty() or _search_look < 2.5 else _search_pts[0]
+	var d := goal - global_position
 	d.y = 0.0
-	if d.length() > 1.2 and _search_t < 10.0:
-		_move_to(_last_known, float(spec.speed) * 0.75, delta)
+	if d.length() > 1.2 and _search_t < 14.0:
+		_move_to(goal, float(spec.speed) * 0.8, delta)
 		return
 	_stop()
 	_search_look += delta
 	_facing += sin(_search_look * 1.6) * delta * 1.4
-	if _search_look > 5.0:
+	if _search_look >= 2.5 and _search_pts.is_empty() and _search_t < 14.0:
+		_search_pts = _pick_search_points(_last_known)
+		if _search_pts.is_empty():
+			_search_pts = [_last_known]
+		_search_look = 2.5
+		return
+	if _search_look > 4.0 and not _search_pts.is_empty():
+		_search_pts.pop_front()
+		_search_look = 2.5
+		if not _search_pts.is_empty():
+			return
+	if _search_look > 2.5 and (_search_pts.is_empty() or _search_t >= 14.0):
 		_detect = 0.0
 		mark.visible = false
+		_search_pts.clear()
+		_wary_t = WARY_TIME
 		state = State.PATROL if patrol.size() > 0 else State.IDLE
+
+
+## 附近兩個可走到的點（導航網格上最近點），用來「去轉角看看」
+func _pick_search_points(center: Vector3) -> Array:
+	var out: Array = []
+	var map := get_world_3d().navigation_map
+	for i in range(2):
+		var a := randf() * TAU
+		var p := center + Vector3(cos(a), 0.0, sin(a)) * randf_range(3.0, 6.0)
+		var q := NavigationServer3D.map_get_closest_point(map, p)
+		if q.distance_to(center) > 1.5:
+			out.append(q)
+	return out
 
 
 ## 大將：沿逃跑路線跑，到終點就消失
@@ -722,6 +798,18 @@ func _do_patrol(delta: float) -> void:
 
 func _do_alert(delta: float) -> void:
 	if _player == null:
+		return
+	# 看不到你的時候：只追到「最後看到你的地方」，不是你的真實位置（以前會隔牆鎖定你）
+	if _lost_t > 0.0:
+		var dl := _last_known - global_position
+		dl.y = 0.0
+		if dl.length() > 1.2:
+			_move_to(_last_known, float(spec.run), delta)
+		else:
+			# 追到了還是不見人：直接開始搜索
+			_lost_t = 0.0
+			_guard = false
+			_start_search(_last_known)
 		return
 	var to := _player.global_position - global_position
 	to.y = 0.0
@@ -1311,6 +1399,11 @@ func _update_face(delta: float) -> void:
 			eye = Color(1.0, 0.3, 0.25)
 			sc = Vector3(1.4, 1.7, 1.0)
 			tint = base.lerp(Color(1.0, 0.2, 0.1), 0.45)
+			if state == State.ALERT and _lost_t > 0.15:
+				# 追丟了：眼睛轉橘、東張西望（玩家看得出「他不知道我在哪」）
+				eye = Color(1.0, 0.6, 0.2)
+				sc = Vector3(1.4, 1.0, 1.0)
+				tint = base.lerp(Color(1.0, 0.55, 0.2), 0.35)
 		State.STAGGER:
 			eye = Color(0.9, 0.9, 0.95)
 			sc = Vector3(0.6, 0.6, 1.0)
