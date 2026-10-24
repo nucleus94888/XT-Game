@@ -62,6 +62,13 @@ func _ready() -> void:
 		_debug = true
 		stats.visible = true
 		fps.visible = true
+	# 截圖用：++ --overlay=pause|lose 一秒後直接開覆蓋層看排版
+	for a in OS.get_cmdline_user_args():
+		if a == "--overlay=pause":
+			get_tree().create_timer(0.6).timeout.connect(show_pause)
+		elif a == "--overlay=lose":
+			get_tree().create_timer(0.6).timeout.connect(func() -> void:
+				show_overlay("敗北", ["時間 1:05　擊破 3　被擊中 6 次"], [["從檢查點再來", func() -> void: pass], ["整關重來", func() -> void: pass], ["回標題", func() -> void: pass]], Color(0.95, 0.3, 0.3)))
 	_setup_latency_probe()
 	get_tree().root.size_changed.connect(_layout_orientation)
 	_layout_orientation()
@@ -264,7 +271,7 @@ func show_settings() -> void:
 	center.add_child(box)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
-	vb.custom_minimum_size = Vector2(520, 0)
+	vb.custom_minimum_size = Vector2(minf(520.0, get_viewport().get_visible_rect().size.x - 90.0), 0)
 	box.add_child(vb)
 	var t := Label.new()
 	t.text = "設定"
@@ -489,14 +496,17 @@ func show_overlay(title: String, lines: Array, buttons: Array, title_color: Colo
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.add_theme_font_size_override("font_size", 24)
 		vb.add_child(l)
-	var hb := HBoxContainer.new()
+	# 直立或按鈕排不下一排時改成直向疊放（面板不能比螢幕寬）
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var stack: bool = vs.y > vs.x or buttons.size() * 236.0 > vs.x - 80.0
+	var hb: BoxContainer = VBoxContainer.new() if stack else HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
-	hb.add_theme_constant_override("separation", 16)
+	hb.add_theme_constant_override("separation", 16 if not stack else 10)
 	vb.add_child(hb)
 	for b in buttons:
 		var btn := Button.new()
 		btn.text = str(b[0])
-		btn.custom_minimum_size = Vector2(220, 64)
+		btn.custom_minimum_size = Vector2(minf(320.0, vs.x - 140.0) if stack else 220.0, 60 if stack else 64)
 		btn.add_theme_font_size_override("font_size", 26)
 		var cb: Callable = b[1]
 		btn.pressed.connect(func() -> void:
