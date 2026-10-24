@@ -21,7 +21,7 @@ enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE, BROKEN }
 
 const SPEED := 5.4
 ## 鉤繩固定長度（公尺）；升級系統之後可加長
-var hook_range := 12.0
+var hook_range := 22.0
 const ACCEL := 34.0
 const DASH_SPEED := 17.0
 const DASH_TIME := 0.17
@@ -348,10 +348,10 @@ func _pick_enemy_ray(origin: Vector3, dir: Vector3, min_dot: float, max_dist: fl
 ## 鉤繩落點（準心射線）：打到頂面直接落在那裡（可上可下，不能同高度平移）；打到牆面就往上找牆頂
 func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	var space := get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * hook_range, 1)
+	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * 30.0, 1)
 	q.exclude = [get_rid()]
 	var hit := space.intersect_ray(q)
-	var fail := {"ok": false, "pos": origin + dir * hook_range}
+	var fail := {"ok": false, "pos": origin + dir * 8.0}
 	if hit.is_empty():
 		return fail
 	var p: Vector3 = hit.position
