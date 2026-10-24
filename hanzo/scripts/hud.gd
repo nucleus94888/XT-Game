@@ -63,6 +63,30 @@ func _ready() -> void:
 		stats.visible = true
 		fps.visible = true
 	_setup_latency_probe()
+	get_tree().root.size_changed.connect(_layout_orientation)
+	_layout_orientation()
+
+
+## 直立（高 > 寬）：任務文字從置中改成靠左、放到血條下面，不然會壓到暫停鍵與羅盤
+func _layout_orientation() -> void:
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var portrait: bool = vs.y > vs.x
+	if portrait:
+		objective.offset_left = -vs.x / 2.0 + 18.0
+		objective.offset_right = vs.x / 2.0 - 215.0
+		objective.offset_top = 58.0
+		objective.offset_bottom = 130.0
+		objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		objective.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		items_label.position = Vector2(18, 136)
+	else:
+		objective.offset_left = -400.0
+		objective.offset_right = 400.0
+		objective.offset_top = 12.0
+		objective.offset_bottom = 44.0
+		objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		objective.autowrap_mode = TextServer.AUTOWRAP_OFF
+		items_label.position = Vector2(18, 48)
 	gear.pressed.connect(toggle_panel)
 	panel.visible = false
 	pause_btn.pressed.connect(show_pause)

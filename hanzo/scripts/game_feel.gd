@@ -47,9 +47,9 @@ const PRESETS := {
 	"戊・無料": {"hitstop_ms": 0.0, "shake_amp": 0.0, "hit_flash_ms": 0.0, "knockback": 0.5, "trail_alpha": 0.0, "lunge": 0.0},
 }
 
-## 手機預設介面倍率：以 720 高的基準畫布算。1.6 倍時使用者回饋「按鍵太大太亂」，改 1.3，
-## 攻擊鍵直徑約佔螢幕高度 25%，其餘鍵更小、排成攻擊鍵周圍的菱形
-const MOBILE_UI_SCALE := 1.3
+## 手機介面倍率：用螢幕「短邊」算（短邊 463 px → 1.0 倍，iPhone 橫放約 1.3），直立時短邊是寬度，
+## 按鍵相對寬度就跟橫放時相對高度一樣大。「介面大小」滑桿是在這個自動值上再乘。
+const UI_REF_SHORT := 553.0
 
 var p: Dictionary = {}
 
@@ -60,6 +60,22 @@ func _ready() -> void:
 	reset_defaults()
 	load_cfg()
 	_setup_input_map()
+	# 轉向（直立↔橫放）時重算倍率
+	get_tree().root.size_changed.connect(_apply_ui_scale)
+
+
+## 自動倍率：手機依短邊；桌機 1.0。
+## 注意 stretch（canvas_items，基準 1280×720）本身會先按 min(w/1280, h/720) 縮放，直立時這個值只有橫放的一半，
+## 所以要先除掉它，再讓「按鍵佔短邊的比例」兩種方向一致（短邊 553 px → 實際 1.0 倍，iPhone 橫放約 1.09）。
+func auto_ui_scale() -> float:
+	if not is_mobile():
+		return 1.0
+	var s: Vector2 = get_tree().root.size
+	if s.x <= 0.0 or s.y <= 0.0:
+		return 1.3
+	var stretch := minf(s.x / 1280.0, s.y / 720.0)
+	var target := minf(s.x, s.y) / UI_REF_SHORT
+	return clampf(target / maxf(stretch, 0.01), 1.0, 3.0)
 
 
 ## 手機（iOS / Android，含 Safari 網頁版）或命令列加 --mobile 時視為手機
@@ -75,15 +91,13 @@ func is_mobile() -> bool:
 func reset_defaults() -> void:
 	for k in PARAMS:
 		p[k] = PARAMS[k][4]
-	if is_mobile():
-		p["ui_scale"] = MOBILE_UI_SCALE
 	params_changed.emit()
 
 
 func _apply_ui_scale() -> void:
 	var root := get_tree().root
 	if root:
-		root.content_scale_factor = get_p("ui_scale")
+		root.content_scale_factor = get_p("ui_scale") * auto_ui_scale()
 	var v := get_p("volume")
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(v, 0.0001)))
 	AudioServer.set_bus_mute(0, v <= 0.001)
@@ -205,6 +219,9 @@ func load_cfg() -> void:
 	for k in PARAMS:
 		if cf.has_section_key("feel", k):
 			p[k] = float(cf.get_value("feel", k))
+	# 舊存檔的介面大小是絕對倍率（1.6／1.3），現在改成相對倍率，歸 1.0
+	if is_mobile() and (absf(get_p("ui_scale") - 1.6) < 0.01 or absf(get_p("ui_scale") - 1.3) < 0.01):
+		p["ui_scale"] = 1.0
 	params_changed.emit()
 
 

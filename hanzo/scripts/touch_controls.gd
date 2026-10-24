@@ -55,29 +55,46 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 
+## 直立（高 > 寬）：畫面窄，鍵位往右下角收緊、往上疊；橫放：攤開成菱形
+func _portrait() -> bool:
+	return size.y > size.x
+
+
 func _joy_home() -> Vector2:
+	if _portrait():
+		return _mx(Vector2(110.0, size.y - 150.0))
 	return _mx(Vector2(135.0, size.y - 135.0))
 
 
 ## 鍵位：攻擊在右下角，閃在左、格擋在上、鉤在左上（菱形），換在菱形中央。
 ## 離角落稍遠一點，拇指自然彎曲就按得到，也避開 iPhone 圓角與手勢區
 func _atk_center() -> Vector2:
+	if _portrait():
+		return _mx(Vector2(size.x - 78.0, size.y - 115.0))
 	return _mx(Vector2(size.x - 105.0, size.y - 105.0))
 
 
 func _dash_center() -> Vector2:
+	if _portrait():
+		return _mx(Vector2(size.x - 200.0, size.y - 80.0))
 	return _mx(Vector2(size.x - 248.0, size.y - 72.0))
 
 
 func _block_center() -> Vector2:
+	if _portrait():
+		return _mx(Vector2(size.x - 72.0, size.y - 245.0))
 	return _mx(Vector2(size.x - 96.0, size.y - 242.0))
 
 
 func _hook_center() -> Vector2:
+	if _portrait():
+		return _mx(Vector2(size.x - 195.0, size.y - 205.0))
 	return _mx(Vector2(size.x - 246.0, size.y - 198.0))
 
 
 func _swap_center() -> Vector2:
+	if _portrait():
+		return _mx(Vector2(size.x - 142.0, size.y - 170.0))
 	return _mx(Vector2(size.x - 176.0, size.y - 156.0))
 
 
