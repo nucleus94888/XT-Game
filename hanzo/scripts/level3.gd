@@ -84,7 +84,8 @@ func _build_world() -> void:
 	_box(Vector3(-14.0, 9.4, 14.0), Vector3(0.5, 0.5, 0.5), Color(0.6, 0.45, 0.2), Vector3.ZERO, false)  # 半鐘
 
 	# 河：兩岸石堤（擋人），只有橋能過
-	_box(Vector3(0.0, 0.02, -16.0), Vector3(46.0, 0.04, 6.0), water, Vector3.ZERO, false, 0.2)
+	# 水面比大街高 2 公分，重疊處才不會閃
+	_box(Vector3(0.0, 0.03, -16.0), Vector3(46.0, 0.06, 6.0), water, Vector3.ZERO, false, 0.2)
 	_wall_with_gap(-22.0, 22.0, -13.0, true, 0.0, 4.4, func(x: float, z: float, len: float) -> void:
 		_box(Vector3(x, 0.25, z), Vector3(len, 0.5, 0.6), stone))
 	_wall_with_gap(-22.0, 22.0, -19.0, true, 0.0, 4.4, func(x: float, z: float, len: float) -> void:

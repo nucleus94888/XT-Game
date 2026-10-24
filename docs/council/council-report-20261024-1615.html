@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：手裡劍偏差、破圖、開場閃、首頁設計——四件事怎麼排？</title>
+<style>
+  :root{--ink:#1d2129;--muted:#5b6470;--line:#e3e6ea;--bg:#fff;--soft:#f6f7f9;
+    --c1:#c75c4c;--c2:#3c6fb0;--c3:#3a9a6e;--c4:#9a6bb8;--c5:#d08a2a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",Roboto,sans-serif;line-height:1.7;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 64px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:28px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:18px 0;background:#fff}
+  .card.q{background:var(--soft)}
+  .card h2{font-size:18px;margin:0 0 12px}
+  .verdict h3{font-size:16px;margin:20px 0 6px;padding-left:10px;border-left:4px solid var(--ink)}
+  .verdict p,.verdict li{margin:6px 0}
+  .first{background:#fff8e6;border:1px solid #f0d890;border-radius:8px;padding:14px 16px;margin-top:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+  .adv{border:1px solid var(--line);border-radius:8px;padding:12px;border-top:4px solid}
+  .adv .n{font-weight:700;font-size:14px}
+  .adv .p{font-size:13px;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft)}
+  td.y{color:#1f7a4d;font-weight:600} td.n{color:#a33b2d;font-weight:600} td.m{color:#8a6a12;font-weight:600}
+  details{border:1px solid var(--line);border-radius:8px;margin:10px 0}
+  summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;align-items:center;gap:10px}
+  summary::-webkit-details-marker{display:none}
+  summary .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  details .body{padding:0 18px 16px;color:#2a2f36}
+  .c1{border-color:var(--c1)} .c2{border-color:var(--c2)} .c3{border-color:var(--c3)} .c4{border-color:var(--c4)} .c5{border-color:var(--c5)}
+  .d1{background:var(--c1)} .d2{background:var(--c2)} .d3{background:var(--c3)} .d4{background:var(--c4)} .d5{background:var(--c5)}
+  .footer{color:var(--muted);font-size:13px;margin-top:36px;border-top:1px solid var(--line);padding-top:14px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LLM Council 報告：手裡劍偏差、破圖、開場閃、首頁設計——四件事怎麼排？</h1>
+  <div class="sub">2026-10-24 16:15 · 五位顧問獨立回答 → 匿名互評 → 主席統整 · 逐字稿：council-transcript-20261024-1615.md</div>
+
+  <div class="card q">
+    <h2>提問</h2>
+    <p>使用者回報四件事：手裡劍近距離準心與實際飛出位置不同；很多地方破圖（未說哪裡）；開場莫名閃一下才回到主角；首頁太簡易要先做好。議會要答：四件事先後？首頁該做到什麼程度、怎麼做才值得？有沒有沒問但更該先處理的事？</p>
+    <p style="color:var(--muted);font-size:14px;margin:0">現況：三關完成、四五關只有大綱；iPhone Safari 網頁版測試、無 Apple 帳號、「先確認好玩再付」；畫面全是程式幾何體。手裡劍鎖定時飛向胸口、無鎖定時飛向鏡頭射線命中點但從手射出；鏡頭先掛在場景原點再追到起點＋開場預熱火花；首頁為深藍底、朱紅方塊、大字、三關按鈕、道場、持有物、提示。</p>
+  </div>
+
+  <div class="card verdict">
+    <h2>主席裁決</h2>
+
+    <h3>議會一致同意的地方</h3>
+    <p>五位顧問都把首頁排在最後或接近最後，都同意首頁問題的本質不是美術：幾何體遊戲做得越漂亮，進關落差越大。都同意破圖不能盲修，必須先拿到位置。四位同意開場閃是最便宜、每次測試必見的缺陷，半小時內該消失。四位直接點名沒問但更該做的事是同一件：<strong>第四關本丸灰盒</strong>——付不付 Apple 帳號費取決於「有沒有下一關想玩」，不取決於首頁。</p>
+
+    <h3>議會意見衝突的地方</h3>
+    <ol>
+      <li><strong>手裡劍</strong>：第一性原理與執行者認為是一行數學（彈道從手出、方向改用手到準心命中點），反方認為自由瞄準這功能本身就不該存在，隻狼從不給。兩條路互斥，必須先選。</li>
+      <li><strong>首頁該不該吃掉開場閃</strong>：擴張者主張把第三關活場景載進首頁、順便藏掉閃爍；其他四位反對——那是加範圍不是修 bug，重開關卡照樣閃。</li>
+      <li><strong>排序第一位</strong>：執行者與局外人選開場閃，第一性原理選破圖，擴張者選首頁。</li>
+    </ol>
+
+    <h3>互評抓到的盲點</h3>
+    <ol>
+      <li>沒人問「破圖是不是 Safari WebGL 特有」（近裁面、深度精度）。針對網頁版修，日後 iOS 原生可能白做；反之亦然。</li>
+      <li>沒人提用現成 <code>--bot</code> 跑三關自動截圖——破圖和開場閃都能自動重現，不必逼使用者描述。</li>
+      <li>「說不出哪裡破」本身是回報工具缺位：網頁版一鍵回報（截圖＋座標＋關卡＋FPS）比修任何單一 bug 都值。</li>
+      <li>沒人問使用者為什麼把首頁排第一——他是否準備給別人看？這會改變首頁的優先級。</li>
+    </ol>
+
+    <h3>建議</h3>
+    <p><strong>先後：開場閃 → 手裡劍 → 破圖證據管線 → 首頁（限時）→ 立刻轉第四關灰盒。</strong></p>
+    <p><strong>開場閃（半小時）</strong>：關卡 <code>_ready</code> 先傳送玩家、再設相機位置、<code>reset_physics_interpolation()</code>、最後 <code>current = true</code>；預熱火花與刀光移到全黑 ColorRect 後面，0.3 秒淡入。</p>
+    <p><strong>手裡劍（一小時）選第一性原理路線</strong>：保留手上視覺起點，飛行方向改成「手部位置 → 準心射線命中點」的向量；命中點距離小於 1.5 公尺時改用玩家前方固定點，避免近身角度翻轉。鎖定模式維持飛胸口不動。不採納取消自由瞄準——等第五關做完再評估；現在要的是「準心指哪打哪」。</p>
+    <p><strong>破圖（兩小時建管線，不修）</strong>：加一個除錯鍵，螢幕上印出鏡頭座標、關卡名、穿透物名稱、FPS，並能一鍵截圖；<code>--bot</code> 跑三關每 5 秒截一張存進 docs。下次 iPhone 測試後拿著截圖再修，並先確認是否只在 Safari 出現。</p>
+    <p><strong>首頁（上限兩小時，超過就是逃避）</strong>：只做「不丟臉＋告訴新手走哪條路」。</p>
+    <ul>
+      <li>主按鈕只有一顆「開始」：續上次進度，沒進度就進第一關。</li>
+      <li>三關選擇降為次要列，未通關的關卡顯示鎖或「推薦先玩前一關」。</li>
+      <li>所有按鈕加按壓縮放＋刀鞘音。</li>
+      <li>日輪一個 Tween 慢呼吸，其餘不動。</li>
+      <li>操作提示從首頁拿掉，移進第一關前 10 秒。</li>
+      <li>版本號留著。</li>
+    </ul>
+    <p>不做活場景背景、不做音樂、不做任何新場景檔。</p>
+
+    <div class="first">
+      <strong>第一件該做的事：</strong>今天半小時內修掉開場閃：先傳送、再設相機、最後啟用，預熱藏在黑幕後。這是每次測試第一眼必見、修法完全確定、不需要任何回報資料的唯一一件事。修完就開始手裡劍，不要碰首頁。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>顧問立場一覽</h2>
+    <div class="grid">
+      <div class="adv c1"><div class="n">反方</div><div class="p">三件是症狀、首頁是陷阱；破圖先要證據；自由瞄準本身可能是錯的</div></div>
+      <div class="adv c2"><div class="n">第一性原理</div><div class="p">尺是「前 90 秒想不想玩」；破圖第一；手裡劍一行數學；首頁幾乎不做</div></div>
+      <div class="adv c3"><div class="n">擴張者</div><div class="p">首頁變活場景、吃掉閃爍、三處收益；道場變展示間</div></div>
+      <div class="adv c4"><div class="n">局外人</div><div class="p">開場閃像壞掉；漂亮首頁反而是詐欺；新手不知道該按哪個</div></div>
+      <div class="adv c5"><div class="n">執行者</div><div class="p">開場閃半小時、手裡劍一小時、破圖先除錯鍵、首頁三小時上限；做第四關</div></div>
+    </div>
+    <table>
+      <tr><th>議題</th><th>反方</th><th>第一性原理</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr>
+      <tr><td>排第一</td><td>開場閃（修）／破圖（取證）</td><td>破圖（取證）</td><td class="n">首頁</td><td>開場閃</td><td>開場閃</td></tr>
+      <tr><td>首頁做多少</td><td class="n">陷阱，放戰績即可</td><td class="n">30 分鐘留白版</td><td class="y">活場景背景</td><td class="m">不丟臉就好</td><td class="m">三小時上限</td></tr>
+      <tr><td>手裡劍</td><td class="n">自由瞄準該取消</td><td class="y">手→準心命中點向量</td><td class="y">從手二次射線</td><td>要「指哪打哪」</td><td class="y">射線起點前移</td></tr>
+      <tr><td>破圖先取證</td><td class="y">是</td><td class="y">是</td><td class="y">是</td><td class="y">是</td><td class="y">是（除錯鍵）</td></tr>
+      <tr><td>沒問但該做</td><td>有沒有主動重玩</td><td>第四關</td><td>道場展示間</td><td>新手該按哪個</td><td>第四關灰盒</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>顧問完整回答</h2>
+
+    <details><summary><span class="dot d1"></span>反方（The Contrarian）</summary><div class="body">
+      <p>先說致命缺陷：這四件回報裡，有三件根本不是「問題」，是「症狀」，而第四件是陷阱。</p>
+      <p><strong>第 2 件「很多地方破圖」是最危險的，因為沒人知道是什麼。</strong>使用者說不出哪裡，開發者就列了三種猜測。在不知道病灶的情況下排優先序，等於在猜。先做的事不是修，是逼使用者給出三個具體位置截圖，或者自己開 bot 跑三關錄一次。沒有這步，任何「修破圖」工時都可能打在錯的地方。</p>
+      <p><strong>第 1 件手裡劍偏差，表面是 bug，其實是設計錯誤。</strong>「從手射出但瞄鏡頭射線」這個架構在近距離必然失準，任何補丁都只是把失準搬到別的距離。該問的是：為什麼沒鎖定時要讓玩家瞄準？隻狼手裡劍從來不給自由瞄準。</p>
+      <p><strong>第 3 件開場閃一下，是最便宜也最該先修的</strong>——每次測試都發生，在「粗糙」印象上比首頁影響更大。預熱閃光在黑幕後面做，鏡頭在關卡傳送後再啟用。半小時。</p>
+      <p><strong>第 4 件首頁是陷阱。</strong>美術全是幾何體，首頁再怎麼設計也只是排版更好的幾何體。使用者真正在說的是「我對這遊戲的整體信心不夠」。更該做的是：首頁放「上一次遊玩的戰績」或關卡動態預覽，回答「值得玩」而不是「好看」。</p>
+      <p>沒人問但該問的：三關完成後，使用者有沒有<strong>主動</strong>重玩過任何一關？如果沒有，四件全修完也不會付那筆錢。</p>
+    </div></details>
+
+    <details><summary><span class="dot d2"></span>第一性原理思考者（The First Principles Thinker）</summary><div class="body">
+      <p>唯一的目標函數是：下一次 iPhone 測試，前 90 秒能不能讓他想繼續玩。</p>
+      <p><strong>破圖（2）第一。</strong>直接摧毀「我在一個真實空間裡潛行」的信念。但先別修——先讓使用者錄 30 秒影片指出在哪。</p>
+      <p><strong>手裡劍（1）第二，且問題問錯了。</strong>真正的問題是「射出點該是手還是鏡頭」。彈道從手出發、方向改用「手到準心命中點」的向量。一行數學，不是設計題。</p>
+      <p><strong>開場閃爍（3）第三，五分鐘的事。</strong>預熱在黑幕後、傳送後鏡頭瞬移歸位。</p>
+      <p><strong>首頁（4）排最後，現階段幾乎不該做。</strong>使用者是開發者本人，每次看首頁不到兩秒；首頁服務的是陌生人，陌生人要到 TestFlight 才存在。真要動限 30 分鐘：全黑、一個字「半藏」、一聲刀鞘音、按任意處開始。留白比塞東西更像隻狼。</p>
+      <p><strong>沒問但更該先做的：</strong>第四關本丸。還在猶豫缺的不是首頁，是證明「系統能撐五關都不膩」。</p>
+    </div></details>
+
+    <details><summary><span class="dot d3"></span>擴張者（The Expansionist）</summary><div class="body">
+      <p>把首頁看成被低估的資產。上行空間不在美術，在「把首頁變成遊戲本身」：背景直接載入第三關夜之城下町的一角，鏡頭用現成 49 度俯視慢慢橫移，膠囊足輕按既有巡邏 AI 走動，燈籠光暈閃著。零新資產，只要一個場景檔加一條鏡頭路徑。朱紅日輪放大到三分之一畫面、字壓上面，就是風格宣言。順手把預熱閃光藏進標題畫面後台；「開始」在首頁背景裡淡入第一關起點，鏡頭不切不閃。</p>
+      <p>複利：首頁同時是宣傳片、Apple 審核截圖來源、TestFlight 邀請素材。</p>
+      <p>排序：首頁（含吃掉閃爍）→ 手裡劍（從手位置二次射線，半天）→ 破圖（先收集位置再動手）。</p>
+      <p>沒問但更大的事：道場變「展示間」，把敵人表情、狀態轉場、背刺倍傷放進去當可玩招式說明，那是最有辨識度的東西，現在埋在關卡裡沒人看到。</p>
+    </div></details>
+
+    <details><summary><span class="dot d4"></span>局外人（The Outsider）</summary><div class="body">
+      <p>排序：3 → 1 → 2 → 4。<strong>開場閃一下，我會以為遊戲壞了。</strong>你們內部知道原因所以覺得小，我不知道所以覺得大。一小時內藏起來。</p>
+      <p>手裡劍第二，「我按了、結果跟我想的不一樣」會讓我覺得遊戲不聽話。破圖第三，但請直接問使用者哪裡破，猜著修最浪費。</p>
+      <p>首頁潑冷水：<strong>全是方塊人的遊戲，做一個漂亮首頁反而是詐欺。</strong>首頁再美，進去是膠囊人，落差只會更大。只需要做到「不丟臉」：字放對位置、按鈕有聲音有回饋、提示別塞到看不懂。半天收工。</p>
+      <p>沒人問但我最在意：三關加道場平排，我第一次打開時<strong>知道該按哪個嗎？</strong>會不會直接點第三關被打死覺得遊戲爛？首頁核心不是美術，是「第一次來的人該走哪條路」。</p>
+    </div></details>
+
+    <details><summary><span class="dot d5"></span>執行者（The Executor）</summary><div class="body">
+      <p>排序只看一件事：星期一早上哪個能在兩小時內改完、而且每次測試都會看到。</p>
+      <p><strong>第一：開場閃。</strong>關卡 <code>_ready()</code> 先傳玩家，再設 Camera3D 位置並 <code>reset_physics_interpolation()</code>，最後 <code>current = true</code>；預熱火花移到全黑 ColorRect 後 0.3 秒淡入。半小時。</p>
+      <p><strong>第二：手裡劍。</strong>保留手上視覺起點，飛行軌跡起點改成「鏡頭射線在玩家前方 1.5 公尺處」，或出手瞬間 <code>look_at(目標點)</code> 做直線。一小時。</p>
+      <p><strong>第三：破圖。</strong>先逼使用者講清楚哪裡。給他一個除錯鍵把鏡頭位置與穿透物名字印在螢幕上讓他截圖回報。盲修會吃掉兩天。</p>
+      <p><strong>第四才是首頁。</strong>背景放 Camera3D 俯拍現有關卡、日輪 Tween 呼吸、按鈕有音效與縮放。三小時內，超過就是在逃避做第四關。</p>
+      <p>沒問但更該做的：第四關本丸的灰盒。付不付錢取決於「有沒有下一關想玩」。</p>
+    </div></details>
+  </div>
+
+  <div class="card">
+    <h2>互評重點</h2>
+    <details><summary>五份匿名互評（A＝擴張者、B＝執行者、C＝局外人、D＝反方、E＝第一性原理）</summary><div class="body">
+      <p><strong>評審一：</strong>B 最強——可直接動手的修法與時限，破圖先要位置，真正缺口是第四關。D 說「補丁只是搬移失準」不對，手到命中點向量確實能命中。A 盲點最大——活場景首頁是加範圍，「吃掉閃爍」只藏開場，重開關卡仍閃。全漏：沒人問使用者為何把首頁排第一；破圖可能是 Safari WebGL 特有，要真機驗證並用 bot 鎖成回歸測試。</p>
+      <p><strong>評審二：</strong>D 最強——唯一指出手裡劍是設計錯誤、首頁訴求背後是信心不足、「有沒有主動重玩」是真問題。A 盲點最大——後台載第三關在 Safari 是啟動與記憶體負擔，製造新的開場卡頓。全漏：沒先問 Safari 網頁版 vs 日後 iOS 原生，盲修可能白做。</p>
+      <p><strong>評審三：</strong>B 最強——可執行、附時限、兩條硬約束。D 洞見最深但沒給修法。A 盲點最大——把第三關整個載進首頁；把閃爍「藏」起來而非修掉相機順序錯誤。全漏：手裡劍兩條路互斥，必須先選；四件都該 iPhone 實機驗證。</p>
+      <p><strong>評審四：</strong>B 最強——每件可驗證修法與時限，首頁三小時上限。A 盲點最大——替不存在的觀眾做工。全漏：沒人建議先用 <code>--bot</code> 跑三關自動截圖，先建立可重現的證據管線。</p>
+      <p><strong>評審五：</strong>B 最強——四件全換算成工時與改法。A 盲點最大——活場景首頁需要最多工程，幾何體首頁越美落差越大。全漏：「說不出哪裡破」是回報工具缺位，網頁版一鍵回報（截圖＋座標＋關卡＋FPS）比修任何單一 bug 更值；也沒追問是否 Safari WebGL 限制。</p>
+    </div></details>
+  </div>
+
+  <div class="footer">2026-10-24 16:15 · 議題：手裡劍偏差、破圖、開場閃、首頁設計的先後與首頁程度 · 專案：半藏 HANZO（Godot 4.7.2，iOS 優先）</div>
+</div>
+</body>
+</html>
