@@ -72,6 +72,24 @@ func _apply_params() -> void:
 	_base_fov = Feel.get_p("cam_fov")
 
 
+## 射線，但跳過被遮蔽層隱藏的東西（屋頂、樓板隱藏時還有碰撞）
+func _ray_visible(from: Vector3, to: Vector3, mask: int, exclude: Array = []) -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var ex: Array = exclude.duplicate()
+	for i in range(4):
+		var q := PhysicsRayQueryParameters3D.create(from, to, mask)
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return hit
+		var c: Node = hit.collider
+		if c is Node3D and not (c as Node3D).is_visible_in_tree():
+			ex.append(hit.rid)
+			continue
+		return hit
+	return {}
+
+
 func _on_shake(amp: float, dur: float) -> void:
 	_trauma = minf(maxf(_trauma, amp), 1.0)
 	_decay = amp / maxf(dur, 0.02)
@@ -105,6 +123,15 @@ func _process(delta: float) -> void:
 	var right := Vector3(1.0, 0.0, 0.0).rotated(Vector3.UP, yaw)
 	# 過肩：偏右上，避免半藏的頭擋住準心
 	var shoulder_pos := Vector3(0.0, 2.05, 0.0) - f * 3.0 + right * 1.05
+	# 鏡頭不能退到牆後面：從頭頂往肩後位置打射線，撞到牆就把鏡頭拉到牆前面
+	# （不然畫面中心的射線從牆外打過來，準心點手搆不到，手裡劍會射偏）
+	if _blend > 0.01 and _target:
+		var head := global_position + Vector3(0.0, 1.7, 0.0)
+		var want := global_position + shoulder_pos
+		var hit := _ray_visible(head, want, 1, [_target.get_rid()] if _target is CollisionObject3D else [])
+		if not hit.is_empty():
+			var pulled: Vector3 = (hit.position as Vector3) + ((head - want).normalized()) * 0.3
+			shoulder_pos = pulled - global_position
 	var aim_f := (f * cos(aim_pitch) + Vector3(0.0, -sin(aim_pitch), 0.0)).normalized()
 	var shoulder_look := shoulder_pos + aim_f * 12.0
 	var k := smoothstep(0.0, 1.0, _blend)

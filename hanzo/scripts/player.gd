@@ -346,12 +346,28 @@ func _pick_enemy_ray(origin: Vector3, dir: Vector3, min_dot: float, max_dist: fl
 	return {"target": best, "head": head}
 
 
+## 瞄準用射線：跳過被遮蔽層隱藏的屋頂／樓板（它們隱藏時還有碰撞，不跳過的話準心會打在看不見的天花板上）
+func _ray_visible(from: Vector3, to: Vector3, mask: int) -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var ex: Array = [get_rid()]
+	for i in range(4):
+		var q := PhysicsRayQueryParameters3D.create(from, to, mask)
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return hit
+		var c: Node = hit.collider
+		if c is Node3D and not (c as Node3D).is_visible_in_tree():
+			ex.append(hit.rid)
+			continue
+		return hit
+	return {}
+
+
 ## 鉤繩落點（準心射線）：打到頂面直接落在那裡（可上可下，不能同高度平移）；打到牆面就往上找牆頂
 func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	var space := get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * 30.0, 1)
-	q.exclude = [get_rid()]
-	var hit := space.intersect_ray(q)
+	var hit := _ray_visible(origin, origin + dir * 30.0, 1)
 	var fail := {"ok": false, "pos": origin + dir * 8.0}
 	if hit.is_empty():
 		return fail
@@ -509,16 +525,13 @@ func _throw(dir: Vector3, target: Node3D, head: bool = false) -> void:
 	elif cam_rig != null and cam_rig.has_method("aim_ray"):
 		# 準心射線打到的點（或 35 公尺外），手裡劍從手上飛向那一點
 		var r: Array = cam_rig.aim_ray()
-		var space := get_world_3d().direct_space_state
-		var q := PhysicsRayQueryParameters3D.create(r[0], r[0] + r[1] * 35.0, 1 | 2)
-		q.exclude = [get_rid()]
-		var hit := space.intersect_ray(q)
+		var hit := _ray_visible(r[0], r[0] + r[1] * 35.0, 1 | 2)
 		var aim_point: Vector3 = hit.position if not hit.is_empty() else r[0] + r[1] * 35.0
 		d = (aim_point - from).normalized()
 		# 快速點一下（鏡頭還沒切到過肩）、或準心打到的點離手太近／在身後：改朝鏡頭正前方平射，
 		# 不然會射向俯視鏡頭中心打到的地面（看起來就是「準心和飛出去的位置不同」）
 		var fwd: Vector3 = cam_rig.forward()
-		if _aim_t < 0.2 or (aim_point - from).length() < 1.5 or d.dot(fwd) < 0.35:
+		if _aim_t < 0.2 or (aim_point - from).length() < 0.8 or d.dot(fwd) < 0.35:
 			d = fwd
 	var flat := Vector3(d.x, 0.0, d.z)
 	if flat.length() > 0.01:

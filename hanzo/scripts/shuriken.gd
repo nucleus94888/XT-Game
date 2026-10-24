@@ -68,7 +68,37 @@ func _physics_process(delta: float) -> void:
 		# 插著微微發亮，提示可撿
 		_spin.scale = Vector3.ONE * (1.0 + 0.08 * sin(_t * 6.0))
 		return
-	global_position += dir * speed * delta
+	# 每幀用射線掃過這一步的路徑（Area 對靜態世界不可靠，會直接穿過地面與牆）：
+	# 打到敵人受擊區／燈籠（Area）→ 命中；打到世界（Body）→ 插在那裡
+	var from := global_position
+	var to := from + dir * speed * delta
+	var space := get_world_3d().direct_space_state
+	var ex: Array = [(src as CollisionObject3D).get_rid()] if src is CollisionObject3D else []
+	var hit := {}
+	for i in range(4):
+		var q := PhysicsRayQueryParameters3D.create(from, to + dir * 0.25, 1 | 4 | 16)
+		q.collide_with_areas = true
+		q.collide_with_bodies = true
+		q.exclude = ex
+		hit = space.intersect_ray(q)
+		# 被遮蔽層隱藏的屋頂／樓板對玩家來說不存在，直接穿過
+		if not hit.is_empty() and hit.collider is Node3D and not (hit.collider as Node3D).is_visible_in_tree():
+			ex.append(hit.rid)
+			hit = {}
+			continue
+		break
+	if not hit.is_empty():
+		var c: Node = hit.collider
+		if c is Area3D:
+			global_position = hit.position
+			_on_area(c)
+			if _done:
+				return
+		elif not (c.is_in_group("enemies") or c.is_in_group("player")):
+			global_position = hit.position
+			_hit_world(hit.normal)
+			return
+	global_position = to
 	_spin.rotation.z += delta * 30.0
 	_life -= delta
 	if _life <= 0.0:
@@ -152,13 +182,20 @@ func _on_area(a: Area3D) -> void:
 func _on_body(b: Node3D) -> void:
 	if _done or stuck or b == src or b.is_in_group("enemies") or b.is_in_group("player"):
 		return
-	# 打到牆或地：製造聲響，附近守衛會過來查看；手裡劍插在那裡可撿回
-	get_tree().call_group("enemies", "hear_noise", global_position, 8.0)
 	var space := get_world_3d().direct_space_state
 	var q := PhysicsRayQueryParameters3D.create(global_position - dir * 0.6, global_position + dir * 0.6, 1)
 	var hit := space.intersect_ray(q)
 	var n := -dir
 	if not hit.is_empty():
-		global_position = (hit.position as Vector3) + (hit.normal as Vector3) * 0.04
+		global_position = hit.position
 		n = hit.normal
-	_stick(n)
+	_hit_world(n)
+
+
+## 打到牆或地：製造聲響，附近守衛會過來查看；手裡劍插在那裡可撿回
+func _hit_world(normal: Vector3) -> void:
+	if _done or stuck:
+		return
+	global_position += normal * 0.04
+	get_tree().call_group("enemies", "hear_noise", global_position, 8.0)
+	_stick(normal)

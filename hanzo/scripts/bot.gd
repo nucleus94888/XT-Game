@@ -9,7 +9,10 @@ extends Node
 ##   印出拉近速率（公尺/秒）與「從 6 公尺到被追上要幾秒」。--kind=ashigaru|samurai|target|archer
 ##   godot --headless --path hanzo scenes/level1.tscn ++ --bot=chase --kind=ashigaru --runs=3
 
+## throw：手裡劍準度量測。站在起點，用幾組鏡頭角度瞄準、投擲，印出「準心射線打到的點」和「手裡劍最後停的點」差多少。
+##   godot --headless --path hanzo scenes/level1.tscn ++ --bot=throw
 const KINDS := {"ashigaru": Enemy.Kind.ASHIGARU, "archer": Enemy.Kind.ARCHER, "samurai": Enemy.Kind.SAMURAI, "target": Enemy.Kind.TARGET}
+const THROW_VARIANTS := [[0.0, 0.15], [0.0, 0.45], [0.0, -0.15], [0.8, 0.15], [-0.8, 0.3], [2.4, 0.2]]
 const CHASE_START := 6.0
 const CHASE_MAX_T := 8.0
 
@@ -64,7 +67,77 @@ func start() -> void:
 	_begin_run()
 
 
+func _throw_test() -> void:
+	if player.weapon_mode != player.WEAPON_SHURIKEN:
+		player.toggle_weapon()
+	var space := player.get_world_3d().direct_space_state
+	# --at=x,y,z：改從這個點投（例如站進屋敷裡測被隱藏的屋頂會不會擋到準心）
+	var at := _start_pos
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--at="):
+			var c: PackedStringArray = a.substr(5).split(",")
+			if c.size() == 3:
+				at = Vector3(float(c[0]), float(c[1]), float(c[2]))
+	# --kind=xxx：在前方 6 公尺放一個敵人（第一組角度會鎖定到他），確認命中與扣血
+	var dummy: Enemy = null
+	if "--kind=" in " ".join(OS.get_cmdline_user_args()):
+		dummy = Enemy.new()
+		dummy.kind = kind
+		dummy.face_dir = Vector3(0, 0, 1)
+		level.add_child(dummy)
+		dummy.global_position = at + Vector3(0.0, 0.0, -6.0)
+	for v in THROW_VARIANTS:
+		player.global_position = at
+		player.velocity = Vector3.ZERO
+		player.refill_shuriken()
+		cam_rig.yaw = float(v[0])
+		cam_rig.aim_pitch = float(v[1])
+		await get_tree().create_timer(0.3).timeout
+		player.on_attack_down()
+		await get_tree().create_timer(0.5).timeout
+		var r: Array = cam_rig.aim_ray()
+		# 和玩家一樣跳過被隱藏的遮蔽層
+		var hit: Dictionary = player._ray_visible(r[0], r[0] + r[1] * 35.0, 1 | 2)
+		var expect: Vector3 = hit.position if not hit.is_empty() else r[0] + r[1] * 35.0
+		var desc := "沒打到"
+		if not hit.is_empty():
+			var n: Node = hit.collider
+			desc = String(n.get_meta("desc")) if n.has_meta("desc") else n.name
+			desc += "（%s）" % ("可見" if (n as Node3D).is_visible_in_tree() else "隱藏")
+		var locked = player._aim_target
+		player.on_attack_up()
+		await get_tree().process_frame
+		var s: Node = player._shuriken_in_flight
+		var t := 0.0
+		if _trace:
+			print("  after throw: shuriken=%d node=%s valid=%s pstate=%d aim=%d" % [player.shuriken, str(s), is_instance_valid(s), player.state, player.aim_mode])
+		var next_log := 0.0
+		while is_instance_valid(s) and s.is_inside_tree() and not s.get("stuck") and t < 2.5:
+			await get_tree().process_frame
+			t += get_process_delta_time()
+			if _trace and t >= next_log:
+				next_log += 0.2
+				print("  [%.2f] shuriken at %s" % [t, (s as Node3D).global_position])
+		var end_s := "消失（命中敵人／燈籠）"
+		var miss := -1.0
+		var offline := -1.0
+		if is_instance_valid(s) and s.is_inside_tree():
+			var e: Vector3 = s.global_position
+			end_s = "(%.1f, %.1f, %.1f)" % [e.x, e.y, e.z]
+			miss = e.distance_to(expect)
+			var rel: Vector3 = e - r[0]
+			offline = (rel - r[1] * rel.dot(r[1])).length()
+		var ehp := ("　敵人 hp=%d" % dummy.hp) if is_instance_valid(dummy) else ""
+		print("THROW yaw=%.1f pitch=%.2f 鎖定=%s　準心點 (%.1f, %.1f, %.1f) %s　手裡劍停在 %s　差 %.2f m　離射線 %.2f m%s" % [
+			float(v[0]), float(v[1]), str(locked != null), expect.x, expect.y, expect.z, desc, end_s, miss, offline, ehp])
+		await get_tree().create_timer(0.4).timeout
+	get_tree().quit()
+
+
 func _begin_run() -> void:
+	if mode == "throw":
+		_throw_test()
+		return
 	_run += 1
 	_t = 0.0
 	_done = false
@@ -152,6 +225,8 @@ var _trace := false
 
 
 func _physics_process(delta: float) -> void:
+	if mode == "throw":
+		return
 	if _done or not is_instance_valid(enemy) or player == null:
 		return
 	_t += delta
