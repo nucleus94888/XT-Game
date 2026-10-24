@@ -18,15 +18,17 @@ enum State { IDLE, PATROL, SUSPICIOUS, ALERT, ATTACK, STAGGER, BROKEN, DEAD, SEA
 ## speed：走路基準（巡邏 ×0.55、搜索 ×0.75、起疑逼近 ×0.5）；run：追擊／逃跑用的跑速。
 ## 玩家走速 5.4、閃步 17。追擊一定要快過走速，被發現才等於「必須閃步或戰鬥」（第七次議會）。
 const SPEC := {
-	Kind.ASHIGARU: {"name": "足輕", "hp": 40, "posture": 60.0, "speed": 4.0, "run": 6.2, "color": Color(0.36, 0.42, 0.55), "reach": 2.1, "dmg": 12, "windup": 0.45, "strike": 0.14, "cd": 1.5, "weapon": "spear", "view": 7.0},
+	Kind.ASHIGARU: {"name": "足輕", "hp": 40, "posture": 60.0, "speed": 4.0, "run": 6.0, "color": Color(0.36, 0.42, 0.55), "reach": 2.1, "dmg": 12, "windup": 0.45, "strike": 0.14, "cd": 1.5, "weapon": "spear", "view": 7.0},
 	Kind.ARCHER: {"name": "弓兵", "hp": 30, "posture": 50.0, "speed": 3.6, "run": 4.6, "color": Color(0.3, 0.5, 0.35), "reach": 9.5, "dmg": 10, "windup": 0.75, "strike": 0.1, "cd": 2.3, "weapon": "bow", "view": 9.0},
-	Kind.SAMURAI: {"name": "武士", "hp": 90, "posture": 100.0, "speed": 4.5, "run": 6.6, "color": Color(0.6, 0.16, 0.14), "reach": 2.3, "dmg": 18, "windup": 0.5, "strike": 0.14, "cd": 1.4, "weapon": "katana", "view": 8.0},
-	Kind.TARGET: {"name": "武將", "hp": 120, "posture": 110.0, "speed": 4.3, "run": 6.4, "color": Color(0.78, 0.62, 0.2), "reach": 2.4, "dmg": 22, "windup": 0.55, "strike": 0.14, "cd": 1.3, "weapon": "katana", "view": 8.0},
+	Kind.SAMURAI: {"name": "武士", "hp": 90, "posture": 100.0, "speed": 4.5, "run": 6.3, "color": Color(0.6, 0.16, 0.14), "reach": 2.3, "dmg": 18, "windup": 0.5, "strike": 0.14, "cd": 1.4, "weapon": "katana", "view": 8.0},
+	Kind.TARGET: {"name": "武將", "hp": 120, "posture": 110.0, "speed": 4.3, "run": 6.1, "color": Color(0.78, 0.62, 0.2), "reach": 2.4, "dmg": 22, "windup": 0.55, "strike": 0.14, "cd": 1.3, "weapon": "katana", "view": 8.0},
 	# 大將：不打架，一察覺就逃（故事用，打不死）
 	Kind.LORD: {"name": "大將", "hp": 9999, "posture": 9999.0, "speed": 4.5, "run": 6.5, "color": Color(0.45, 0.12, 0.5), "reach": 0.0, "dmg": 0, "windup": 1.0, "strike": 0.1, "cd": 99.0, "weapon": "katana", "view": 9.0},
 }
 ## 起疑：先站住一拍盯著（可讀），再慢走過去（壓力）
 const SUSPICIOUS_HOLD := 0.5
+## 移動加速度（公尺/秒²）：0 → 6 公尺/秒約 0.45 秒
+const MOVE_ACCEL := 13.0
 const VIEW_COS := 0.42
 const SHOUT_RANGE := 10.0
 
@@ -399,8 +401,12 @@ func _move_to(p: Vector3, speed: float, delta: float) -> void:
 		d.y = 0.0
 	if d.length() > 0.05:
 		d = d.normalized()
-		velocity.x = d.x * speed
-		velocity.z = d.z * speed
+		# 起步有加速（約半秒到全速），不會一察覺就瞬間滿速衝出來；停下仍是立刻停（戰鬥站位要準）
+		var cur := Vector2(velocity.x, velocity.z)
+		var want := Vector2(d.x, d.z) * speed
+		var nv := cur.move_toward(want, MOVE_ACCEL * delta)
+		velocity.x = nv.x
+		velocity.z = nv.y
 		_facing = _yaw_to(d)
 	else:
 		_stop()
