@@ -20,7 +20,7 @@ const ATK_R := 54.0
 const DASH_R := 38.0
 const BLOCK_R := 38.0
 const HOOK_R := 36.0
-const SWAP_R := 24.0
+const SWAP_R := 19.0
 ## 計數器（手裡劍數量）變動時彈一下
 var _count_pop := 0.0
 
@@ -92,10 +92,11 @@ func _hook_center() -> Vector2:
 	return _mx(Vector2(size.x - 246.0, size.y - 198.0))
 
 
+## 「換」：攻擊鍵右上角的小徽章（壓在大圓邊上），直立橫放都一樣
 func _swap_center() -> Vector2:
-	if _portrait():
-		return _mx(Vector2(size.x - 142.0, size.y - 170.0))
-	return _mx(Vector2(size.x - 176.0, size.y - 156.0))
+	var a := _atk_center()
+	var dx := -ATK_R * 0.72 if _lefty() else ATK_R * 0.72
+	return a + Vector2(dx, -ATK_R * 0.72)
 
 
 ## 左撇子：左右鏡像（搖桿到右、按鍵到左）
@@ -342,12 +343,20 @@ func _draw() -> void:
 			draw_string(font, ac + Vector2(-ATK_R, 30.0), "×%d" % shuriken_count, HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, cs, Color(1, 1, 0.8 + 0.2 * (1.0 - _count_pop), 0.9))
 		else:
 			draw_string(font, ac + Vector2(-ATK_R, 11.0), "攻擊", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 30, Color(1, 1, 1, 0.95))
-	# 武器切換小鍵
+	# 武器切換徽章（攻擊鍵右上角）：顯示「會換成什麼」——刀模式時畫手裡劍、手裡劍模式時畫刀
 	var sc := _swap_center()
-	draw_circle(sc, SWAP_R, Color(0.2, 0.2, 0.25, 0.8))
-	draw_arc(sc, SWAP_R, 0.0, TAU, 32, Color(0.9, 0.9, 0.9, 0.8), 2.0, true)
-	if font:
-		draw_string(font, sc + Vector2(-SWAP_R, 8.0), "換", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0, 20, Color(1, 1, 1, 0.95))
+	draw_circle(sc, SWAP_R, Color(0.9, 0.9, 0.92, 0.85))
+	draw_arc(sc, SWAP_R, 0.0, TAU, 32, Color(1, 1, 1, 0.9), 1.5, true)
+	if shuriken:
+		# 小刀：一條斜線＋短護手
+		draw_line(sc + Vector2(-7, 7), sc + Vector2(7, -7), Color(0.15, 0.15, 0.2), 2.5)
+		draw_line(sc + Vector2(-5, -1), sc + Vector2(0, 4), Color(0.15, 0.15, 0.2), 2.0)
+	else:
+		# 小手裡劍：四芒
+		for i in range(4):
+			var a0 := i * PI / 2.0 + PI / 4.0
+			draw_line(sc, sc + Vector2(cos(a0), sin(a0)) * 8.0, Color(0.15, 0.15, 0.2), 2.5)
+		draw_circle(sc, 2.5, Color(0.15, 0.15, 0.2))
 	# 閃
 	var dc := _dash_center()
 	draw_circle(dc, DASH_R, Color(0.2, 0.3, 0.55, 0.5 + 0.4 * _dash_flash))

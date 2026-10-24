@@ -81,8 +81,8 @@ func _physics_process(delta: float) -> void:
 		q.collide_with_bodies = true
 		q.exclude = ex
 		hit = space.intersect_ray(q)
-		# 被遮蔽層隱藏的屋頂／樓板對玩家來說不存在，直接穿過
-		if not hit.is_empty() and hit.collider is Node3D and not (hit.collider as Node3D).is_visible_in_tree():
+		# 被遮蔽層隱藏的屋頂／樓板、沒有外觀的透明牆：對玩家來說不存在，直接穿過
+		if not hit.is_empty() and hit.collider is Node3D and (not (hit.collider as Node3D).is_visible_in_tree() or hit.collider.has_meta("ghost")):
 			ex.append(hit.rid)
 			hit = {}
 			continue

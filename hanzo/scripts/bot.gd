@@ -163,7 +163,42 @@ func _plunge_test() -> void:
 	get_tree().quit()
 
 
+## ui：對觸控層直接送按鍵事件，驗證「換」會切武器、「鉤」按住會進瞄準、放開會射、攻擊會出刀
+func _touch(tc: Node, pos: Vector2, pressed: bool, idx: int = 0) -> void:
+	var ev := InputEventScreenTouch.new()
+	ev.position = pos
+	ev.pressed = pressed
+	ev.index = idx
+	tc._unhandled_input(ev)
+
+
+func _ui_test() -> void:
+	await get_tree().create_timer(0.5).timeout
+	var tc: Node = hud.touch
+	print("UI size=%s swap=%s atk=%s hook=%s dash=%s block=%s" % [tc.size, tc._swap_center(), tc._atk_center(), tc._hook_center(), tc._dash_center(), tc._block_center()])
+	_touch(tc, tc._swap_center(), true)
+	_touch(tc, tc._swap_center(), false)
+	await get_tree().process_frame
+	print("UI 換 → weapon_mode=%d（1＝手裡劍） label=%s" % [player.weapon_mode, tc.weapon_label])
+	_touch(tc, tc._hook_center(), true)
+	await get_tree().create_timer(0.4).timeout
+	print("UI 鉤按住 → aim_mode=%d（2＝鉤） cam.aiming=%s role=%s" % [player.aim_mode, cam_rig.aiming, str(tc._btn_touch)])
+	_touch(tc, tc._hook_center(), false)
+	await get_tree().create_timer(0.3).timeout
+	print("UI 鉤放開 → aim_mode=%d state=%s" % [player.aim_mode, player.State.keys()[player.state]])
+	_touch(tc, tc._atk_center(), true)
+	await get_tree().create_timer(0.3).timeout
+	print("UI 攻擊按住（手裡劍模式）→ aim_mode=%d（1＝手裡劍）" % player.aim_mode)
+	_touch(tc, tc._atk_center(), false)
+	await get_tree().create_timer(0.3).timeout
+	print("UI 攻擊放開 → shuriken=%d state=%s" % [player.shuriken, player.State.keys()[player.state]])
+	get_tree().quit()
+
+
 func _begin_run() -> void:
+	if mode == "ui":
+		_ui_test()
+		return
 	if mode == "throw":
 		_throw_test()
 		return
@@ -257,7 +292,7 @@ var _trace := false
 
 
 func _physics_process(delta: float) -> void:
-	if mode == "throw" or mode == "plunge":
+	if mode == "throw" or mode == "plunge" or mode == "ui":
 		return
 	if _done or not is_instance_valid(enemy) or player == null:
 		return

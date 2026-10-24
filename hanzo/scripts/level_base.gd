@@ -309,6 +309,9 @@ func _invisible(center: Vector3, size: Vector3) -> void:
 	bs.size = size
 	cs.shape = bs
 	sb.add_child(cs)
+	# 標記「幽靈牆」：鏡頭碰撞與手裡劍飛行要無視它（它只擋人與鉤繩），不然站在柵欄邊鏡頭會被頂到頭上、無法瞄準
+	sb.set_meta("ghost", true)
+	sb.set_meta("desc", "透明牆 中心(%.1f, %.1f, %.1f) 尺寸(%.1f×%.1f×%.1f)" % [center.x, center.y, center.z, size.x, size.y, size.z])
 	_region.add_child(sb)
 	sb.position = center
 

@@ -86,7 +86,8 @@ func _ray_visible(from: Vector3, to: Vector3, mask: int, exclude: Array = []) ->
 		if hit.is_empty():
 			return hit
 		var c: Node = hit.collider
-		if c is Node3D and not (c as Node3D).is_visible_in_tree():
+		# 隱藏的遮蔽層、沒有外觀的透明牆：鏡頭都當作不存在
+		if c is Node3D and (not (c as Node3D).is_visible_in_tree() or c.has_meta("ghost")):
 			ex.append(hit.rid)
 			continue
 		return hit
