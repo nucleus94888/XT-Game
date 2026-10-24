@@ -37,8 +37,14 @@ func _ready() -> void:
 
 func set_target(t: Node3D) -> void:
 	_target = t
+	snap_to_target()
+
+
+## 立刻跳到目標位置並算好鏡頭（關卡把玩家傳送到起點後呼叫，不然開場會看到鏡頭從原點飛過去）
+func snap_to_target() -> void:
 	if _target:
 		global_position = _target.global_position
+		_process(0.0)
 
 
 ## 滑動視角：delta 為螢幕像素位移。瞄準中靈敏度較低、可上下抬頭低頭。

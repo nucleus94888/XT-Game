@@ -53,6 +53,9 @@ func _ready() -> void:
 	_parse_args()
 	_checkpoint = start_pos
 	player.global_position = start_pos
+	# 玩家傳送後鏡頭立刻定位；再用黑幕蓋住開場的著色器預熱（火花、刀光），淡入 0.45 秒
+	cam_rig.snap_to_target()
+	hud.curtain(0.45)
 	player.hook_bounds = bounds
 	_nav_begin()
 	_build_world()

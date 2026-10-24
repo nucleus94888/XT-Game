@@ -418,6 +418,16 @@ func _on_flash(color: Color, dur: float) -> void:
 	_flash_tw.tween_property(flash, "color:a", 0.0, dur)
 
 
+## 開場黑幕：全黑再淡入（蓋住鏡頭定位與著色器預熱）
+func curtain(dur: float) -> void:
+	flash.color = Color(0.0, 0.0, 0.0, 1.0)
+	if _flash_tw:
+		_flash_tw.kill()
+	_flash_tw = flash.create_tween()
+	_flash_tw.tween_interval(0.12)
+	_flash_tw.tween_property(flash, "color:a", 0.0, dur)
+
+
 func _process(delta: float) -> void:
 	if _combo_t > 0.0:
 		_combo_t -= delta

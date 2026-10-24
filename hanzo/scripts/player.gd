@@ -515,6 +515,11 @@ func _throw(dir: Vector3, target: Node3D, head: bool = false) -> void:
 		var hit := space.intersect_ray(q)
 		var aim_point: Vector3 = hit.position if not hit.is_empty() else r[0] + r[1] * 35.0
 		d = (aim_point - from).normalized()
+		# 快速點一下（鏡頭還沒切到過肩）、或準心打到的點離手太近／在身後：改朝鏡頭正前方平射，
+		# 不然會射向俯視鏡頭中心打到的地面（看起來就是「準心和飛出去的位置不同」）
+		var fwd: Vector3 = cam_rig.forward()
+		if _aim_t < 0.2 or (aim_point - from).length() < 1.5 or d.dot(fwd) < 0.35:
+			d = fwd
 	var flat := Vector3(d.x, 0.0, d.z)
 	if flat.length() > 0.01:
 		_facing = atan2(-flat.x, -flat.z)
