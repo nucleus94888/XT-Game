@@ -959,9 +959,10 @@ func take_hit(info: Dictionary) -> void:
 	particles.global_position = info.pos
 	particles.direction = dir + Vector3(0, 0.6, 0)
 	particles.restart()
-	# 不跳傷害數字：血條受擊段閃白（爆頭閃橘）再縮
+	# 不跳傷害數字：血條受擊段閃白（爆頭閃橘）、立刻縮、彈一下（不等頓幀結束）
 	_bar_flash_t = 0.18
 	_bar_flash_color = Color(1.0, 0.6, 0.2) if headshot else Color(1, 1, 1)
+	_refresh_bar(true)
 	_react(dir, heavy)
 	if hp <= 0:
 		_die(false)
@@ -1166,6 +1167,33 @@ func _update_face(delta: float) -> void:
 	_body_mat.albedo_color = _body_mat.albedo_color.lerp(tint, 1.0 - exp(-8.0 * delta))
 
 
+## 頭上血條：受過傷或戰鬥中才出現；體幹崩壞時閃紅白；受擊時閃白並彈一下。
+## 受擊當下直接呼叫（punch=true），不等物理幀——命中有頓幀（時間流速 0.05），等物理幀血條會慢半拍
+## 關卡可能生成後把 hp 調高（第二關大將 150、第三關隊長 130），滿血以實際最高值算
+var _bar_tw: Tween
+
+
+func _refresh_bar(punch: bool = false) -> void:
+	_max_hp = maxi(_max_hp, hp)
+	var ratio := clampf(float(hp) / float(_max_hp), 0.0, 1.0)
+	bar.visible = kind != Kind.LORD and (hp < _max_hp or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN])
+	bar_fill.scale.x = maxf(ratio, 0.001)
+	bar_fill.position.x = -0.62 * (1.0 - ratio)
+	bar_fill.visible = ratio > 0.001
+	var blink := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.02)
+	if _bar_flash_t > 0.0:
+		bar_mat.albedo_color = _bar_flash_color
+	else:
+		bar_mat.albedo_color = Color(1.0, 0.3 + 0.7 * blink, 0.3 + 0.7 * blink) if state == State.BROKEN else Color(0.9, 0.2, 0.18)
+	if punch:
+		if _bar_tw and _bar_tw.is_valid():
+			_bar_tw.kill()
+		bar.scale = Vector3(1.0, 1.9, 1.0)
+		_bar_tw = bar.create_tween()
+		_bar_tw.set_ignore_time_scale(true)
+		_bar_tw.tween_property(bar, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
 func _set_emission(color: Color, energy: float) -> void:
 	for m in _mats:
 		m.emission = color
@@ -1180,19 +1208,7 @@ func _update_visual(delta: float) -> void:
 	if state in [State.ALERT] and kind != Kind.ARCHER:
 		var target_rot := Vector3(-1.3, 0.3, -0.2) if _guard else Vector3.ZERO
 		weapon.rotation = weapon.rotation.lerp(target_rot, 1.0 - exp(-18.0 * delta))
-	# 頭上只顯示血條：受過傷或戰鬥中才出現；體幹崩壞時血條閃紅白
-	# 關卡可能生成後把 hp 調高（第二關大將 150、第三關隊長 130），滿血以實際最高值算，不然前幾刀血條不會動
-	_max_hp = maxi(_max_hp, hp)
-	var ratio := clampf(float(hp) / float(_max_hp), 0.0, 1.0)
-	bar.visible = kind != Kind.LORD and (hp < _max_hp or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN])
-	bar_fill.scale.x = maxf(ratio, 0.001)
-	bar_fill.position.x = -0.62 * (1.0 - ratio)
-	bar_fill.visible = ratio > 0.001
-	var blink := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.02)
-	if _bar_flash_t > 0.0:
-		bar_mat.albedo_color = _bar_flash_color
-	else:
-		bar_mat.albedo_color = Color(1.0, 0.3 + 0.7 * blink, 0.3 + 0.7 * blink) if state == State.BROKEN else Color(0.9, 0.2, 0.18)
+	_refresh_bar()
 	if state in [State.SUSPICIOUS, State.SEARCH] and not mark.visible:
 		_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
 	elif not state in [State.SUSPICIOUS, State.SEARCH] and mark.text == "？":
