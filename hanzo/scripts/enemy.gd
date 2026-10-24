@@ -39,6 +39,8 @@ var _flee_i := 0
 
 var spec: Dictionary
 var hp := 0
+## 血條分母：取生成後看過的最高 hp（關卡可能在生成後調高 hp）
+var _max_hp := 1
 var posture := 0.0
 var state := State.IDLE
 var alerted_once := false
@@ -1127,8 +1129,10 @@ func _update_visual(delta: float) -> void:
 		var target_rot := Vector3(-1.3, 0.3, -0.2) if _guard else Vector3.ZERO
 		weapon.rotation = weapon.rotation.lerp(target_rot, 1.0 - exp(-18.0 * delta))
 	# 頭上只顯示血條：受過傷或戰鬥中才出現；體幹崩壞時血條閃紅白
-	var ratio := clampf(float(hp) / float(spec.hp), 0.0, 1.0)
-	bar.visible = kind != Kind.LORD and (hp < int(spec.hp) or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN])
+	# 關卡可能生成後把 hp 調高（第二關大將 150、第三關隊長 130），滿血以實際最高值算，不然前幾刀血條不會動
+	_max_hp = maxi(_max_hp, hp)
+	var ratio := clampf(float(hp) / float(_max_hp), 0.0, 1.0)
+	bar.visible = kind != Kind.LORD and (hp < _max_hp or state in [State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN])
 	bar_fill.scale.x = maxf(ratio, 0.001)
 	bar_fill.position.x = -0.62 * (1.0 - ratio)
 	bar_fill.visible = ratio > 0.001

@@ -100,10 +100,48 @@ func _set_block(on: bool) -> void:
 	block_changed.emit(on)
 
 
+## 放掉所有手指：暫停／覆蓋層期間收不到放開事件（touch 是 PAUSABLE），
+## 或 Safari 被系統手勢、通知搶走觸控時，手指狀態會殘留 → 搖桿一直走、格擋一直按、瞄準放不開，只能重新整理。
+## 進出暫停與失去焦點時呼叫，把一切歸零。
+func reset_touches() -> void:
+	_joy_idx = -1
+	_look_idx = -1
+	move_vector = Vector2.ZERO
+	for idx in _btn_touch.keys():
+		_release_role(_btn_touch[idx])
+	_btn_touch.clear()
+	_btn_last.clear()
+	_set_block(false)
+
+
+func _release_role(role: String) -> void:
+	if role == "block":
+		_set_block(false)
+	elif role == "attack":
+		attack_up.emit()
+	elif role == "hook":
+		hook_up.emit()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		reset_touches()
+
+
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventScreenTouch:
 		var t := ev as InputEventScreenTouch
 		if t.pressed:
+			# 同一個手指編號又「按下」＝上一次的放開事件掉了，先把舊狀態放掉（自我修復）
+			if t.index == _joy_idx:
+				_joy_idx = -1
+				move_vector = Vector2.ZERO
+			if t.index == _look_idx:
+				_look_idx = -1
+			if _btn_touch.has(t.index):
+				_release_role(_btn_touch[t.index])
+				_btn_touch.erase(t.index)
+				_btn_last.erase(t.index)
 			if _blocked(t.position):
 				return
 			if t.position.distance_to(_swap_center()) < SWAP_R * 1.4:
@@ -246,8 +284,7 @@ func _draw() -> void:
 	draw_circle(sc, SWAP_R, Color(0.2, 0.2, 0.25, 0.8))
 	draw_arc(sc, SWAP_R, 0.0, TAU, 32, Color(0.9, 0.9, 0.9, 0.8), 2.0, true)
 	if font:
-		draw_string(font, sc + Vector2(-SWAP_R, 9.0), "劍" if shuriken else "刀", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0, 24, Color(1, 1, 1, 0.95))
-		draw_string(font, sc + Vector2(-SWAP_R - 10.0, SWAP_R + 16.0), "換", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0 + 20.0, 13, Color(1, 1, 1, 0.6))
+		draw_string(font, sc + Vector2(-SWAP_R, 9.0), "換", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0, 24, Color(1, 1, 1, 0.95))
 	# 閃
 	var dc := _dash_center()
 	draw_circle(dc, DASH_R, Color(0.2, 0.3, 0.55, 0.5 + 0.4 * _dash_flash))

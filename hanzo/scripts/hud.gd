@@ -215,6 +215,7 @@ func show_settings() -> void:
 		hb.add_child(btn)
 	add_child(_overlay)
 	touch.blockers.append(_overlay)
+	touch.reset_touches()
 	get_tree().paused = true
 
 
@@ -395,6 +396,7 @@ func show_overlay(title: String, lines: Array, buttons: Array, title_color: Colo
 		hb.add_child(btn)
 	add_child(_overlay)
 	touch.blockers.append(_overlay)
+	touch.reset_touches()
 	get_tree().paused = true
 
 
@@ -404,6 +406,8 @@ func hide_overlay() -> void:
 		_overlay.queue_free()
 		_overlay = null
 	get_tree().paused = false
+	# 暫停期間按下、放開的手指 touch 都沒收到，回來時一律當成全部放開
+	touch.reset_touches()
 
 
 func _on_flash(color: Color, dur: float) -> void:
