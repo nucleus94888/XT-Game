@@ -56,6 +56,12 @@ func _ready() -> void:
 	items_label.modulate = Color(0.85, 1.0, 0.85)
 	add_child(items_label)
 	Feel.flash_requested.connect(_on_flash)
+	fps.offset_right = 980.0
+	fps.modulate = Color(1, 1, 1, 0.9)
+	if "--debug" in OS.get_cmdline_user_args():
+		_debug = true
+		stats.visible = true
+		fps.visible = true
 	_setup_latency_probe()
 	gear.pressed.connect(toggle_panel)
 	panel.visible = false
@@ -113,7 +119,49 @@ func _process_panel_state() -> void:
 	pause_btn.visible = _overlay == null
 
 
-## 連點羅盤三下：顯示／隱藏除錯資訊（統計、fps、手感鈕）
+## 破圖回報（除錯模式左下）：關卡、玩家座標、鏡頭座標與角度、畫面中心看到的東西。
+## 看到破圖就連點羅盤三下、把畫面中心對準破的地方、截圖傳來，座標對回關卡原始碼就能修。
+func _debug_where() -> String:
+	if _player == null or _cam == null:
+		return ""
+	var scene := get_tree().current_scene
+	var lv := scene.scene_file_path.get_file().get_basename() if scene else "?"
+	var p: Vector3 = _player.global_position
+	var cam: Camera3D = _cam.get("cam")
+	# 卡死回報：玩家狀態、瞄準、格擋、鎖定秒數、鉤繩工作、搖桿／按鍵手指、時間流速、是否暫停
+	var st: String = _player.State.keys()[_player.state]
+	var job: Dictionary = _player.get("_hook_job")
+	var line := "狀態 %s　瞄 %d　擋 %s　鎖 %.1f　鉤 %s　搖桿 %d 視角 %d 鍵 %s　流速 %.2f%s" % [
+		st, int(_player.get("aim_mode")), "是" if bool(_player.get("_block_held")) else "否", float(_player.get("_lock_t")),
+		String(job.get("kind", "-")), int(touch.get("_joy_idx")), int(touch.get("_look_idx")), str(touch.get("_btn_touch").values()),
+		Engine.time_scale, "　暫停" if get_tree().paused else ""]
+	line += "\n%s　玩家 (%.1f, %.1f, %.1f)" % [lv, p.x, p.y, p.z]
+	if cam == null:
+		return line
+	var c := cam.global_position
+	line += "　鏡頭 (%.1f, %.1f, %.1f) 轉 %d° 俯 %d°" % [c.x, c.y, c.z, int(rad_to_deg(float(_cam.get("yaw")))), int(rad_to_deg(float(_cam.get("pitch"))))]
+	# 畫面中心射線：打到什麼、多遠（遮蔽層隱藏的屋頂也會打到，名稱會說）
+	var space := cam.get_world_3d().direct_space_state
+	var dir := -cam.global_transform.basis.z
+	var q := PhysicsRayQueryParameters3D.create(c, c + dir * 60.0, 1 | 2)
+	q.exclude = [_player.get_rid()]
+	var hit := space.intersect_ray(q)
+	if hit.is_empty():
+		return line + "\n中心：沒打到東西"
+	var n: Node = hit.collider
+	var desc := ""
+	var walk: Node = n
+	while walk and desc == "":
+		if walk.has_meta("desc"):
+			desc = String(walk.get_meta("desc"))
+		walk = walk.get_parent()
+	if desc == "":
+		desc = n.name
+	var hp: Vector3 = hit.position
+	return line + "\n中心：%s　距 %.1f m　點 (%.1f, %.1f, %.1f)" % [desc, c.distance_to(hp), hp.x, hp.y, hp.z]
+
+
+## 連點羅盤三下：顯示／隱藏除錯資訊（統計、fps、手感鈕、破圖回報座標）
 func _on_debug_tap(ev: InputEvent) -> void:
 	if (ev is InputEventScreenTouch and ev.pressed) or (ev is InputEventMouseButton and ev.pressed):
 		var now := Time.get_ticks_msec()
@@ -444,7 +492,8 @@ func _process(delta: float) -> void:
 		_worst_t = 1.0
 		_worst_shown = _worst_ms
 		_worst_ms = 0
-	fps.text = "%d fps　最長一幀 %d ms%s" % [Engine.get_frames_per_second(), _worst_shown, _latency_text()]
+	if _debug:
+		fps.text = "%d fps　最長一幀 %d ms%s\n%s" % [Engine.get_frames_per_second(), _worst_shown, _latency_text(), _debug_where()]
 	if posture_bar.value >= posture_bar.max_value * 0.7:
 		posture_bar.modulate.a = 0.75 + 0.25 * sin(float(Time.get_ticks_msec()) * 0.015)
 	_process_panel_state()

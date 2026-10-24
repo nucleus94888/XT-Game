@@ -111,7 +111,34 @@ func reset_touches() -> void:
 		_release_role(_btn_touch[idx])
 	_btn_touch.clear()
 	_btn_last.clear()
+	_touch_ms.clear()
 	_set_block(false)
+
+
+## 看門狗：某根手指 6 秒沒有任何事件（真的按著一定會有微小的拖曳事件），視為放開事件遺失
+var _touch_ms := {}
+const STALE_MS := 6000
+
+
+func _touch_seen(idx: int) -> void:
+	_touch_ms[idx] = Time.get_ticks_msec()
+
+
+func _watchdog() -> void:
+	var now := Time.get_ticks_msec()
+	for idx in _touch_ms.keys():
+		if now - int(_touch_ms[idx]) < STALE_MS:
+			continue
+		_touch_ms.erase(idx)
+		if idx == _joy_idx:
+			_joy_idx = -1
+			move_vector = Vector2.ZERO
+		if idx == _look_idx:
+			_look_idx = -1
+		if _btn_touch.has(idx):
+			_release_role(_btn_touch[idx])
+			_btn_touch.erase(idx)
+			_btn_last.erase(idx)
 
 
 func _release_role(role: String) -> void:
@@ -131,6 +158,10 @@ func _notification(what: int) -> void:
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventScreenTouch:
 		var t := ev as InputEventScreenTouch
+		if t.pressed:
+			_touch_seen(t.index)
+		else:
+			_touch_ms.erase(t.index)
 		if t.pressed:
 			# 同一個手指編號又「按下」＝上一次的放開事件掉了，先把舊狀態放掉（自我修復）
 			if t.index == _joy_idx:
@@ -204,6 +235,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_btn_last.erase(t.index)
 	elif ev is InputEventScreenDrag:
 		var d := ev as InputEventScreenDrag
+		_touch_seen(d.index)
 		if d.index == _joy_idx:
 			_joy_pos = d.position
 			var v := _joy_pos - _joy_origin
@@ -236,6 +268,7 @@ func _process(delta: float) -> void:
 	_atk_flash = maxf(_atk_flash - delta * 5.0, 0.0)
 	_dash_flash = maxf(_dash_flash - delta * 5.0, 0.0)
 	_hook_flash = maxf(_hook_flash - delta * 5.0, 0.0)
+	_watchdog()
 	queue_redraw()
 
 

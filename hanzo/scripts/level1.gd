@@ -33,12 +33,6 @@ func _on_level_ready() -> void:
 	hud.set_compass_target(Vector3(0.0, HALL_Y, -21.0), Color(1.0, 0.8, 0.3))
 	$Moon.rotation_degrees = Vector3(-52.0, 25.0, 0.0)
 	_walk = _extra_args.has("--walk")
-	# 新手提示（從首頁移過來）：還沒通關第一關的人，開場 10 秒內分兩句講
-	if not Progress.cleared.has("level1") and _bot_mode == "":
-		get_tree().create_timer(3.5).timeout.connect(func() -> void:
-			hud.say("潛行：從背後接近，一刀暗殺", Color(0.85, 0.9, 1.0)))
-		get_tree().create_timer(8.5).timeout.connect(func() -> void:
-			hud.say("正面：格擋可彈反，體幹崩壞後忍殺", Color(0.85, 0.9, 1.0)))
 
 
 # ---------------------------------------------------------------- 世界

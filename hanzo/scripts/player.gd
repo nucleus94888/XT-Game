@@ -816,7 +816,41 @@ func request_dash() -> void:
 		_start_dash()
 
 
+## 看門狗：任何一個「應該幾秒內結束」的狀態卡太久（例：鉤繩目標被釋放、tween 被殺、事件遺失），
+## 強制回到待機，寧可動作怪一下也不要整個人卡死要重新整理。
+const STATE_LIMIT := {State.ATTACK: 3.0, State.DASH: 1.0, State.HURT: 2.0, State.GRAPPLE: 2.5, State.BROKEN: POSTURE_BREAK_TIME + 1.0}
+var _state_t := 0.0
+var _state_last := -1
+
+
+func _watchdog(delta: float) -> void:
+	if state != _state_last:
+		_state_last = state
+		_state_t = 0.0
+	else:
+		_state_t += delta
+	_lock_t = minf(_lock_t, 2.0)
+	var stuck := STATE_LIMIT.has(state) and _state_t > float(STATE_LIMIT[state])
+	if state == State.BLOCK and not _block_held and _state_t > 1.0:
+		stuck = true
+	if not stuck:
+		return
+	push_warning("player watchdog: state %s stuck %.1fs, reset" % [State.keys()[state], _state_t])
+	state = State.FREE
+	_invuln = false
+	_lock_t = 0.0
+	_hook_job = {}
+	_rope_t = 0.0
+	_queued = false
+	body.rotation.x = 0.0
+	visual.position.y = 0.0
+	trail.visible = false
+	if aim_mode != AIM_NONE:
+		_release_aim_silent()
+
+
 func _physics_process(delta: float) -> void:
+	_watchdog(delta)
 	var input := _read_input()
 	match state:
 		State.FREE:

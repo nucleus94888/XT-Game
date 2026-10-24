@@ -293,6 +293,8 @@ func _box(center: Vector3, size: Vector3, color: Color, rot: Vector3 = Vector3.Z
 	(parent if parent else _region).add_child(node)
 	node.position = center
 	node.rotation_degrees = rot
+	# 除錯回報用：準心指到這塊時，螢幕上印出它的中心與尺寸，對回關卡原始碼就找得到那一行
+	node.set_meta("desc", "box 中心(%.1f, %.1f, %.1f) 尺寸(%.1f×%.1f×%.1f)" % [center.x, center.y, center.z, size.x, size.y, size.z])
 	_cover_add(node)
 	return node
 
