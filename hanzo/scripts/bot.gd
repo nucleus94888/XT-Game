@@ -195,7 +195,49 @@ func _ui_test() -> void:
 	get_tree().quit()
 
 
+## detect：偵測量測。敵人（--kind）站著面向 +Z，玩家站在幾個位置（正前方 2／5 公尺、側面 3 公尺、背後 2 公尺），
+## 量從站定到起疑、到警戒各花幾秒，並印出玩家在光裡或暗處。--at=x,y,z 指定敵人位置（測柵欄旁、斜屋旁）
+func _detect_test() -> void:
+	var at := _start_pos + Vector3(0.0, 0.0, -3.0)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--at="):
+			var c: PackedStringArray = a.substr(5).split(",")
+			if c.size() == 3:
+				at = Vector3(float(c[0]), float(c[1]), float(c[2]))
+	var cases := [["正前方 2m", Vector3(0, 0, 2)], ["正前方 5m", Vector3(0, 0, 5)], ["斜前 3m", Vector3(2.1, 0, 2.1)], ["側面 3m", Vector3(3, 0, 0)], ["背後 2m", Vector3(0, 0, -2)]]
+	for cs in cases:
+		for n in get_tree().get_nodes_in_group("enemies"):
+			n.queue_free()
+		await get_tree().process_frame
+		var e := Enemy.new()
+		e.kind = kind
+		e.face_dir = Vector3(0, 0, 1)
+		level.add_child(e)
+		e.global_position = at
+		player.revive()
+		player.global_position = at + (cs[1] as Vector3) + Vector3(0, 0.1, 0)
+		player.velocity = Vector3.ZERO
+		var t := 0.0
+		var t_sus := -1.0
+		var t_alert := -1.0
+		while t < 3.0:
+			await get_tree().physics_frame
+			t += get_physics_process_delta_time()
+			player.global_position = Vector3(player.global_position.x, player.global_position.y, player.global_position.z)
+			if t_sus < 0.0 and e.state in [e.State.SUSPICIOUS, e.State.SEARCH]:
+				t_sus = t
+			if e.state in [e.State.ALERT, e.State.ATTACK]:
+				t_alert = t
+				break
+		print("DETECT %s %s（%s）：起疑 %s　警戒 %s" % [e.spec.name, cs[0], "光裡" if player.in_light else "暗處",
+			("%.2fs" % t_sus) if t_sus >= 0.0 else "—", ("%.2fs" % t_alert) if t_alert >= 0.0 else "3 秒內沒發現"])
+	get_tree().quit()
+
+
 func _begin_run() -> void:
+	if mode == "detect":
+		_detect_test()
+		return
 	if mode == "ui":
 		_ui_test()
 		return
@@ -292,7 +334,7 @@ var _trace := false
 
 
 func _physics_process(delta: float) -> void:
-	if mode == "throw" or mode == "plunge" or mode == "ui":
+	if mode in ["throw", "plunge", "ui", "detect"]:
 		return
 	if _done or not is_instance_valid(enemy) or player == null:
 		return

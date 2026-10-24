@@ -101,6 +101,36 @@ var _rope_to := Vector3.ZERO
 var _rope_t := 0.0
 ## 是否站在燈光下（關卡每幀更新；敵人視野據此縮放）
 var in_light := true
+## 腳下光圈：在燈籠光裡亮起暖黃圓片（敵人看得更遠、更快發現）；暗處消失。走進光裡輕震一下
+var _light_disc: MeshInstance3D
+var _light_disc_mat: StandardMaterial3D
+var _was_lit := false
+
+
+func _update_light_disc(delta: float) -> void:
+	if _light_disc == null:
+		_light_disc = MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.75
+		cm.bottom_radius = 0.75
+		cm.height = 0.02
+		cm.radial_segments = 24
+		_light_disc.mesh = cm
+		_light_disc_mat = StandardMaterial3D.new()
+		_light_disc_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_light_disc_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_light_disc_mat.albedo_color = Color(1.0, 0.82, 0.4, 0.0)
+		_light_disc.material_override = _light_disc_mat
+		_light_disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_light_disc.position = Vector3(0, 0.26, 0)
+		add_child(_light_disc)
+	var a := _light_disc_mat.albedo_color.a
+	a = move_toward(a, 0.6 if in_light else 0.0, delta * 3.0)
+	_light_disc_mat.albedo_color.a = a
+	_light_disc.visible = a > 0.01
+	if in_light and not _was_lit:
+		Feel.haptic(15)
+	_was_lit = in_light
 ## 鉤繩可到達的範圍（關卡設定；size 為零＝不限制）
 var hook_bounds := AABB()
 var _grapple_t := 0.0
@@ -1059,6 +1089,7 @@ func _watchdog(delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	_watchdog(delta)
+	_update_light_disc(delta)
 	var input := _read_input()
 	match state:
 		State.FREE:
@@ -1437,6 +1468,25 @@ func _blocked_hit(info: Dictionary) -> void:
 	_guard_tw = create_tween()
 	_guard_tw.set_ignore_time_scale(true)
 	var tip := sword_pivot.to_global(Vector3(0.38, 0.0, -1.3))
+	# 兩把刀的交擊點：在我和對方中間偏我這邊（火花在那裡迸，不是在我刀尖上）
+	if src is Node3D:
+		var sp: Vector3 = (src as Node3D).global_position
+		tip = global_position.lerp(sp, 0.4) + Vector3(0.0, 1.25, 0.0)
+		# 轉身迎刀：格擋的瞬間面向來刀的人
+		var face := sp - global_position
+		face.y = 0.0
+		if face.length() > 0.1:
+			_facing = atan2(-face.x, -face.z)
+			visual.rotation.y = _facing
+	# 對方也要有反應：刀被彈回、人被推半步（普通格擋小、彈反由 deflected 處理）
+	if not perfect and src and src.has_method("on_guarded"):
+		src.on_guarded(dir)
+	Feel.haptic(50 if perfect else 20)
+	# 身體被壓得往後仰一下再回來（看得出在「頂住」對方）
+	visual.rotation.x = -0.22 if not perfect else 0.12
+	var lean := create_tween()
+	lean.set_ignore_time_scale(true)
+	lean.tween_property(visual, "rotation:x", 0.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if perfect:
 		# 刀向外一撥（70ms）再回到架刀位
 		_guard_tw.tween_property(sword_pivot, "rotation_degrees", Vector3(-70.0, -85.0, 30.0), 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)

@@ -312,6 +312,13 @@ func show_settings() -> void:
 	hints.toggled.connect(func(on: bool) -> void:
 		Feel.set_p("hints", 1.0 if on else 0.0))
 	vb.add_child(hints)
+	var pull := CheckButton.new()
+	pull.text = "牆擋住時鏡頭拉近（關＝牆變半透明）"
+	pull.button_pressed = Feel.get_p("cam_pull") >= 0.5
+	pull.add_theme_font_size_override("font_size", 22)
+	pull.toggled.connect(func(on: bool) -> void:
+		Feel.set_p("cam_pull", 1.0 if on else 0.0))
+	vb.add_child(pull)
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	hb.add_theme_constant_override("separation", 14)

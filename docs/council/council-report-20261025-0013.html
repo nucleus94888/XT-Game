@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：正面偵測、燈光暴露、鏡頭被擋住</title>
+<style>
+body{margin:0;font-family:-apple-system,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;color:#1d2129;line-height:1.7}
+.wrap{max-width:900px;margin:0 auto;padding:40px 24px}.card{border:1px solid #e3e6ea;border-radius:10px;padding:22px 24px;margin:18px 0}
+.q{background:#f6f7f9}h3{border-left:4px solid #1d2129;padding-left:10px;font-size:16px}.first{background:#fff8e6;border:1px solid #f0d890;border-radius:8px;padding:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{border:1px solid #e3e6ea;padding:8px}th{background:#f6f7f9}
+details{border:1px solid #e3e6ea;border-radius:8px;margin:10px 0;padding:10px 16px}summary{cursor:pointer;font-weight:600}.f{color:#5b6470;font-size:13px}
+</style></head><body><div class="wrap">
+<h1>LLM Council 報告：正面偵測、燈光暴露、鏡頭被擋住</h1>
+<div class="f">2026-10-25 00:13 · 五位顧問 → 匿名互評 → 主席統整 · 逐字稿 council-transcript-20261025-0013.md</div>
+<div class="card q"><b>提問</b>：A 正面多近該立刻發現？B 燈光該多暴露、怎麼讓玩家知道在光裡、熄燈代價？C 鏡頭被牆樹擋住要拉近還是半透明？（柵欄、透明牆、大將逃跑三個 bug 直接修）</div>
+<div class="card"><h2>主席裁決</h2>
+<h3>議會一致同意的地方</h3><p>都不做鏡頭碰撞拉近，保留隱藏屋頂、牆樹半透明、樹冠不加碰撞；正面近距離要立刻發現、起疑留給遠距與側面；光暗差距要大且必須看得見；熄燈不能零代價。</p>
+<h3>議會意見衝突的地方</h3><ul><li>立刻發現的距離：4 公尺、3 公尺、亮 3 暗 1 公尺。</li><li>先給倍率還是先讓光可見。</li><li>每幀射線加樹冠碰撞層 vs 太重會閃。</li></ul>
+<h3>互評抓到的盲點</h3><ol><li>敵人視線射線會被柵欄上的透明牆擋住（真 bug）。</li><li>光判定 7 公尺、畫面燈光 11 公尺對不上。</li><li>手機上看不清視野錐；膠囊人分不出臉朝哪邊。</li><li>靜音玩家要震動。</li><li>甩掉追兵沒設計。</li><li>使用者明確要求拉近卻被否決。</li></ol>
+<h3>建議</h3><p><b>A</b>：正面半角 40 度、光裡 3 公尺內立刻追擊，暗處 1.5 公尺；起疑當下就走過來；加鼻子。<b>B</b>：光裡視野 ×1.0 累積 ×1.5、暗處 ×0.5 ×0.5；判定和光圈一致；腳下亮圓片＋輕震；頭上進度弧；熄燈引守衛來重新點燈。<b>C</b>：兩版都做、設定切換——牆半透明，或只有牆擋住時鏡頭拉近；樹一律半透明不觸發拉近。</p>
+<div class="first"><b>第一件該做的事：</b>用 bot 在敵人正前方、柵欄旁、斜屋旁各站一次記錄沒被發現的原因，先確認透明牆修正有效再動參數。</div></div>
+<div class="card"><h2>顧問立場一覽</h2><table><tr><th>議題</th><th>反方</th><th>第一性</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr>
+<tr><td>A 立刻發現</td><td>先查 bug</td><td>4 m</td><td>亮 3／暗 1 m</td><td>3 m</td><td>3 m、40°</td></tr>
+<tr><td>B 先做什麼</td><td>先可見</td><td>先可見</td><td>暴露公式＋光暈</td><td>拉大差距＋光暈</td><td>倍率三倍＋圓片</td></tr>
+<tr><td>C 鏡頭</td><td>半透明</td><td>半透明</td><td>半透明</td><td>半透明（矛盾）</td><td>半透明＋樹冠碰撞</td></tr></table></div>
+<div class="card"><h2>顧問完整回答與互評</h2>
+<details><summary>反方</summary><p>A 先懷疑 bug（光判定、射線打到斜放建築或柵欄）；起疑要留但站 0.5 秒讓敵人顯得瞎。B 看不見的系統拉大差距是陷阱，先做光圈；熄燈零代價會退化。C 鏡頭碰撞是無底洞、會抖、砍掉視野；天花板消失是功能；牆樹半透明。</p></details>
+<details><summary>第一性原理</summary><p>玩家腦中沒有敵人感知模型，看不見的規則等於不存在。A 可口述規則；B 先可見；C 拉近會把敵人推出畫面。最省一步：地上畫視野錐。</p></details>
+<details><summary>擴張者</summary><p>A 與 B 合成看得見的暴露公式；腳下光暈、倒數弧；熄燈＝免費誘敵，第四關可圍繞燈籠設計；C 半透明。</p></details>
+<details><summary>局外人</summary><p>正面兩三公尺沒被發現像壞掉；3 公尺內立刻發現、起疑給遠距；暗處要貼近才被發現；熄燈是賭一把；牆樹半透明。</p></details>
+<details><summary>執行者</summary><p>3 公尺 40 度直接拉滿；光暗三倍；腳下圓片；熄燈 8 秒重點；C 不拉近、射線＋樹冠碰撞層＋alpha 0.3。</p></details>
+<details><summary>五份互評（A＝執行者 B＝反方 C＝擴張者 D＝第一性 E＝局外人）</summary><p>三位評 D 最強、兩位評 B 最強；五位都評 A 盲點最大。評審三查碼證實透明牆擋視線；評審五指出使用者要求拉近不該被直接否決。</p></details></div>
+<div class="f">2026-10-25 00:13 · 半藏 HANZO · 偵測／燈光／鏡頭遮擋</div></div></body></html>

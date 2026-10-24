@@ -75,6 +75,89 @@ func _apply_params() -> void:
 	_base_fov = Feel.get_p("cam_fov")
 
 
+## 遮擋處理（第十次議會＋使用者要求）：每 3 幀從人物頭頂往鏡頭打射線。
+##   樹冠擋住 → 樹冠變半透明（兩種模式都一樣，樹不拉鏡頭）
+##   牆擋住 → 設定「牆擋住時鏡頭拉近」開：0.3 秒拉近到牆前（最近 3 公尺），離開遮擋 0.5 秒後拉回；
+##            關：牆變半透明
+##   室內的屋頂仍由遮蔽層整片隱藏
+var _occ_dist := -1.0
+var _occ_target := 12.5
+var _occ_clear_t := 0.0
+var _occ_frame := 0
+var _faded := {}
+
+
+func _update_occlusion(p: float, dt: float) -> void:
+	if _target == null:
+		return
+	_occ_frame += 1
+	if _occ_frame % 3 == 0:
+		var head := _target.global_position + Vector3(0.0, 1.5, 0.0)
+		var cam_w := global_position + Vector3(0.0, sin(p) * distance, cos(p) * distance).rotated(Vector3.UP, yaw) + Vector3(0.0, look_height, 0.0) * 0.0
+		var pull := Feel.get_p("cam_pull") >= 0.5
+		var want := {}
+		# 牆
+		var ex: Array = [_target.get_rid()] if _target is CollisionObject3D else []
+		var first_d := -1.0
+		var space := get_world_3d().direct_space_state
+		for i in range(5):
+			var q := PhysicsRayQueryParameters3D.create(head, cam_w, 1)
+			q.exclude = ex
+			var hit := space.intersect_ray(q)
+			if hit.is_empty():
+				break
+			ex.append(hit.rid)
+			var c: Node = hit.collider
+			if c is Node3D and (c.has_meta("ghost") or not (c as Node3D).is_visible_in_tree()):
+				continue
+			if first_d < 0.0:
+				first_d = head.distance_to(hit.position)
+			if not pull:
+				for ch in c.get_children():
+					if ch is MeshInstance3D:
+						want[ch] = true
+		if pull:
+			if first_d >= 0.0:
+				_occ_target = clampf(first_d - 0.6, 3.0, distance)
+				_occ_clear_t = 0.0
+			else:
+				_occ_clear_t += dt * 3.0
+				if _occ_clear_t > 0.5:
+					_occ_target = distance
+		else:
+			_occ_target = distance
+		# 樹冠
+		var seg := cam_w - head
+		var seg_len2 := seg.length_squared()
+		for n in get_tree().get_nodes_in_group("canopy"):
+			var c3 := n as Node3D
+			var t := clampf((c3.global_position - head).dot(seg) / maxf(seg_len2, 0.001), 0.0, 1.0)
+			var closest := head + seg * t
+			if c3.global_position.distance_to(closest) < float(c3.get_meta("radius", 1.5)) + 0.3:
+				want[c3] = true
+		# 套用：新擋住的變透明、不再擋的還原
+		for n in _faded.keys():
+			if not want.has(n):
+				if is_instance_valid(n):
+					(n as MeshInstance3D).material_override = n.get_meta("orig_mat")
+				_faded.erase(n)
+		for n in want.keys():
+			if _faded.has(n):
+				continue
+			var mi := n as MeshInstance3D
+			if not mi.has_meta("orig_mat"):
+				mi.set_meta("orig_mat", mi.material_override)
+				var m: StandardMaterial3D = (mi.material_override as StandardMaterial3D).duplicate() if mi.material_override else StandardMaterial3D.new()
+				m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				m.albedo_color.a = 0.25
+				mi.set_meta("fade_mat", m)
+			mi.material_override = mi.get_meta("fade_mat")
+			_faded[n] = true
+	# 拉近快、拉回慢
+	var rate := 1.0 / 0.3 if _occ_target < _occ_dist else 1.0 / 0.6
+	_occ_dist = move_toward(_occ_dist, _occ_target, (distance - 3.0) * rate * dt)
+
+
 ## 射線，但跳過被遮蔽層隱藏的東西（屋頂、樓板隱藏時還有碰撞）
 func _ray_visible(from: Vector3, to: Vector3, mask: int, exclude: Array = []) -> Dictionary:
 	var space := get_world_3d().direct_space_state
@@ -122,7 +205,11 @@ func _process(delta: float) -> void:
 	# 俯視環繞
 	_extra = lerpf(_extra, extra_pitch, 1.0 - exp(-6.0 * real_dt))
 	var p := pitch + _extra
-	var dist := distance + _extra * 4.0
+	if _occ_dist < 0.0:
+		_occ_dist = distance
+		_occ_target = distance
+	_update_occlusion(p, real_dt)
+	var dist := _occ_dist + _extra * 4.0
 	var orbit_pos := Vector3(0.0, sin(p) * dist, cos(p) * dist).rotated(Vector3.UP, yaw)
 	var orbit_look := Vector3(0.0, look_height, 0.0)
 	# 過肩

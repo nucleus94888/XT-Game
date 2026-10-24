@@ -69,6 +69,7 @@ func _ready() -> void:
 	player.hook_bounds = bounds
 	_nav_begin()
 	_build_world()
+	_build_bounds_walls()
 	_build_exit_beacon()
 	_nav_end()
 	if _bot_mode != "":
@@ -172,7 +173,28 @@ func _process(delta: float) -> void:
 			get_tree().create_timer(0.9).timeout.connect(_shot.bind("tour%d" % _tour_i))
 
 
+## 保險：關卡範圍（bounds）四周一圈透明牆，柵欄有縫或忘了加透明牆也跑不出去
+func _build_bounds_walls() -> void:
+	var b := bounds
+	var y0 := b.position.y - 2.0
+	var h := 40.0
+	var t := 1.0
+	var cx := b.position.x + b.size.x / 2.0
+	var cz := b.position.z + b.size.z / 2.0
+	_invisible(Vector3(cx, y0 + h / 2.0, b.position.z - t / 2.0), Vector3(b.size.x + t * 2.0, h, t))
+	_invisible(Vector3(cx, y0 + h / 2.0, b.end.z + t / 2.0), Vector3(b.size.x + t * 2.0, h, t))
+	_invisible(Vector3(b.position.x - t / 2.0, y0 + h / 2.0, cz), Vector3(t, h, b.size.z + t * 2.0))
+	_invisible(Vector3(b.end.x + t / 2.0, y0 + h / 2.0, cz), Vector3(t, h, b.size.z + t * 2.0))
+
+
 func _physics_process(_delta: float) -> void:
+	# 保險：掉出地圖（低於地面 4 公尺）或跑出範圍 → 送回最後的檢查點
+	if not _dead and not _finished:
+		var pp := player.global_position
+		if pp.y < bounds.position.y - 4.0 or pp.x < bounds.position.x - 2.0 or pp.x > bounds.end.x + 2.0 or pp.z < bounds.position.z - 2.0 or pp.z > bounds.end.z + 2.0:
+			push_warning("player out of map at %s, back to checkpoint" % pp)
+			player.global_position = _checkpoint + Vector3(0.0, 0.2, 0.0)
+			player.velocity = Vector3.ZERO
 	for i in range(_cp_index + 1, checkpoints.size()):
 		var cp: Vector3 = checkpoints[i]
 		var d := player.global_position - cp
@@ -243,8 +265,12 @@ func _fence_poly(points: Array, h: float, color: Color, collide_h: float = 0.0) 
 		if length < 0.1:
 			continue
 		var yaw := rad_to_deg(atan2(-d.x, -d.z))
-		_group_begin(Vector3((a.x + b.x) / 2.0, minf(a.y, b.y), (a.z + b.z) / 2.0), yaw)
+		var base := minf(a.y, b.y)
+		_group_begin(Vector3((a.x + b.x) / 2.0, base, (a.z + b.z) / 2.0), yaw)
 		_fence(0.0, 0.0, length, false, h, color, 0.0, collide_h)
+		# 柵欄架在台地高度、但下面是地面時：補一段石垣到地面，不然人能從柵欄底下鑽出去
+		if base > 0.05:
+			_box(Vector3(0.0, -base / 2.0, 0.0), Vector3(0.6, base, length), Color(0.3, 0.3, 0.28))
 		_group_end()
 
 
@@ -542,6 +568,8 @@ func _tree(pos: Vector3, scale_k: float = 1.0) -> void:
 	canopy.mesh = sm
 	canopy.material_override = _mat(leaf)
 	canopy.position = pos + Vector3(0.3, 3.2 * scale_k, 0.0)
+	canopy.add_to_group("canopy")
+	canopy.set_meta("radius", 1.8 * scale_k)
 	(_pivot if _pivot else self).add_child(canopy)
 	var canopy2 := MeshInstance3D.new()
 	var sm2 := SphereMesh.new()
@@ -550,6 +578,8 @@ func _tree(pos: Vector3, scale_k: float = 1.0) -> void:
 	canopy2.mesh = sm2
 	canopy2.material_override = _mat(leaf.lightened(0.08))
 	canopy2.position = pos + Vector3(-0.6, 4.3 * scale_k, 0.4)
+	canopy2.add_to_group("canopy")
+	canopy2.set_meta("radius", 1.3 * scale_k)
 	(_pivot if _pivot else self).add_child(canopy2)
 
 

@@ -26,7 +26,8 @@ const SPEC := {
 	Kind.LORD: {"name": "大將", "hp": 9999, "posture": 9999.0, "speed": 4.5, "run": 6.5, "color": Color(0.45, 0.12, 0.5), "reach": 0.0, "dmg": 0, "windup": 1.0, "strike": 0.1, "cd": 99.0, "weapon": "katana", "view": 9.0},
 }
 ## 起疑：先站住一拍盯著（可讀），再慢走過去（壓力）
-const SUSPICIOUS_HOLD := 0.5
+## 起疑當下就轉頭朝你走（第十次議會：原地站著讓敵人顯得瞎）
+const SUSPICIOUS_HOLD := 0.0
 ## 移動加速度（公尺/秒²）：0 → 6 公尺/秒約 0.45 秒
 const MOVE_ACCEL := 13.0
 const VIEW_COS := 0.42
@@ -241,6 +242,19 @@ func _build() -> void:
 	eye_r.material_override = _eye_mat
 	eye_r.position = Vector3(0.09, 0.03, -0.225)
 	head.add_child(eye_r)
+	# 鼻子：小三角錐朝前，俯視時一眼看出敵人臉朝哪邊
+	var nose := MeshInstance3D.new()
+	var nm := CylinderMesh.new()
+	nm.top_radius = 0.0
+	nm.bottom_radius = 0.07
+	nm.height = 0.18
+	nose.mesh = nm
+	nose.material_override = _eye_mat.duplicate()
+	(nose.material_override as StandardMaterial3D).albedo_color = Color(0.7, 0.55, 0.45)
+	nose.rotation.x = -PI / 2.0
+	nose.position = Vector3(0.0, -0.05, -0.28)
+	head.add_child(nose)
+	_build_vision()
 
 	var wm := BoxMesh.new()
 	var wcolor := Color(0.85, 0.88, 0.95)
@@ -435,9 +449,21 @@ func _los() -> bool:
 	var space := get_world_3d().direct_space_state
 	var from := global_position + Vector3(0, 1.5, 0)
 	var to := _player.global_position + Vector3(0, 1.0, 0)
-	var q := PhysicsRayQueryParameters3D.create(from, to, 1)
-	q.exclude = [get_rid(), _player.get_rid()]
-	return space.intersect_ray(q).is_empty()
+	# 透明牆（只擋人和鉤繩）、被遮蔽層隱藏的屋頂／樓板：敵人的視線要穿過去
+	# （以前會被柵欄上方的透明牆擋住，造成「站在正前方也沒被發現」）
+	var ex: Array = [get_rid(), _player.get_rid()]
+	for i in range(4):
+		var q := PhysicsRayQueryParameters3D.create(from, to, 1)
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return true
+		var c: Node = hit.collider
+		if c is Node3D and (c.has_meta("ghost") or not (c as Node3D).is_visible_in_tree()):
+			ex.append(hit.rid)
+			continue
+		return false
+	return true
 
 
 func _perceive(delta: float) -> void:
@@ -446,8 +472,10 @@ func _perceive(delta: float) -> void:
 	var to := _player.global_position - global_position
 	to.y = 0.0
 	var dist := to.length()
-	# 玩家不在燈光下 → 視野縮短（熄燈籠就是為了這個）
-	var view := float(spec.view) * (1.0 if _player_lit() else 0.6)
+	# 光與暗（第十次議會）：在光裡視野全長、警覺累積 ×1.5、正面 4 公尺內立刻發現；
+	# 暗處視野 ×0.5、累積 ×0.6、正面 2 公尺內才立刻發現。地上的視野錐跟著這個長度變
+	var lit := _player_lit()
+	var view := effective_view()
 	if state == State.ALERT:
 		if dist < view * 1.6 and _los():
 			_lost_t = 0.0
@@ -465,9 +493,13 @@ func _perceive(delta: float) -> void:
 			sees = _los()
 	if sees:
 		var rate := 2.4 if dist < 3.5 else 1.1
+		rate *= 1.5 if lit else 0.5
 		if state == State.SEARCH:
 			rate *= 2.0
 		_detect = minf(_detect + delta * rate, 1.0)
+		# 正面近距離：不經起疑，直接發現（規則一句話說得完：正前方太近就被看到）
+		if dist < instant_range() and _forward().dot(to.normalized()) > INSTANT_COS:
+			_detect = 1.0
 		_facing = lerp_angle(_facing, _yaw_to(to), 1.0 - exp(-6.0 * delta))
 		if _detect >= 1.0:
 			_go_alert()
@@ -479,6 +511,19 @@ func _perceive(delta: float) -> void:
 		_detect = maxf(_detect - delta * 0.5, 0.0)
 		if state == State.SUSPICIOUS and _detect <= 0.0:
 			state = State.PATROL if patrol.size() > 0 else State.IDLE
+
+
+const INSTANT_COS := 0.766   # 正面 ±40 度
+const INSTANT_LIT := 3.0
+const INSTANT_DARK := 1.5
+
+
+func effective_view() -> float:
+	return float(spec.view) * (1.0 if _player_lit() else 0.5)
+
+
+func instant_range() -> float:
+	return INSTANT_LIT if _player_lit() else INSTANT_DARK
 
 
 func _player_lit() -> bool:
@@ -558,18 +603,44 @@ func start_flee() -> void:
 	get_tree().call_group("enemies", "hear_shout", global_position)
 
 
+## 逃跑路線是手擺的直線，不靠導航網格（陣屋高床往下 0.6 公尺導航走不過去，大將會在原地晃）。
+## 直接朝下一個點跑、跳下台階；1.2 秒沒前進就直接跳到下一個點，跑出門就消失。
+var _flee_stuck_t := 0.0
+var _flee_last_d := INF
+
+
 func _do_flee(delta: float) -> void:
 	var p: Vector3 = flee_route[_flee_i]
 	var d := p - global_position
 	d.y = 0.0
-	if d.length() < 0.8:
-		_flee_i += 1
-		if _flee_i >= flee_route.size():
-			state = State.DEAD
-			escaped.emit(self)
-			queue_free()
+	var dist := d.length()
+	if dist < 0.8:
+		_next_flee_point()
+		return
+	if dist < _flee_last_d - 0.05:
+		_flee_last_d = dist
+		_flee_stuck_t = 0.0
+	else:
+		_flee_stuck_t += delta
+		if _flee_stuck_t > 1.2:
+			global_position = Vector3(p.x, maxf(p.y, global_position.y), p.z)
+			_next_flee_point()
 			return
-	_move_to(flee_route[_flee_i], float(spec.run), delta)
+	var dir := d / dist
+	var speed: float = spec.run
+	velocity.x = dir.x * speed
+	velocity.z = dir.z * speed
+	_facing = _yaw_to(dir)
+
+
+func _next_flee_point() -> void:
+	_flee_i += 1
+	_flee_stuck_t = 0.0
+	_flee_last_d = INF
+	if _flee_i >= flee_route.size():
+		state = State.DEAD
+		escaped.emit(self)
+		queue_free()
 
 
 func _go_alert() -> void:
@@ -973,6 +1044,23 @@ func take_hit(info: Dictionary) -> void:
 		_stun_t = 0.45
 
 
+## 我的刀被玩家普通格擋：刀彈回來、人被頂退半步、身體一震（不算硬直，攻擊照常收刀）
+func on_guarded(dir_to_player: Vector3) -> void:
+	if state == State.DEAD:
+		return
+	var back := -dir_to_player
+	back.y = 0.0
+	back = back.normalized() if back.length() > 0.01 else -_forward()
+	_kb = back * 2.2
+	weapon.rotation = Vector3(0.6, 0.9, 0.0)
+	var tw := weapon.create_tween()
+	tw.set_ignore_time_scale(true)
+	tw.tween_property(weapon, "rotation", Vector3.ZERO, 0.28).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_react(back, false)
+	posture += 4.0
+	_posture_t = 1.0
+
+
 func deflected(push_dir: Vector3) -> void:
 	if state == State.DEAD:
 		return
@@ -1059,6 +1147,9 @@ func _die(stealth: bool, execution: bool = false) -> void:
 	if _react_tw and _react_tw.is_valid():
 		_react_tw.kill()
 	visual.scale = Vector3.ONE
+	_cone.visible = false
+	_cone_inner.visible = false
+	_arc_mesh.clear_surfaces()
 	# 死後不再跑 _update_face，眼睛直接定成一條線
 	eye_l.scale = Vector3(1.3, 0.18, 1.0)
 	eye_r.scale = Vector3(1.3, 0.18, 1.0)
@@ -1079,6 +1170,102 @@ func _die(stealth: bool, execution: bool = false) -> void:
 
 
 # ---------------------------------------------------------------- 視覺
+
+## 地上的視野錐（第十次議會：看不見的規則等於不存在）：外圈＝會起疑的範圍（長度隨玩家在光裡／暗處變）、
+## 內圈＝正面立刻發現的範圍。平常淡白、起疑黃、警戒時隱藏。頭上一段弧＝離被發現還差多少。
+var _cone: MeshInstance3D
+var _cone_mat: StandardMaterial3D
+var _cone_inner: MeshInstance3D
+var _arc: MeshInstance3D
+var _arc_mesh: ImmediateMesh
+var _arc_mat: StandardMaterial3D
+var _arc_last := -1.0
+
+
+func _fan(half_angle: float, segs: int) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(segs):
+		var a0 := -half_angle + 2.0 * half_angle * float(i) / segs
+		var a1 := -half_angle + 2.0 * half_angle * float(i + 1) / segs
+		st.add_vertex(Vector3.ZERO)
+		st.add_vertex(Vector3(sin(a1), 0.0, -cos(a1)))
+		st.add_vertex(Vector3(sin(a0), 0.0, -cos(a0)))
+	return st.commit()
+
+
+func _build_vision() -> void:
+	_cone_mat = StandardMaterial3D.new()
+	_cone_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_cone_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_cone_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_cone_mat.albedo_color = Color(1, 1, 1, 0.1)
+	_cone = MeshInstance3D.new()
+	_cone.mesh = _fan(acos(VIEW_COS), 20)
+	_cone.material_override = _cone_mat
+	_cone.position = Vector3(0, 0.27, 0)
+	_cone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_cone)
+	var inner_mat := _cone_mat.duplicate() as StandardMaterial3D
+	inner_mat.albedo_color = Color(1.0, 0.35, 0.25, 0.28)
+	_cone_inner = MeshInstance3D.new()
+	_cone_inner.mesh = _fan(acos(INSTANT_COS), 10)
+	_cone_inner.material_override = inner_mat
+	_cone_inner.position = Vector3(0, 0.28, 0)
+	_cone_inner.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_cone_inner)
+	_arc_mesh = ImmediateMesh.new()
+	_arc_mat = StandardMaterial3D.new()
+	_arc_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_arc_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	_arc_mat.no_depth_test = true
+	_arc_mat.vertex_color_use_as_albedo = true
+	_arc = MeshInstance3D.new()
+	_arc.mesh = _arc_mesh
+	_arc.material_override = _arc_mat
+	_arc.position = Vector3(0, 2.75, 0)
+	add_child(_arc)
+
+
+func _update_vision() -> void:
+	var show := kind != Kind.LORD and state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]
+	var near := _player != null and global_position.distance_to(_player.global_position) < 26.0 and absf(global_position.y - _player.global_position.y) < 2.5
+	_cone.visible = show and near
+	_cone_inner.visible = _cone.visible
+	if _cone.visible:
+		var r := effective_view()
+		_cone.rotation.y = visual.rotation.y
+		_cone.scale = Vector3(r, 1.0, r)
+		var ir := instant_range()
+		_cone_inner.rotation.y = visual.rotation.y
+		_cone_inner.scale = Vector3(ir, 1.0, ir)
+		_cone_mat.albedo_color = Color(1.0, 0.85, 0.3, 0.3) if state in [State.SUSPICIOUS, State.SEARCH] else Color(1, 1, 1, 0.17)
+	# 偵測進度弧：0 時不畫；黃→紅
+	var k := _detect if show else 0.0
+	if absf(k - _arc_last) < 0.02:
+		return
+	_arc_last = k
+	_arc_mesh.clear_surfaces()
+	if k <= 0.02:
+		return
+	var col := Color(1.0, 0.85, 0.3).lerp(Color(1.0, 0.25, 0.2), k)
+	_arc_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var segs := 24
+	var n := maxi(1, int(segs * k))
+	for i in range(n):
+		var a0 := PI / 2.0 - TAU * float(i) / segs
+		var a1 := PI / 2.0 - TAU * float(i + 1) / segs
+		var r0 := 0.34
+		var r1 := 0.44
+		var p0 := Vector3(cos(a0) * r0, sin(a0) * r0, 0)
+		var p1 := Vector3(cos(a0) * r1, sin(a0) * r1, 0)
+		var p2 := Vector3(cos(a1) * r1, sin(a1) * r1, 0)
+		var p3 := Vector3(cos(a1) * r0, sin(a1) * r0, 0)
+		for v in [p0, p1, p2, p0, p2, p3]:
+			_arc_mesh.surface_set_color(col)
+			_arc_mesh.surface_add_vertex(v)
+	_arc_mesh.surface_end()
+
 
 ## 程序式走姿（沒有動畫資源）：越快越前傾（跑步約 17 度）、身體隨步伐上下、腳步聲跟步頻走。
 ## 用 body／head 的局部位移，不碰 visual 的旋轉（受擊反應與倒地在用）。
@@ -1204,6 +1391,7 @@ func _update_visual(delta: float) -> void:
 	visual.rotation.y = lerp_angle(visual.rotation.y, _facing, 1.0 - exp(-14.0 * delta))
 	_update_gait(delta)
 	_update_face(delta)
+	_update_vision()
 	# 架刀姿勢
 	if state in [State.ALERT] and kind != Kind.ARCHER:
 		var target_rot := Vector3(-1.3, 0.3, -0.2) if _guard else Vector3.ZERO

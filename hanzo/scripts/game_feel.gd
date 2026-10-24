@@ -20,6 +20,7 @@ const PARAMS := {
 	"volume": ["音量", 0.0, 1.0, 0.05, 1.0],
 	"lefty": ["左撇子（0/1）", 0.0, 1.0, 1.0, 0.0],
 	"hints": ["輔助文字（0/1）", 0.0, 1.0, 1.0, 0.0],
+	"cam_pull": ["牆擋住時鏡頭拉近（0＝牆變半透明）", 0.0, 1.0, 1.0, 1.0],
 	"windup_ms": ["出刀前置 ms", 20.0, 400.0, 5.0, 140.0],
 	"active_ms": ["命中窗 ms", 40.0, 250.0, 5.0, 120.0],
 	"recovery_ms": ["收刀硬直 ms", 60.0, 600.0, 5.0, 260.0],
@@ -122,7 +123,7 @@ func apply_preset(preset_name: String) -> void:
 	if not PRESETS.has(preset_name):
 		return
 	var keep := {}
-	for k in ["ui_scale", "look_sens", "volume", "lefty", "hints"]:
+	for k in ["ui_scale", "look_sens", "volume", "lefty", "hints", "cam_pull"]:
 		keep[k] = get_p(k)
 	for k in PARAMS:
 		p[k] = PARAMS[k][4]
