@@ -159,6 +159,7 @@ func _ready() -> void:
 	max_hp = Progress.max_hp()
 	hp = max_hp
 	shuriken = Progress.shuriken_max()
+	_shuriken_cap = shuriken
 	Progress.changed.connect(refresh_progress)
 	_trail_mat = StandardMaterial3D.new()
 	_trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -627,6 +628,10 @@ func _tick_rations() -> void:
 	Fx.damage_number(global_position + Vector3(0.0, 2.0, 0.0), 35, false, Color(0.6, 1.0, 0.6), "口糧 +35")
 
 
+## 上次套用時的手裡劍上限：卷軸把上限拉高時，多出來的枚數當場發給玩家（不是等檢查點才補）
+var _shuriken_cap := 5
+
+
 ## 進度（念珠、卷軸）套用到角色：最大 HP、手裡劍上限
 func refresh_progress() -> void:
 	var was_max := hp >= max_hp
@@ -635,7 +640,11 @@ func refresh_progress() -> void:
 		hp = max_hp
 	hp = mini(hp, max_hp)
 	hp_changed.emit(hp)
-	shuriken = mini(shuriken, Progress.shuriken_max())
+	var cap := Progress.shuriken_max()
+	if cap > _shuriken_cap:
+		shuriken += cap - _shuriken_cap
+	_shuriken_cap = cap
+	shuriken = mini(shuriken, cap)
 	shuriken_changed.emit(shuriken)
 
 

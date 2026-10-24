@@ -247,7 +247,7 @@ func _draw() -> void:
 	draw_arc(sc, SWAP_R, 0.0, TAU, 32, Color(0.9, 0.9, 0.9, 0.8), 2.0, true)
 	if font:
 		draw_string(font, sc + Vector2(-SWAP_R, 9.0), "劍" if shuriken else "刀", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0, 24, Color(1, 1, 1, 0.95))
-		draw_string(font, sc + Vector2(-SWAP_R - 10.0, SWAP_R + 16.0), "切換", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0 + 20.0, 13, Color(1, 1, 1, 0.6))
+		draw_string(font, sc + Vector2(-SWAP_R - 10.0, SWAP_R + 16.0), "換", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0 + 20.0, 13, Color(1, 1, 1, 0.6))
 	# 閃
 	var dc := _dash_center()
 	draw_circle(dc, DASH_R, Color(0.2, 0.3, 0.55, 0.5 + 0.4 * _dash_flash))

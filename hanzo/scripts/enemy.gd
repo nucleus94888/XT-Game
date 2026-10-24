@@ -15,14 +15,18 @@ signal flee_started(enemy: Enemy)
 enum Kind { ASHIGARU, ARCHER, SAMURAI, TARGET, LORD }
 enum State { IDLE, PATROL, SUSPICIOUS, ALERT, ATTACK, STAGGER, BROKEN, DEAD, SEARCH, FLEE }
 
+## speed：走路基準（巡邏 ×0.55、搜索 ×0.75、起疑逼近 ×0.5）；run：追擊／逃跑用的跑速。
+## 玩家走速 5.4、閃步 17。追擊一定要快過走速，被發現才等於「必須閃步或戰鬥」（第七次議會）。
 const SPEC := {
-	Kind.ASHIGARU: {"name": "足輕", "hp": 40, "posture": 60.0, "speed": 4.0, "color": Color(0.36, 0.42, 0.55), "reach": 2.1, "dmg": 12, "windup": 0.45, "strike": 0.14, "cd": 1.5, "weapon": "spear", "view": 7.0},
-	Kind.ARCHER: {"name": "弓兵", "hp": 30, "posture": 50.0, "speed": 3.6, "color": Color(0.3, 0.5, 0.35), "reach": 9.5, "dmg": 10, "windup": 0.75, "strike": 0.1, "cd": 2.3, "weapon": "bow", "view": 9.0},
-	Kind.SAMURAI: {"name": "武士", "hp": 90, "posture": 100.0, "speed": 4.5, "color": Color(0.6, 0.16, 0.14), "reach": 2.3, "dmg": 18, "windup": 0.5, "strike": 0.14, "cd": 1.4, "weapon": "katana", "view": 8.0},
-	Kind.TARGET: {"name": "武將", "hp": 120, "posture": 110.0, "speed": 4.3, "color": Color(0.78, 0.62, 0.2), "reach": 2.4, "dmg": 22, "windup": 0.55, "strike": 0.14, "cd": 1.3, "weapon": "katana", "view": 8.0},
+	Kind.ASHIGARU: {"name": "足輕", "hp": 40, "posture": 60.0, "speed": 4.0, "run": 6.2, "color": Color(0.36, 0.42, 0.55), "reach": 2.1, "dmg": 12, "windup": 0.45, "strike": 0.14, "cd": 1.5, "weapon": "spear", "view": 7.0},
+	Kind.ARCHER: {"name": "弓兵", "hp": 30, "posture": 50.0, "speed": 3.6, "run": 4.6, "color": Color(0.3, 0.5, 0.35), "reach": 9.5, "dmg": 10, "windup": 0.75, "strike": 0.1, "cd": 2.3, "weapon": "bow", "view": 9.0},
+	Kind.SAMURAI: {"name": "武士", "hp": 90, "posture": 100.0, "speed": 4.5, "run": 6.6, "color": Color(0.6, 0.16, 0.14), "reach": 2.3, "dmg": 18, "windup": 0.5, "strike": 0.14, "cd": 1.4, "weapon": "katana", "view": 8.0},
+	Kind.TARGET: {"name": "武將", "hp": 120, "posture": 110.0, "speed": 4.3, "run": 6.4, "color": Color(0.78, 0.62, 0.2), "reach": 2.4, "dmg": 22, "windup": 0.55, "strike": 0.14, "cd": 1.3, "weapon": "katana", "view": 8.0},
 	# 大將：不打架，一察覺就逃（故事用，打不死）
-	Kind.LORD: {"name": "大將", "hp": 9999, "posture": 9999.0, "speed": 6.5, "color": Color(0.45, 0.12, 0.5), "reach": 0.0, "dmg": 0, "windup": 1.0, "strike": 0.1, "cd": 99.0, "weapon": "katana", "view": 9.0},
+	Kind.LORD: {"name": "大將", "hp": 9999, "posture": 9999.0, "speed": 4.5, "run": 6.5, "color": Color(0.45, 0.12, 0.5), "reach": 0.0, "dmg": 0, "windup": 1.0, "strike": 0.1, "cd": 99.0, "weapon": "katana", "view": 9.0},
 }
+## 起疑：先站住一拍盯著（可讀），再慢走過去（壓力）
+const SUSPICIOUS_HOLD := 0.5
 const VIEW_COS := 0.42
 const SHOUT_RANGE := 10.0
 
@@ -81,10 +85,25 @@ var _sfx_swing: AudioStreamPlayer
 var _sfx_hit: AudioStreamPlayer
 var _sfx_block: AudioStreamPlayer
 var _sfx_die: AudioStreamPlayer
+var _sfx_hm: AudioStreamPlayer
+var _sfx_shout: AudioStreamPlayer
+var _sfx_step: AudioStreamPlayer
+## 起疑：站住計時、要走去查看的點
+var _sus_t := 0.0
+var _sus_pos := Vector3.ZERO
+## 程序式走姿：前傾量（0～1）、步伐相位、下一步腳步聲剩餘距離
+var _lean := 0.0
+var _stride := 0.0
+var _step_left := 0.6
+var _blink_t := 2.0
+var _body_mat: StandardMaterial3D
+var _eye_mat: StandardMaterial3D
 
 var visual: Node3D
 var body: MeshInstance3D
 var head: MeshInstance3D
+var eye_l: MeshInstance3D
+var eye_r: MeshInstance3D
 var weapon: MeshInstance3D
 var mark: Label3D
 var bar: Node3D
@@ -112,6 +131,10 @@ func _ready() -> void:
 	_sfx_hit = Sfx.player(self, "hit", -4.0)
 	_sfx_block = Sfx.player(self, "block", -7.0, 0.9)
 	_sfx_die = Sfx.player(self, "hurt", -3.0, 0.8)
+	_sfx_hm = Sfx.player(self, "hm", -6.0, randf_range(0.9, 1.1), 1.04)
+	_sfx_shout = Sfx.player(self, "shout", -3.0, randf_range(0.92, 1.08), 1.04)
+	_sfx_step = Sfx.player(self, "step", -18.0, 1.0, 1.15)
+	_blink_t = randf_range(1.5, 4.0)
 	Feel.time_scale_changed.connect(func(ts: float) -> void:
 		particles.speed_scale = 1.0 / maxf(ts, 0.01))
 
@@ -182,16 +205,33 @@ func _build() -> void:
 	bm.radius = 0.36
 	bm.height = 1.35
 	body = _mesh(bm, spec.color, Vector3(0, 0.85, 0))
+	_body_mat = body.material_override
 	visual.add_child(body)
 	var hm := SphereMesh.new()
 	hm.radius = 0.25
 	hm.height = 0.5
 	head = _mesh(hm, Color(0.82, 0.68, 0.58), Vector3(0, 1.68, 0))
 	visual.add_child(head)
-	# 頭盔/頭巾顏色帶：讓種類一眼可辨
+	# 頭盔/頭巾顏色帶：讓種類一眼可辨（掛在頭下，跟著頭晃）
 	var band := BoxMesh.new()
 	band.size = Vector3(0.56, 0.1, 0.56)
-	visual.add_child(_mesh(band, spec.color.darkened(0.3), Vector3(0, 1.78, 0)))
+	head.add_child(_mesh(band, spec.color.darkened(0.3), Vector3(0, 0.13, 0)))
+	# 眼睛：兩個發亮的小方塊，靠形狀與顏色讀狀態（平常細長、起疑瞇、警戒瞪大、崩壞打叉、死掉一條線）
+	_eye_mat = StandardMaterial3D.new()
+	_eye_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_eye_mat.albedo_color = Color(0.95, 0.95, 1.0)
+	var em := BoxMesh.new()
+	em.size = Vector3(0.09, 0.055, 0.03)
+	eye_l = MeshInstance3D.new()
+	eye_l.mesh = em
+	eye_l.material_override = _eye_mat
+	eye_l.position = Vector3(-0.09, 0.03, -0.225)
+	head.add_child(eye_l)
+	eye_r = MeshInstance3D.new()
+	eye_r.mesh = em
+	eye_r.material_override = _eye_mat
+	eye_r.position = Vector3(0.09, 0.03, -0.225)
+	head.add_child(eye_r)
 
 	var wm := BoxMesh.new()
 	var wcolor := Color(0.85, 0.88, 0.95)
@@ -316,7 +356,7 @@ func _physics_process(delta: float) -> void:
 		State.PATROL:
 			_do_patrol(delta)
 		State.SUSPICIOUS:
-			_stop()
+			_do_suspicious(delta)
 		State.SEARCH:
 			_do_search(delta)
 		State.FLEE:
@@ -415,8 +455,10 @@ func _perceive(delta: float) -> void:
 		_facing = lerp_angle(_facing, _yaw_to(to), 1.0 - exp(-6.0 * delta))
 		if _detect >= 1.0:
 			_go_alert()
-		elif state != State.SUSPICIOUS and state != State.SEARCH:
-			state = State.SUSPICIOUS
+		elif state == State.SUSPICIOUS:
+			_sus_pos = _player.global_position
+		elif state != State.SEARCH:
+			_go_suspicious(_player.global_position)
 	else:
 		_detect = maxf(_detect - delta * 0.5, 0.0)
 		if state == State.SUSPICIOUS and _detect <= 0.0:
@@ -434,6 +476,7 @@ func _player_lit() -> bool:
 func _start_search(pos: Vector3) -> void:
 	if state in [State.DEAD, State.ATTACK, State.STAGGER, State.BROKEN]:
 		return
+	var was_calm := state in [State.IDLE, State.PATROL]
 	state = State.SEARCH
 	_last_known = pos
 	_search_t = 0.0
@@ -441,6 +484,35 @@ func _start_search(pos: Vector3) -> void:
 	_detect = maxf(_detect, 0.5)
 	_guard = false
 	_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
+	if was_calm:
+		Sfx.play(_sfx_hm)
+
+
+## 起疑：「嗯？」＋站住盯 0.5 秒（玩家讀得出），然後慢走到看到你的位置（躲著不動不再安全）
+func _go_suspicious(pos: Vector3) -> void:
+	if state in [State.SUSPICIOUS, State.ALERT, State.ATTACK, State.STAGGER, State.BROKEN, State.DEAD, State.FLEE]:
+		return
+	state = State.SUSPICIOUS
+	_sus_t = 0.0
+	_sus_pos = pos
+	_stop()
+	Sfx.play(_sfx_hm)
+	if _player and global_position.distance_to(_player.global_position) < 14.0:
+		Feel.haptic(25)
+
+
+func _do_suspicious(delta: float) -> void:
+	_sus_t += delta
+	# 大將只轉頭不過去（看到你才逃）
+	if _sus_t < SUSPICIOUS_HOLD or kind == Kind.LORD:
+		_stop()
+		return
+	var d := _sus_pos - global_position
+	d.y = 0.0
+	if d.length() > 1.5:
+		_move_to(_sus_pos, float(spec.speed) * 0.5, delta)
+	else:
+		_stop()
 
 
 func _do_search(delta: float) -> void:
@@ -482,7 +554,7 @@ func _do_flee(delta: float) -> void:
 			escaped.emit(self)
 			queue_free()
 			return
-	_move_to(flee_route[_flee_i], float(spec.speed), delta)
+	_move_to(flee_route[_flee_i], float(spec.run), delta)
 
 
 func _go_alert() -> void:
@@ -497,6 +569,9 @@ func _go_alert() -> void:
 	_lost_t = 0.0
 	_attack_cd = maxf(_attack_cd, 0.5)
 	_show_mark("！", Color(1.0, 0.25, 0.2), 0.9)
+	Sfx.play(_sfx_shout)
+	if _player and global_position.distance_to(_player.global_position) < 20.0:
+		Feel.haptic(70)
 	alerted.emit(self)
 	get_tree().call_group("enemies", "hear_shout", global_position)
 
@@ -514,7 +589,7 @@ func hear_noise(pos: Vector3, radius: float) -> void:
 		# 大將不會過去查看，只是起疑、轉頭（看到你才逃）
 		if state in [State.IDLE, State.SUSPICIOUS]:
 			_detect = maxf(_detect, 0.5)
-			state = State.SUSPICIOUS
+			_go_suspicious(pos)
 			_facing = _yaw_to(pos - global_position)
 		return
 	if state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]:
@@ -565,7 +640,7 @@ func _do_alert(delta: float) -> void:
 	var to := _player.global_position - global_position
 	to.y = 0.0
 	var dist := to.length()
-	var speed: float = spec.speed
+	var speed: float = spec.run
 	if kind == Kind.ARCHER:
 		if dist < 4.5:
 			_move_to(global_position - to.normalized() * 5.0, speed, delta)
@@ -817,14 +892,23 @@ func take_hit(info: Dictionary) -> void:
 		_set_emission(Color(1, 1, 1), 0.0)
 	if not alerted_once or state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]:
 		_go_alert()
+	# 背後砍（隻狼式）：已警戒的敵人從背後砍不算暗殺，但傷害 1.6 倍、體幹 2 倍，而且無視霸體。
+	# 繞背是閃步與鉤繩拉過來之後的獎勵
+	var backstab: bool = sword_hit and _forward().dot(dir) > 0.4
 	# 武士／武將出手前置中有「霸體」：硬吃刀只受六成傷害，攻擊照樣揮出（跟他對砍是划不來的）
 	var dmg := int(info.dmg)
-	if state == State.ATTACK and not _struck and (kind == Kind.SAMURAI or kind == Kind.TARGET) and sword_hit:
+	if backstab:
+		dmg = int(ceil(dmg * 1.6))
+		info = info.duplicate()
+		info.dmg = dmg
+	elif state == State.ATTACK and not _struck and (kind == Kind.SAMURAI or kind == Kind.TARGET) and sword_hit:
 		dmg = int(ceil(dmg * 0.6))
 		info = info.duplicate()
 		info.dmg = dmg
 	hp -= dmg
-	posture += 16.0 if heavy else 8.0
+	posture += (16.0 if heavy else 8.0) * (2.0 if backstab else 1.0)
+	if backstab:
+		_show_mark("背", Color(1.0, 0.8, 0.3), 0.4)
 	_posture_t = 1.5
 	_hit_streak += 1
 	_hit_streak_t = 2.0
@@ -936,6 +1020,12 @@ func _die(stealth: bool, execution: bool = false) -> void:
 	if _react_tw and _react_tw.is_valid():
 		_react_tw.kill()
 	visual.scale = Vector3.ONE
+	# 死後不再跑 _update_face，眼睛直接定成一條線
+	eye_l.scale = Vector3(1.3, 0.18, 1.0)
+	eye_r.scale = Vector3(1.3, 0.18, 1.0)
+	eye_l.rotation.z = 0.0
+	eye_r.rotation.z = 0.0
+	_eye_mat.albedo_color = Color(0.55, 0.55, 0.6)
 	if not stealth:
 		Sfx.play(_sfx_die)
 		get_tree().call_group("enemies", "hear_noise", global_position, 7.0)
@@ -951,6 +1041,73 @@ func _die(stealth: bool, execution: bool = false) -> void:
 
 # ---------------------------------------------------------------- 視覺
 
+## 程序式走姿（沒有動畫資源）：越快越前傾（跑步約 17 度）、身體隨步伐上下、腳步聲跟步頻走。
+## 用 body／head 的局部位移，不碰 visual 的旋轉（受擊反應與倒地在用）。
+func _update_gait(delta: float) -> void:
+	var hv := Vector2(velocity.x, velocity.z).length()
+	var ratio := clampf(hv / float(spec.run), 0.0, 1.0)
+	_lean = lerpf(_lean, ratio, 1.0 - exp(-9.0 * delta))
+	_stride += delta * hv * 3.4
+	var bob := sin(_stride) * 0.045 * _lean
+	body.rotation.x = -_lean * 0.3
+	body.position = Vector3(0.0, 0.85 + bob, -_lean * 0.1)
+	head.position = Vector3(0.0, 1.68 + bob * 1.3, -_lean * 0.28)
+	if hv > 0.4:
+		_step_left -= hv * delta
+		if _step_left <= 0.0:
+			_step_left = 1.5
+			_sfx_step.volume_db = lerpf(-22.0, -9.0, ratio)
+			Sfx.play(_sfx_step)
+	else:
+		_step_left = minf(_step_left, 0.4)
+
+
+## 眼睛＋身體色調：狀態一眼可讀。
+##   平常：白色細眼，偶爾眨眼　起疑／搜索：黃色瞇眼、身體偏黃　警戒／攻擊：紅色瞪大、身體偏紅
+##   硬直：小點　崩壞：「><」　死：一條線
+func _update_face(delta: float) -> void:
+	var base: Color = spec.color
+	var eye := Color(0.95, 0.95, 1.0)
+	var sc := Vector3(1.0, 1.0, 1.0)
+	var tilt := 0.0
+	var tint := base
+	match state:
+		State.SUSPICIOUS, State.SEARCH:
+			eye = Color(1.0, 0.85, 0.3)
+			sc = Vector3(1.35, 0.45, 1.0)
+			tint = base.lerp(Color(1.0, 0.8, 0.25), 0.3)
+		State.ALERT, State.ATTACK:
+			eye = Color(1.0, 0.3, 0.25)
+			sc = Vector3(1.4, 1.7, 1.0)
+			tint = base.lerp(Color(1.0, 0.2, 0.1), 0.45)
+		State.STAGGER:
+			eye = Color(0.9, 0.9, 0.95)
+			sc = Vector3(0.6, 0.6, 1.0)
+		State.BROKEN:
+			eye = Color(1.0, 0.75, 0.4)
+			sc = Vector3(1.3, 0.3, 1.0)
+			tilt = 0.7
+		State.DEAD:
+			eye = Color(0.55, 0.55, 0.6)
+			sc = Vector3(1.3, 0.18, 1.0)
+		State.FLEE:
+			eye = Color(1.0, 0.9, 0.9)
+			sc = Vector3(1.3, 1.5, 1.0)
+		_:
+			_blink_t -= delta
+			if _blink_t < 0.0:
+				_blink_t = randf_range(2.0, 5.0)
+			elif _blink_t < 0.12:
+				sc = Vector3(1.0, 0.1, 1.0)
+	var k := 1.0 - exp(-16.0 * delta)
+	eye_l.scale = eye_l.scale.lerp(sc, k)
+	eye_r.scale = eye_r.scale.lerp(sc, k)
+	eye_l.rotation.z = lerpf(eye_l.rotation.z, tilt, k)
+	eye_r.rotation.z = lerpf(eye_r.rotation.z, -tilt, k)
+	_eye_mat.albedo_color = _eye_mat.albedo_color.lerp(eye, k)
+	_body_mat.albedo_color = _body_mat.albedo_color.lerp(tint, 1.0 - exp(-8.0 * delta))
+
+
 func _set_emission(color: Color, energy: float) -> void:
 	for m in _mats:
 		m.emission = color
@@ -959,6 +1116,8 @@ func _set_emission(color: Color, energy: float) -> void:
 
 func _update_visual(delta: float) -> void:
 	visual.rotation.y = lerp_angle(visual.rotation.y, _facing, 1.0 - exp(-14.0 * delta))
+	_update_gait(delta)
+	_update_face(delta)
 	# 架刀姿勢
 	if state in [State.ALERT] and kind != Kind.ARCHER:
 		var target_rot := Vector3(-1.3, 0.3, -0.2) if _guard else Vector3.ZERO

@@ -5,4 +5,9 @@
   hit_1.wav  ← Knife fast hit (id 2184)
   hit_2.wav  ← Sword slashes in battle (id 2763)
   heavy.wav  ← Sword cutting flesh (id 2788)
+  hm.wav     ← Male clearing the throat (id 2226)　敵人起疑
+  shout_1.wav ← Voice from effort to punch (id 2174)　敵人發現喝聲
+  shout_2.wav ← Fighting man voice (id 2172)
+  step_1.wav ← Grass step (id 1920)　敵人腳步
+  step_2.wav ← Heavy grass step (id 1922)
 以 tools/sfx/prep.mjs 轉為單聲道 16-bit、去前段靜音、裁短、正規化。

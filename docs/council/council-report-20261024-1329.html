@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：敵人速度要不要分成警戒／追擊／閒逛三檔？</title>
+<style>
+  :root{--ink:#1d2129;--muted:#5b6470;--line:#e3e6ea;--bg:#fff;--soft:#f6f7f9;
+    --c1:#c75c4c;--c2:#3c6fb0;--c3:#3a9a6e;--c4:#9a6bb8;--c5:#d08a2a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",Roboto,sans-serif;line-height:1.7;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 64px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:28px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:18px 0;background:#fff}
+  .card.q{background:var(--soft)}
+  .card h2{font-size:18px;margin:0 0 12px}
+  .verdict h3{font-size:16px;margin:20px 0 6px;padding-left:10px;border-left:4px solid var(--ink)}
+  .verdict p,.verdict li{margin:6px 0}
+  .first{background:#fff8e6;border:1px solid #f0d890;border-radius:8px;padding:14px 16px;margin-top:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+  .adv{border:1px solid var(--line);border-radius:8px;padding:12px;border-top:4px solid}
+  .adv .n{font-weight:700;font-size:14px}
+  .adv .p{font-size:13px;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft)}
+  td.y{color:#1f7a4d;font-weight:600} td.n{color:#a33b2d;font-weight:600} td.m{color:#8a6a12;font-weight:600}
+  details{border:1px solid var(--line);border-radius:8px;margin:10px 0}
+  summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;align-items:center;gap:10px}
+  summary::-webkit-details-marker{display:none}
+  summary .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  details .body{padding:0 18px 16px;color:#2a2f36}
+  .c1{border-color:var(--c1)} .c2{border-color:var(--c2)} .c3{border-color:var(--c3)} .c4{border-color:var(--c4)} .c5{border-color:var(--c5)}
+  .d1{background:var(--c1)} .d2{background:var(--c2)} .d3{background:var(--c3)} .d4{background:var(--c4)} .d5{background:var(--c5)}
+  .footer{color:var(--muted);font-size:13px;margin-top:36px;border-top:1px solid var(--line);padding-top:14px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LLM Council 報告：敵人速度要不要分成警戒／追擊／閒逛三檔？</h1>
+  <div class="sub">2026-10-24 13:29 · 五位顧問獨立回答 → 匿名互評 → 主席統整 · 逐字稿：council-transcript-20261024-1329.md</div>
+
+  <div class="card q">
+    <h2>提問</h2>
+    <p>敵人走路速度是否該明確分成三檔：閒逛（正常走路）、警戒／起疑（慢走）、追擊（跑）？還是該用別的分法？若要分，數值怎麼訂、該不該配動畫或音效讓玩家一眼讀出敵人在哪一檔？</p>
+    <p style="color:var(--muted);font-size:14px;margin:0">現況：每種敵人一個基礎速度（足輕 4.0、弓兵 3.6、武士 4.5、武將 4.3、大將 6.5），乘狀態倍率巡邏 ×0.55、搜索 ×0.75、追擊 ×1.0、逃跑 ×1.0；起疑時原地站住。玩家走速 5.4、閃步 17。敵人沒有走路動畫（幾何體滑行），狀態提示靠頭上「？」、血條出現、武士架刀。</p>
+  </div>
+
+  <div class="card verdict">
+    <h2>主席裁決</h2>
+
+    <h3>議會一致同意的地方</h3>
+    <p>五位顧問獨立得出同一個結論：<strong>「分三檔」不是解法，它正是現狀</strong>。×0.55／×0.75／×1.0 已經是三檔，而玩家讀不出來。原因全員一致：滑行幾何體、五吋螢幕、鏡頭與玩家同時在動，2.2 與 3.0 公尺/秒在視覺上等於零。再調速度表是把工時花在一個看不見的東西上。</p>
+    <p>第二個共識：<strong>走路循環動畫是最貴且最不可讀的路</strong>，沒有任何顧問主張做動畫。</p>
+    <p>第三個共識（四位明說）：<strong>狀態必須靠離散事件讓玩家讀出</strong>——一聲短促「嗯？」、拔刀聲、血條彈出、轉頭——而不是靠連續的速度差。</p>
+
+    <h3>議會意見衝突的地方</h3>
+    <p>真正的分歧只有一條：<strong>起疑時該站住還是該逼近？</strong></p>
+    <p>執行者與局外人認為站住最好讀——停頓本身就是訊號。反方與擴張者認為站住＋搜索減速等於「越警覺越好躲」，潛行段會退化成等敵人發呆，違反「不要簡化」。</p>
+    <p>兩邊在優化不同東西：前者優化可讀性，後者優化壓力。裁決：<strong>先站住一拍（0.5 秒，轉頭＋聲音），再朝可疑點慢走</strong>。停頓負責可讀，逼近負責壓力。</p>
+
+    <h3>互評抓到的盲點</h3>
+    <ol>
+      <li><strong>沒有任何敵人在 ALERT 下快過玩家。</strong>追擊最高是武士 4.5，玩家走速 5.4；大將 6.5 是逃跑速度。追不上人的追擊沒有壓迫感，這是數值層的硬傷。</li>
+      <li><strong>比較對象是閃步 17，不是走速 5.4。</strong>閃步若沒有體力或冷卻，任何追擊數值都沒意義。</li>
+      <li><strong>iOS 靜音是常態</strong>，音效不能當主訊號；Haptic 是零工時的狀態廣播。</li>
+      <li><strong>拇指遮螢幕</strong>，訊號應放在敵人身體本身（輪廓、顏色），不是頭頂。</li>
+      <li><strong>沒有量測標準。</strong>專案已有 bot／--tour，卻沒人提議拿來測「被發現到被抓幾秒」。</li>
+    </ol>
+
+    <h3>建議</h3>
+    <p><strong>不要重新分檔，但要修一個壞掉的數值，並且每個狀態轉換配一個離散訊號。</strong></p>
+    <p>速度表只改一處：ALERT／ATTACK 倍率從 ×1.0 改成 <strong>×1.3</strong>，使足輕 5.2、武士 5.85、武將 5.6——全部明確快過走速 5.4，但遠慢於閃步 17。被發現等於「必須閃步或戰鬥」。巡邏 ×0.55、搜索 ×0.75 原封不動。SUSPICIOUS 改成「站住 0.5 秒後以 ×0.5 走向可疑點」。</p>
+    <p><strong>不配走路動畫。</strong>配三件便宜的東西：</p>
+    <ul>
+      <li>每次狀態轉換一聲一色一震：起疑「嗯？」＋轉頭＋輕震；鎖定喊聲＋血條＋重震；搜索時燈籠或身體色調改變。</li>
+      <li>程序式前傾（速度比例 × 15 度），半天可做，五種敵人自動生效，作為補充而非主訊號。</li>
+      <li>大將逃跑 6.5 保留，但第一次遇到要有提示讓玩家知道該用飛鉤，否則玩家會以為是 bug。</li>
+    </ul>
+
+    <div class="first">
+      <strong>第一件該做的事：</strong>用現有 bot 跑一次量測：把 ALERT 倍率改成 ×1.3，記錄「足輕發現玩家後，玩家不閃步只走路，幾秒被追上」。沒有這個數字，其他任何改動都無法驗證。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>顧問立場一覽</h2>
+    <div class="grid">
+      <div class="adv c1"><div class="n">反方</div><div class="p">三檔是現狀不是解法；起疑站住＝越警覺越好躲；要分就分到誇張</div></div>
+      <div class="adv c2"><div class="n">第一性原理</div><div class="p">速度是最差載體；只改追擊快過玩家；狀態轉換配一聲一色</div></div>
+      <div class="adv c3"><div class="n">擴張者</div><div class="p">四檔拉大對比；起疑慢速逼近；爆衝啟動；潰逃也分檔</div></div>
+      <div class="adv c4"><div class="n">局外人</div><div class="p">速度差感覺不到；站住最好讀；追擊要「吵」；大將比我快像 bug</div></div>
+      <div class="adv c5"><div class="n">執行者</div><div class="p">倍率收成三常數；程序式前傾；腳步聲計時器；不做動畫</div></div>
+    </div>
+    <table>
+      <tr><th>議題</th><th>反方</th><th>第一性原理</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr>
+      <tr><td>重新分速度檔</td><td class="n">否</td><td class="n">否</td><td class="y">是（四檔）</td><td class="n">否</td><td class="m">只收常數</td></tr>
+      <tr><td>追擊要快過玩家</td><td class="y">是</td><td class="y">是</td><td class="y">是</td><td class="m">要吵不用快</td><td class="n">未處理</td></tr>
+      <tr><td>起疑時行為</td><td class="y">逼近</td><td class="m">未明說</td><td class="y">慢速逼近</td><td class="n">站住</td><td class="n">站住</td></tr>
+      <tr><td>做走路動畫</td><td class="n">否</td><td class="n">否</td><td class="n">否</td><td class="n">否</td><td class="n">否</td></tr>
+      <tr><td>主訊號</td><td>輪廓姿勢</td><td>轉換事件 聲＋色</td><td>速度＋腳步聲</td><td>停頓瞬間 轉頭＋聲</td><td>前傾＋腳步聲</td></tr>
+      <tr><td>音效可當主訊號</td><td class="n">否（iOS 靜音）</td><td class="y">是</td><td class="y">是</td><td class="y">是</td><td class="y">是</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>顧問完整回答</h2>
+
+    <details><summary><span class="dot d1"></span>反方（The Contrarian）</summary><div class="body">
+      <p>這個提案的致命問題：你已經有三檔了（×0.55／×0.75／×1.0），而玩家顯然讀不出來——所以「分三檔」不是解法，它正是現狀。再調數字只是重排一個沒人看得見的東西。</p>
+      <p>為什麼看不見？速度是相對量。手機螢幕上鏡頭在動、玩家自己在動、敵人是滑行的幾何體，0.55 和 0.75 的差距在視覺上等於零。四公尺／秒的追擊對五點四的玩家也構不成壓迫，你的「跑」本來就追不上人，緊張感不是從速度來的。</p>
+      <p>更危險的是方向本身：起疑時「原地站住盯人」加上搜索放慢，等於敵人越警覺越好躲，潛行段會變成等敵人發呆。這違反「不要簡化」。真正該問的是：為什麼起疑的敵人不會走向可疑點、不會叫人、不會縮小搜索半徑？那才是可讀又有壓力的狀態差異。</p>
+      <p>工時問題也別自欺：做走路跑步動畫是最貴的路，做完手機上一樣看不清。便宜且確實能讀的訊號是輪廓與節奏——舉燈籠、手按刀柄、身體前傾、腳步聲節拍；但 iOS 玩家多半靜音，音效不能當主訊號，只能當配菜。</p>
+      <p>結論：先別碰速度表。把工時花在「起疑→主動逼近」的行為差與一個不靠動畫的姿勢輪廓變化上，速度檔位要分，也要分到誇張（例如 0.4／0.8／1.5 倍）才有機會被看見，否則就是白做。</p>
+    </div></details>
+
+    <details><summary><span class="dot d2"></span>第一性原理思考者（The First Principles Thinker）</summary><div class="body">
+      <p>你問的是「速度該分幾檔」，但速度不是問題的地基。地基是：<strong>玩家在 0.3 秒內、小螢幕上、沒有動畫的情況下，要讀出敵人「知不知道我在哪」</strong>。速度是這個資訊最差的載體——它需要時間觀察、需要參照物，而手機上敵人只佔十幾個像素。</p>
+      <p>剝到底，敵人只有三種對玩家有意義的狀態：<strong>不知道你</strong>（任何速度都無所謂）、<strong>在找你</strong>（威脅是「搜索範圍」，不是速度）、<strong>鎖定你</strong>（威脅才是速度）。所以真正需要「跑」的只有 ALERT 一檔，而且它該顯著快於玩家走速（例如 ×1.3，足輕 5.2 以上），否則追擊沒有壓迫；其餘狀態速度差異是給設計師看的，不是給玩家看的。</p>
+      <p>你現在的倍率 0.55／0.75／1.0 其實已經是三檔，問題不在數值，在<strong>沒有一個訊號是瞬間可讀的</strong>。走路動畫是最貴、最不可讀的解法。最便宜且第一眼就讀得到的是：<strong>狀態切換的瞬間事件</strong>——起疑時的「哼？」聲＋頭頂符號彈出、鎖定時的喊聲＋全隊血條亮起、搜索時的燈籠／視錐顏色。連續的速度差要觀察，離散的事件只要聽到。</p>
+      <p>結論：別碰速度分檔，把工時花在「每次狀態轉換都有一個聲音與一個顏色」。真正該改的數值只有一個：追擊速度必須明確快過玩家走速，讓「被發現」等於「必須閃步或戰鬥」，這才是潛行遊戲的緊張感來源。</p>
+    </div></details>
+
+    <details><summary><span class="dot d3"></span>擴張者（The Expansionist）</summary><div class="body">
+      <p>三檔不是上限，是底線——真正的上行空間在「速度本身就是情報系統」。敵人沒有走路動畫，這反而是機會：幾何體滑行的速度差異是手機小螢幕上最便宜、最不佔像素的狀態廣播，比「？」圖示更遠就能讀到。</p>
+      <p>建議四檔而非三檔，把現有倍率拉開到人眼一瞥可辨的對比：閒逛 ×0.45、起疑 ×0.3（慢慢逼近，不是站住——站住的敵人沒有威脅感，慢走逼近才讓玩家心跳加速）、搜索 ×0.7、追擊 ×1.15（讓追擊比玩家走速快，逼玩家用閃步，閃步才有存在理由）。</p>
+      <p>相鄰機會才是重點：</p>
+      <ol>
+        <li>速度檔可以當關卡設計工具——武士追擊 5.2 公尺/秒接近玩家 5.4，製造「差一點就被抓到」的貼身追逐；大將 6.5 逃跑比玩家快，玩家必須預判路線或用飛鉤，鉤繩系統瞬間有了存在價值。</li>
+        <li>腳步聲節奏綁速度——每個速度檔對應固定步頻音效，玩家閉著眼睛也能從聲音讀出敵人狀態，工時只要一組音效加計時器。</li>
+        <li>速度曲線加「衝刺啟動」——敵人從起疑轉追擊時，前 0.3 秒爆衝 ×1.5 再回落，製造被發現瞬間的驚嚇感。</li>
+        <li>被低估的：BROKEN／STAGGER 的速度也該是獨立檔——潰逃的足輕 ×1.3 四散奔逃，戰鬥結束的爽感倍增。</li>
+      </ol>
+      <p>做對了會怎樣？玩家不看 UI 就知道全場敵人狀態，潛行變成讀節奏的遊戲，而不是盯圖示的遊戲。</p>
+    </div></details>
+
+    <details><summary><span class="dot d4"></span>局外人（The Outsider）</summary><div class="body">
+      <p>我是個普通玩家，看完這段描述第一個反應是：速度差我根本感覺不到，但我每一秒都在看「他有沒有發現我」。</p>
+      <p>先講最刺眼的事。巡邏 ×0.55、搜索 ×0.75、追擊 ×1.0，再乘 4.0 或 4.5，這些數字對做遊戲的人有意義，對我沒有。手機螢幕五吋，敵人是個滑行的幾何體，從 2.2 公尺/秒變成 3.0 公尺/秒，我看到的只是「一塊東西在動」。真正分三檔的不是速度，是「他在幹嘛」：背對我晃→我可以動；停下來盯我→我該躲；衝過來→我完了。你現在的設計裡，起疑時敵人是「站住不動」，這其實是最好讀的一檔，因為停頓本身就是訊號，比任何速度都明顯。</p>
+      <p>所以別把工時花在調三組速度表。要花，花在「停下來那一瞬間」：一個明顯的轉頭、一聲短促的「嗯？」、頭上的問號要大到我在搖桿擋著一半螢幕時還看得見。追擊那檔也不用快，要「吵」——拔刀聲、喊叫、血條彈出來，我才知道該按閃步。沒有走路動畫沒關係，我手機上玩過一堆沒動畫的遊戲，但狀態讀不懂我會直接覺得「這遊戲不公平」然後刪掉。</p>
+      <p>還有一件作者可能看不到的事：大將逃跑 6.5，玩家走速 5.4，閃步 17。我第一次遇到大將跑掉，不會覺得「哇好緊張」，會覺得「他怎麼比我快，是不是 bug」。速度只有在跟玩家比較時才被感知，這才是該動的那個數字。</p>
+    </div></details>
+
+    <details><summary><span class="dot d5"></span>執行者（The Executor）</summary><div class="body">
+      <p>速度分三檔的答案是「早就分了」——巡邏 ×0.55、搜索 ×0.75、追擊 ×1.0 就是三檔，再開會討論分法是浪費工時。真正的問題是：幾何體滑行，手機螢幕上 2.2 公尺/秒和 3.0 公尺/秒看起來一模一樣，玩家根本讀不出檔位。所以星期一早上要做的不是調數字，是讓速度「長在身上」。</p>
+      <p>具體三件事，合計一天半：</p>
+      <p>一、把倍率收成三個常數 WALK 0.5、HURRY 0.8、RUN 1.0，所有狀態函式只准傳這三個，不要再有 0.55、0.75 這種零碎值。SUSPICIOUS 原地站住不動，這很好，站著本身就是訊號，別改。</p>
+      <p>二、在 <code>_move_to</code> 裡加程序式姿態：身體前傾角度 = 速度比例 × 15 度，再加一個 sin 上下晃動，頻率跟速度綁。走路微晃、快走前傾、跑步明顯前撲。三十行 GDScript，半天搞定，不用任何動畫資源，五種敵人全部自動生效。</p>
+      <p>三、腳步聲：一個 AudioStreamPlayer3D，計時器間隔 = 0.5 / 速度比例，RUN 檔音量加大。手機玩家常看不到敵人，但聽得到節奏變快，這是潛行緊張感最便宜的來源。</p>
+      <p>不要做的：給所有敵人做走路循環動畫，那是以週計的工時，單人開發現在碰它就是把第四關賠進去。</p>
+    </div></details>
+  </div>
+
+  <div class="card">
+    <h2>互評重點</h2>
+    <details><summary>五份匿名互評（A＝執行者、B＝局外人、C＝反方、D＝擴張者、E＝第一性原理）</summary><div class="body">
+      <p><strong>評審一：</strong>E 最強——速度是最差資訊載體，「每次狀態轉換配一聲一色」可驗證、工時小，只動一個數值。D 盲點最大——四檔加爆衝全是連續速度差，正是讀不出來的那種。全員漏了距離與時間（追多久、從多遠、群體包抄），也漏了觸覺：iOS 靜音常態，Haptic 是零工時的狀態廣播。</p>
+      <p><strong>評審二：</strong>C 最強——唯一指出「越警覺越好躲」的設計矛盾；A 的程序式姿態可作為 C 的落地做法。D 盲點最大——武士 4.5×1.15＝5.2 仍慢於 5.4，自打嘴巴；爆衝在滑行幾何體上像瞬移。全漏：閃步 17 才是比較對象；沒人提用 bot／--tour 量測「被發現到被抓的秒數」。</p>
+      <p><strong>評審三：</strong>E 最強——定義問題本質、離散事件最便宜、只改一個數值。D 盲點最大——四檔差距更讀不出來；起疑慢慢逼近會把敵人送進玩家視野。A 也漏了 iOS 靜音。全漏：拇指遮螢幕，訊號應放在敵人身體本身；沒有可驗證標準；可聽距離——敵人叫喊應觸發同伴。</p>
+      <p><strong>評審四：</strong>E 最強；C 的「起疑應主動逼近」同樣犀利但沒可執行清單。A 盲點最大——把現狀當解答，完全沒處理「追擊 4.0 追不上 5.4」。全漏：用 bot 自動測量「發現後幾秒追上」；狀態轉換要有「不可逆的代價」（叫人、縮小搜索半徑、永久提高警戒）。</p>
+      <p><strong>評審五：</strong>C 最強——唯一指出起疑站住＋搜索減速＝越警覺越好躲。A 盲點最大——追擊 4.0 追不上 5.4，三檔本身就壞了。全漏：大將 6.5 是逃跑不是追擊，現有追擊最高 4.5，沒有任何敵人在 ALERT 下快過玩家；沒人算實際公尺數與閃步 17 的關係；改速度前先跑 bot 驗證。</p>
+    </div></details>
+  </div>
+
+  <div class="footer">2026-10-24 13:29 · 議題：敵人移動速度是否分成閒逛／警戒／追擊三檔 · 專案：半藏 HANZO（Godot 4.7.2，iOS 優先）</div>
+</div>
+</body>
+</html>

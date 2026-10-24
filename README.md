@@ -73,6 +73,11 @@ C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --path hanzo ++ -
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=mash --runs=20
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=deflect --runs=20
 
+# 追擊量測 bot（第七次議會）：敵人 6 公尺外已警戒，玩家只走路直線逃；印拉近速率與幾秒被追上
+# 目標：每種近戰敵人都追得上走路的玩家（足輕約 5 秒、武士約 3 秒），閃步才有存在理由
+C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=chase --kind=ashigaru --runs=3
+C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=chase --kind=samurai --runs=3
+
 # 網頁版量觸控延遲：遊戲中連點羅盤三下開除錯，左下會顯示「觸控延遲 avg ms（最差）」
 
 # 關卡檢查：故事流程（第一關）、巡迴截圖（任何關，把半藏傳送到各點各拍一張）

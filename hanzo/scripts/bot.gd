@@ -5,8 +5,19 @@ extends Node
 ## mash：走到武士面前每幀狂按攻擊，從不格擋、從不閃（模擬無腦連按）。
 ## deflect：等武士出手，在打到前 70～170ms 舉刀（人類反應抖動），趁硬直砍兩刀；看到「危」就閃步。
 ## 目標（第五次議會）：mash 勝率 <30%、deflect 勝率 >70%。
+## chase：追擊量測（第七次議會）。敵人在 6 公尺外已警戒，玩家只走路（不閃步）直線逃；
+##   印出拉近速率（公尺/秒）與「從 6 公尺到被追上要幾秒」。--kind=ashigaru|samurai|target|archer
+##   godot --headless --path hanzo scenes/level1.tscn ++ --bot=chase --kind=ashigaru --runs=3
+
+const KINDS := {"ashigaru": Enemy.Kind.ASHIGARU, "archer": Enemy.Kind.ARCHER, "samurai": Enemy.Kind.SAMURAI, "target": Enemy.Kind.TARGET}
+const CHASE_START := 6.0
+const CHASE_MAX_T := 8.0
 
 var mode := "mash"
+var kind: Enemy.Kind = Enemy.Kind.SAMURAI
+var _chase_d0 := 0.0
+var _chase_caught := false
+var _chase_armed := false
 var runs := 20
 var level: Node3D
 var player: CharacterBody3D
@@ -38,12 +49,14 @@ func start() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a == "--trace":
 			_trace = true
+		elif a.begins_with("--kind="):
+			kind = KINDS.get(a.substr(7), Enemy.Kind.SAMURAI)
 		elif a == "--full":
 			# 全升級組合：念珠四枚（HP 140）＋三卷卷軸（不寫存檔）
 			Progress.beads = Progress.MAX_BEADS
 			Progress._pending = Progress.SCROLLS.keys()
 			player.refresh_progress()
-			print("BOT full upgrades: max_hp=%d shuriken=%d" % [player.max_hp, Progress.shuriken_max()])
+			print("BOT full upgrades: max_hp=%d shuriken=%d/%d" % [player.max_hp, player.shuriken, Progress.shuriken_max()])
 	if _trace:
 		player.hit_landed.connect(func(info: Dictionary) -> void:
 			if is_instance_valid(enemy):
@@ -70,15 +83,48 @@ func _begin_run() -> void:
 	player.set_block(false)
 	hud.touch.move_vector = Vector2.ZERO
 	enemy = Enemy.new()
-	enemy.kind = Enemy.Kind.SAMURAI
+	enemy.kind = kind if mode == "chase" else Enemy.Kind.SAMURAI
 	enemy.face_dir = Vector3(0, 0, 1)
 	level.add_child(enemy)
-	enemy.global_position = _start_pos + Vector3(0.0, 0.0, -4.0)
+	if mode == "chase":
+		# 敵人站在起點，玩家在他前方 6 公尺、面向 -Z（第一院往石階的直線）
+		enemy.global_position = _start_pos
+		player.global_position = _start_pos + Vector3(0.0, 0.0, -CHASE_START)
+		enemy.face_dir = Vector3(0, 0, -1)
+		_chase_d0 = CHASE_START
+		_chase_caught = false
+		_chase_armed = false
+		player.damaged.connect(func(_a: int) -> void:
+			_chase_caught = true, CONNECT_ONE_SHOT)
+	else:
+		enemy.global_position = _start_pos + Vector3(0.0, 0.0, -4.0)
 	enemy.alerted_once = true
 	enemy.died.connect(func(_e: Enemy, _s: bool) -> void:
 		_end_run(true))
 	enemy._go_alert()
 	cam_rig.yaw = 0.0
+
+
+func _end_chase(reason: String, dist: float) -> void:
+	if _done:
+		return
+	_done = true
+	var rate := (_chase_d0 - dist) / maxf(_t, 0.01)
+	var reach := float(enemy.spec.reach)
+	var eta := (CHASE_START - reach) / rate if rate > 0.01 else INF
+	var eta_s := "%.1fs" % eta if rate > 0.01 else "永遠追不上"
+	_results.append({"win": false, "t": _t, "rate": rate, "eta": eta, "reason": reason})
+	print("CHASE %s run %d/%d: %s  t=%.2fs  dist %.1f→%.1f  closing %.2f m/s  6公尺→追上 %s" % [enemy.spec.name, _run, runs, reason, _t, _chase_d0, dist, rate, eta_s])
+	if _run >= runs:
+		var avg := 0.0
+		for r in _results:
+			avg += float(r.rate)
+		avg /= maxf(_results.size(), 1.0)
+		var reach2 := float(enemy.spec.reach)
+		print("CHASE SUMMARY %s: run=%.1f walk=5.4 closing %.2f m/s  6公尺→追上 %s" % [enemy.spec.name, float(enemy.spec.run), avg, ("%.1fs" % ((CHASE_START - reach2) / avg)) if avg > 0.01 else "永遠追不上"])
+		get_tree().quit()
+		return
+	get_tree().create_timer(0.6).timeout.connect(_begin_run)
 
 
 func _end_run(win: bool) -> void:
@@ -124,11 +170,32 @@ func _physics_process(delta: float) -> void:
 	var dist := to.length()
 	var dir := to.normalized() if dist > 0.01 else Vector3.FORWARD
 	# 面向敵人（站著不動時也轉身）
-	if player.state in [player.State.FREE, player.State.BLOCK]:
+	if mode != "chase" and player.state in [player.State.FREE, player.State.BLOCK]:
 		player._facing = atan2(-dir.x, -dir.z)
 	var local := dir.rotated(Vector3.UP, -cam_rig.yaw)
 	var joy := Vector2(local.x, local.z)
 	match mode:
+		"chase":
+			# 前 0.25 秒把兩人釘在起始位置（剛生成那幾幀物理會把重疊的身體彈開），之後才開始計時
+			if not _chase_armed:
+				player.global_position = _start_pos + Vector3(0.0, 0.0, -CHASE_START)
+				player.velocity = Vector3.ZERO
+				enemy.global_position = _start_pos
+				enemy.velocity = Vector3.ZERO
+				if _t >= 0.25:
+					_chase_armed = true
+					_t = 0.0
+				return
+			# 背對敵人全速走（不閃步）；被打到／進攻擊距離＝追上；撞牆或時間到就結算
+			hud.touch.move_vector = -joy
+			var reach := float(enemy.spec.reach)
+			if _chase_caught or dist < reach * 1.05:
+				_end_chase("追上", dist)
+			elif _t > 0.6 and Vector2(player.velocity.x, player.velocity.z).length() < 2.5:
+				_end_chase("撞牆（量測截止）", dist)
+			elif _t > CHASE_MAX_T:
+				_end_chase("時間到", dist)
+			return
 		"mash":
 			hud.touch.move_vector = joy if dist > 1.9 else Vector2.ZERO
 			player.request_attack()

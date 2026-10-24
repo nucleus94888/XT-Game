@@ -172,6 +172,21 @@ func kick(dir: Vector3, amount: float) -> void:
 	kick_requested.emit(dir, amount)
 
 
+## 手機震動（毫秒）：敵人起疑輕震、被發現重震。iOS 玩家常靜音，這是不靠聲音的狀態廣播。
+## 桌機／網頁桌面沒有震動器，呼叫是空操作。
+var _haptic_until_ms := 0
+
+
+func haptic(ms: int) -> void:
+	if ms <= 0 or not is_mobile():
+		return
+	var now := Time.get_ticks_msec()
+	if now < _haptic_until_ms:
+		return
+	_haptic_until_ms = now + ms + 40
+	Input.vibrate_handheld(ms)
+
+
 func save_cfg() -> void:
 	var cf := ConfigFile.new()
 	for k in p:

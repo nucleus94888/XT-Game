@@ -16,6 +16,10 @@ const SETS := {
 	"deflect": ["kenney/impactMetal_medium_000.ogg", "kenney/impactMetal_medium_001.ogg", "kenney/impactMetal_medium_002.ogg"],
 	"block": ["kenney/impactMetal_light_000.ogg", "kenney/impactMetal_light_001.ogg", "kenney/impactMetal_light_002.ogg"],
 	"break": ["kenney/impactWood_heavy_000.ogg", "kenney/impactWood_heavy_001.ogg", "kenney/impactWood_heavy_002.ogg"],
+	# 敵人狀態轉換（第七次議會）：起疑清喉嚨、發現喝聲、腳步（Mixkit 2226／2174、2172／1920、1922）
+	"hm": ["mixkit/hm.wav"],
+	"shout": ["mixkit/shout_1.wav", "mixkit/shout_2.wav"],
+	"step": ["mixkit/step_1.wav", "mixkit/step_2.wav"],
 }
 
 var _cache := {}
