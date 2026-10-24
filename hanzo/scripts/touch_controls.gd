@@ -292,6 +292,8 @@ func _process(delta: float) -> void:
 	_hook_flash = maxf(_hook_flash - delta * 5.0, 0.0)
 	_count_pop = maxf(_count_pop - delta * 3.0, 0.0)
 	_watchdog()
+	# 每幀重繪：按鍵文字、準心、冷卻倒數都在 _draw 裡算，少了這行畫面就停在上一次有人叫重繪的那一幀
+	queue_redraw()
 
 
 ## 手裡劍數量變了（撿回、卷軸）：數字彈一下，取代「手裡劍 +1」飄字

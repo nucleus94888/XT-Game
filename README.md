@@ -73,6 +73,11 @@ C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --path hanzo ++ -
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=mash --runs=20
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=deflect --runs=20
 
+# 網頁版實機操作測試（改觸控／介面後一定要跑）：匯出 Web → 無頭 Chrome 模擬 iPhone 觸控，
+# 點開始→換→按住鉤→放開→按住攻擊→放開→換回，每步截圖到 build/play/，並收集 console 錯誤
+C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo --export-release Web ../build/web/index.html
+node tools/web/play.mjs landscape    # 或 portrait
+
 # 手裡劍準度 bot：六組鏡頭角度瞄準→投擲，印「準心點」與「手裡劍落點」差距（目標 <0.1 m）
 # --at=x,y,z 從指定點投（屋敷室內測遮蔽層）；--kind=ashigaru 前方放敵人測鎖定命中
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=throw
