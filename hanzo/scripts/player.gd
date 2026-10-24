@@ -427,6 +427,12 @@ func _tick_hook_job(delta: float) -> void:
 	if _hook_job.is_empty():
 		return
 	_hook_job.t += delta
+	# 保險：任何鉤繩工作超過 1.5 秒（正常最長 0.26＋0.5 秒）一律收掉，繩子不准一直掛著
+	if float(_hook_job.t) > 1.5:
+		push_warning("hook job %s stuck, cleared" % String(_hook_job.get("kind", "?")))
+		_hook_job = {}
+		_rope_t = 0.0
+		return
 	var k := clampf(float(_hook_job.t) / float(_hook_job.dur), 0.0, 1.0)
 	var hand := global_position + Vector3(0.0, 1.3, 0.0)
 	var to: Vector3 = _hook_job.to
@@ -444,21 +450,24 @@ func _tick_hook_job(delta: float) -> void:
 			elif kind == "pull" and is_instance_valid(target) and target.has_method("hooked") and target.get("state") != target.State.DEAD:
 				_hook_cd = HOOK_PULL_CD
 				var dir := _forward()
+				var head_hit := bool(_hook_job.head)
 				var flat_d := Vector2(target.global_position.x - global_position.x, target.global_position.z - global_position.z).length()
+				# 先把工作切到下一步，再去呼叫敵人：萬一敵人那邊出錯，這一步不會每幀重跑卡死
 				if Progress.has_scroll("hook_fly") and flat_d > 6.0:
 					# 飛鉤（卷軸）：對方太遠就是你飛過去，落地時他正硬直
-					target.hooked(target.global_position, 15 if bool(_hook_job.head) else 6, bool(_hook_job.head), self, 0.05)
 					var to_me := global_position - target.global_position
 					to_me.y = 0.0
 					to_me = to_me.normalized() if to_me.length() > 0.01 else -dir
+					var land := target.global_position + to_me * 1.5
 					_hook_job = {}
-					_start_grapple_to(target.global_position + to_me * 1.5)
+					target.hooked(target.global_position, 15 if head_hit else 6, head_hit, self, 0.05)
+					_start_grapple_to(land)
 					return
 				var dest := global_position + dir * 1.6
-				target.hooked(dest, 15 if bool(_hook_job.head) else 6, bool(_hook_job.head), self, HOOK_PULL_TIME)
-				Feel.kick(dir, 0.3)
 				_hook_job = {"kind": "pulling", "t": 0.0, "dur": HOOK_PULL_TIME + 0.05, "to": to, "target": target, "head": false}
 				_lock_t = maxf(_lock_t, 0.25)
+				target.hooked(dest, 15 if head_hit else 6, head_hit, self, HOOK_PULL_TIME)
+				Feel.kick(dir, 0.3)
 			else:
 				# 鉤不到：收繩
 				_hook_job = {"kind": "back", "t": 0.0, "dur": 0.2, "to": to, "target": null, "head": false}
@@ -843,6 +852,9 @@ func _watchdog(delta: float) -> void:
 	else:
 		_state_t += delta
 	_lock_t = minf(_lock_t, 2.0)
+	# 瞄準按著超過 15 秒：手指事件大概掉了，放開
+	if aim_mode != AIM_NONE and _aim_t > 15.0:
+		_release_aim_silent()
 	var stuck := STATE_LIMIT.has(state) and _state_t > float(STATE_LIMIT[state])
 	if state == State.BLOCK and not _block_held and _state_t > 1.0:
 		stuck = true
@@ -888,16 +900,17 @@ func _physics_process(delta: float) -> void:
 	_lock_t -= delta
 	_dash_lock_t -= delta
 	_hook_cd -= delta
-	_tick_hook_job(delta)
-	_rope_t -= delta
-	_rope_update()
 	if state == State.GRAPPLE:
 		velocity = Vector3.ZERO
 	elif not is_on_floor():
 		velocity.y -= 20.0 * delta
 	else:
 		velocity.y = 0.0
+	# 先移動再處理鉤繩／繩子：這兩段會呼叫到敵人，萬一那邊出錯，至少這一幀的移動已經做完，人不會釘在原地
 	move_and_slide()
+	_tick_hook_job(delta)
+	_rope_t -= delta
+	_rope_update()
 	if aim_mode != AIM_NONE and state != State.FREE:
 		_release_aim_silent()
 	if not _hook_job.is_empty() and state in [State.HURT, State.DEAD, State.BROKEN]:
