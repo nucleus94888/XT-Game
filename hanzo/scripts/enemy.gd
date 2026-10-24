@@ -1052,12 +1052,16 @@ func _update_gait(delta: float) -> void:
 	body.rotation.x = -_lean * 0.3
 	body.position = Vector3(0.0, 0.85 + bob, -_lean * 0.1)
 	head.position = Vector3(0.0, 1.68 + bob * 1.3, -_lean * 0.28)
+	# 腳步聲只給「快走／跑」（搜索、逼近、追擊），巡邏慢走不出聲；離玩家越遠越小，12 公尺外不播
 	if hv > 0.4:
 		_step_left -= hv * delta
 		if _step_left <= 0.0:
-			_step_left = 1.5
-			_sfx_step.volume_db = lerpf(-22.0, -9.0, ratio)
-			Sfx.play(_sfx_step)
+			_step_left = 1.6
+			var d := global_position.distance_to(_player.global_position) if _player else 99.0
+			if ratio >= 0.5 and d < 12.0:
+				var falloff := clampf((d - 3.0) / 9.0, 0.0, 1.0)
+				_sfx_step.volume_db = lerpf(-18.0, -10.0, ratio) - falloff * 16.0
+				Sfx.play(_sfx_step)
 	else:
 		_step_left = minf(_step_left, 0.4)
 
