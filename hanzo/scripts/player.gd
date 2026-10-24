@@ -17,7 +17,7 @@ signal shuriken_changed(n: int)
 signal rations_changed(n: int)
 signal weapon_changed(mode: int)
 
-enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE, BROKEN }
+enum State { FREE, ATTACK, DASH, HURT, BLOCK, DEAD, GRAPPLE, BROKEN, PLUNGE }
 
 const SPEED := 5.4
 ## 鉤繩固定長度（公尺）；升級系統之後可加長
@@ -224,8 +224,13 @@ func toggle_weapon() -> void:
 func request_attack() -> void:
 	if _lock_t > 0.0:
 		return
-	if state == State.FREE and not is_on_floor() and _try_plunge():
-		return
+	if state == State.FREE and not is_on_floor():
+		# 空中按攻擊永遠有事發生：正下方有未察覺的敵人→落下忍殺；離地 1.5 公尺以上→下劈
+		if _try_plunge():
+			return
+		if _can_plunge():
+			_start_plunge()
+			return
 	match state:
 		State.ATTACK:
 			_queued = true
@@ -634,6 +639,173 @@ func _try_plunge() -> bool:
 	return true
 
 
+## 下劈（第九次議會）：離地 ≥1.5 公尺的空中按攻擊 → 鎖落點、加速下墜，落地對半徑 1.3 公尺內的敵人
+## 固定 28 傷害、體幹兩倍、無視架刀（刀架不住頭頂；武士三分之一機率舉刀上頂把你彈開）。
+## 落空硬直 0.5 秒，3 公尺內敵人全部警戒。落點畫地面環：壓到警戒敵人變紅。
+const PLUNGE_MIN_HEIGHT := 1.5
+const PLUNGE_DMG := 28
+const PLUNGE_RADIUS := 1.3
+const PLUNGE_LAND_LOCK := 0.5
+var _plunge_target := Vector3.ZERO
+var _plunge_landed := false
+var _land_t := 0.0
+var _plunge_ring: MeshInstance3D
+var _plunge_ring_mat: StandardMaterial3D
+
+
+func _ground_below() -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0.0, 0.2, 0.0), global_position + Vector3(0.0, -40.0, 0.0), 1)
+	q.exclude = [get_rid()]
+	return space.intersect_ray(q)
+
+
+func _can_plunge() -> bool:
+	if velocity.y > 2.0:
+		return false
+	var hit := _ground_below()
+	if hit.is_empty():
+		return false
+	if global_position.y - float(hit.position.y) < PLUNGE_MIN_HEIGHT:
+		return false
+	_plunge_target = hit.position
+	return true
+
+
+func _ensure_plunge_ring() -> void:
+	if _plunge_ring:
+		return
+	_plunge_ring = MeshInstance3D.new()
+	_plunge_ring.top_level = true
+	var tm := TorusMesh.new()
+	tm.inner_radius = PLUNGE_RADIUS - 0.18
+	tm.outer_radius = PLUNGE_RADIUS
+	tm.rings = 32
+	tm.ring_segments = 6
+	_plunge_ring.mesh = tm
+	_plunge_ring_mat = StandardMaterial3D.new()
+	_plunge_ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_plunge_ring_mat.albedo_color = Color(1, 1, 1, 0.8)
+	_plunge_ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_plunge_ring.material_override = _plunge_ring_mat
+	_plunge_ring.visible = false
+	add_child(_plunge_ring)
+
+
+func _start_plunge() -> void:
+	state = State.PLUNGE
+	_plunge_landed = false
+	_land_t = 0.0
+	_queued = false
+	_invuln = false
+	trail.visible = false
+	velocity.x *= 0.3
+	velocity.z *= 0.3
+	if _guard_tw and _guard_tw.is_valid():
+		_guard_tw.kill()
+	sword_pivot.rotation_degrees = Vector3(-110.0, 0.0, 0.0)
+	_ensure_plunge_ring()
+	_plunge_ring.visible = true
+	_plunge_ring.global_position = _plunge_target + Vector3(0.0, 0.06, 0.0)
+	if cam_rig != null:
+		cam_rig.set("extra_pitch", 0.26)
+	Sfx.play(sfx_dash)
+
+
+## 落點附近有沒有警戒中的敵人（地面環變紅）
+func _plunge_victims() -> Array:
+	var out: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node3D) or e.get("state") == null or e.state == e.State.DEAD:
+			continue
+		var d: Vector3 = e.global_position - _plunge_target
+		if absf(d.y) > 1.6:
+			continue
+		d.y = 0.0
+		if d.length() <= PLUNGE_RADIUS:
+			out.append(e)
+	return out
+
+
+func _tick_plunge(delta: float) -> void:
+	if not _plunge_landed:
+		# 加速下墜（比自由落體快），水平微微修正到落點
+		velocity.y = minf(velocity.y - 60.0 * delta, -6.0)
+		velocity.y = maxf(velocity.y, -26.0)
+		var to := _plunge_target - global_position
+		to.y = 0.0
+		velocity.x = to.x * 3.0
+		velocity.z = to.z * 3.0
+		body.rotation.x = lerpf(body.rotation.x, 0.6, 1.0 - exp(-12.0 * delta))
+		_plunge_ring_mat.albedo_color = Color(1.0, 0.25, 0.2, 0.9) if _plunge_victims().size() > 0 else Color(1, 1, 1, 0.7)
+		_plunge_ring.scale = Vector3.ONE * (1.0 + 0.08 * sin(Time.get_ticks_msec() * 0.02))
+		if is_on_floor():
+			_plunge_land()
+		return
+	_land_t += delta
+	velocity.x = move_toward(velocity.x, 0.0, 30.0 * delta)
+	velocity.z = move_toward(velocity.z, 0.0, 30.0 * delta)
+	body.rotation.x = lerpf(body.rotation.x, 0.35, 1.0 - exp(-10.0 * delta))
+	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(Vector3(40.0, 0.0, 0.0), 1.0 - exp(-14.0 * delta))
+	if _land_t >= PLUNGE_LAND_LOCK:
+		body.rotation.x = 0.0
+		state = _after_action()
+
+
+func _plunge_land() -> void:
+	_plunge_landed = true
+	_land_t = 0.0
+	velocity = Vector3.ZERO
+	_plunge_ring.visible = false
+	if cam_rig != null:
+		cam_rig.set("extra_pitch", 0.0)
+	var victims := _plunge_victims()
+	var hit_any := false
+	for e in victims:
+		var dir: Vector3 = e.global_position - global_position
+		dir.y = 0.0
+		dir = dir.normalized() if dir.length() > 0.01 else _forward()
+		_facing = atan2(-dir.x, -dir.z)
+		visual.rotation.y = _facing
+		if e.has_method("can_be_assassinated") and e.can_be_assassinated(self):
+			e.assassinate({"dmg": 999, "dir": dir, "kb": 2.0, "heavy": true, "pos": e.global_position + Vector3(0.0, 1.4, 0.0), "src": self})
+			hit_any = true
+			continue
+		var info := {"dmg": PLUNGE_DMG, "dir": dir, "kb": Feel.get_p("knockback") * 1.2, "heavy": true, "pos": e.global_position + Vector3(0.0, 1.3, 0.0), "src": self, "from_above": true}
+		e.take_hit(info)
+		hit_landed.emit(info)
+		hit_any = true
+	if hit_any:
+		Feel.hitstop(1.4)
+		Feel.shake(0.9)
+		Feel.kick(Vector3.DOWN, 0.4)
+		Sfx.play(sfx_heavy)
+		Feel.haptic(60)
+	else:
+		Feel.shake(0.35)
+		Sfx.play(sfx_dash)
+	# 落地的動靜：3 公尺內的敵人全部警戒，更遠的過來查看
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Node3D and e.has_method("_go_alert") and e.global_position.distance_to(global_position) < 3.0:
+			e._go_alert()
+	get_tree().call_group("enemies", "hear_noise", global_position, 7.0)
+	_burst_spark(global_position + Vector3(0.0, 0.2, 0.0), Vector3.UP, 0.8)
+
+
+## 武士舉刀上頂把下劈彈開：人往後彈、硬直 0.6 秒、自己吃一段體幹
+func plunge_parried(by: Node3D) -> void:
+	var away := global_position - by.global_position
+	away.y = 0.0
+	away = away.normalized() if away.length() > 0.01 else -_forward()
+	velocity = away * 7.0 + Vector3(0.0, 3.0, 0.0)
+	_plunge_landed = true
+	_land_t = -0.1
+	_lock_t = maxf(_lock_t, 0.6)
+	_add_posture(25.0, by)
+	Feel.kick(away, 0.5)
+	Feel.shake(0.6)
+
+
 ## 吃口糧：血快滿就帶著（上限看卷軸），血量低於三成自動吃。回傳 true＝直接回血、false＝帶著
 func heal(v: int) -> bool:
 	if hp >= max_hp - 5 and rations < Progress.ration_max():
@@ -642,6 +814,7 @@ func heal(v: int) -> bool:
 		return false
 	hp = mini(hp + v, max_hp)
 	hp_changed.emit(hp)
+	_flash_hp(Color(0.6, 1.0, 0.6))
 	return true
 
 
@@ -652,7 +825,13 @@ func _tick_rations() -> void:
 	rations_changed.emit(rations)
 	hp = mini(hp + 35, max_hp)
 	hp_changed.emit(hp)
-	Fx.damage_number(global_position + Vector3(0.0, 2.0, 0.0), 35, false, Color(0.6, 1.0, 0.6), "口糧 +35")
+	_flash_hp(Color(0.6, 1.0, 0.6))
+
+
+func _flash_hp(color: Color) -> void:
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("flash_hp"):
+		hud.flash_hp(color)
 
 
 ## 上次套用時的手裡劍上限：卷軸把上限拉高時，多出來的枚數當場發給玩家（不是等檢查點才補）
@@ -840,7 +1019,7 @@ func request_dash() -> void:
 
 ## 看門狗：任何一個「應該幾秒內結束」的狀態卡太久（例：鉤繩目標被釋放、tween 被殺、事件遺失），
 ## 強制回到待機，寧可動作怪一下也不要整個人卡死要重新整理。
-const STATE_LIMIT := {State.ATTACK: 3.0, State.DASH: 1.0, State.HURT: 2.0, State.GRAPPLE: 2.5, State.BROKEN: POSTURE_BREAK_TIME + 1.0}
+const STATE_LIMIT := {State.ATTACK: 3.0, State.DASH: 1.0, State.HURT: 2.0, State.GRAPPLE: 2.5, State.BROKEN: POSTURE_BREAK_TIME + 1.0, State.PLUNGE: 4.0}
 var _state_t := 0.0
 var _state_last := -1
 
@@ -862,6 +1041,10 @@ func _watchdog(delta: float) -> void:
 		return
 	push_warning("player watchdog: state %s stuck %.1fs, reset" % [State.keys()[state], _state_t])
 	state = State.FREE
+	if _plunge_ring:
+		_plunge_ring.visible = false
+	if cam_rig != null:
+		cam_rig.set("extra_pitch", 0.0)
 	_invuln = false
 	_lock_t = 0.0
 	_hook_job = {}
@@ -895,6 +1078,8 @@ func _physics_process(delta: float) -> void:
 			_tick_grapple(delta)
 		State.BROKEN:
 			_tick_broken(delta)
+		State.PLUNGE:
+			_tick_plunge(delta)
 	_tick_posture(delta)
 	_tick_rations()
 	_lock_t -= delta

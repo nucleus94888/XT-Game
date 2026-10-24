@@ -83,7 +83,7 @@ func attach(player: Node, cam_rig: Node) -> void:
 	touch.look_delta.connect(cam_rig.look)
 	player.posture_changed.connect(set_posture)
 	player.posture_broken.connect(func() -> void:
-		say("體幹崩壞", Color(1.0, 0.55, 0.2))
+		say_hint("體幹崩壞", Color(1.0, 0.55, 0.2))
 		flash_posture())
 	touch.attack_down.connect(player.on_attack_down)
 	touch.attack_up.connect(player.on_attack_up)
@@ -95,18 +95,48 @@ func attach(player: Node, cam_rig: Node) -> void:
 	touch.dash_pressed.connect(player.request_dash)
 	touch.block_changed.connect(player.set_block)
 	player.shuriken_changed.connect(func(n: int) -> void:
-		touch.shuriken_count = n)
+		touch.set_shuriken_count(n))
 	touch.shuriken_count = player.shuriken
 	cam_rig.set_target(player)
 	player.hit_landed.connect(func(info: Dictionary) -> void:
 		add_hit(bool(info.heavy)))
 	player.hp_changed.connect(set_hp)
 	player.rations_changed.connect(func(_n: int) -> void:
-		_refresh_items())
+		_refresh_items()
+		pop_items())
 	set_hp(player.hp)
 	_refresh_items()
 	player.parried.connect(func() -> void:
-		say("彈反！", Color(1.0, 0.92, 0.5)))
+		say_hint("彈反！", Color(1.0, 0.92, 0.5)))
+
+
+## 輔助文字（第九次議會）：「已經發生、身體看得見」的事不再跳字，交給表情、血條、音效、震動。
+## 設定裡的「輔助文字」開關打開才顯示（預設關）
+func say_hint(text: String, color: Color = Color.WHITE) -> void:
+	if Feel.get_p("hints") >= 0.5:
+		say(text, color)
+
+
+## 血條閃一下（回血綠、念珠金）：取代「+35」「念珠 +10」飄字
+var _hp_tw: Tween
+
+
+func flash_hp(color: Color) -> void:
+	if _hp_tw and _hp_tw.is_valid():
+		_hp_tw.kill()
+	hp_bar.modulate = color
+	_hp_tw = hp_bar.create_tween()
+	_hp_tw.set_ignore_time_scale(true)
+	_hp_tw.tween_property(hp_bar, "modulate", Color.WHITE, 0.6)
+
+
+## 持有物那行彈一下（撿口糧、卷軸）
+func pop_items() -> void:
+	items_label.pivot_offset = Vector2(0.0, items_label.size.y / 2.0)
+	items_label.scale = Vector2(1.35, 1.35)
+	var tw := items_label.create_tween()
+	tw.set_ignore_time_scale(true)
+	tw.tween_property(items_label, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func toggle_panel() -> void:
@@ -244,6 +274,13 @@ func show_settings() -> void:
 	lefty.toggled.connect(func(on: bool) -> void:
 		Feel.set_p("lefty", 1.0 if on else 0.0))
 	vb.add_child(lefty)
+	var hints := CheckButton.new()
+	hints.text = "輔助文字（被發現、彈反、體幹崩壞…）"
+	hints.button_pressed = Feel.get_p("hints") >= 0.5
+	hints.add_theme_font_size_override("font_size", 22)
+	hints.toggled.connect(func(on: bool) -> void:
+		Feel.set_p("hints", 1.0 if on else 0.0))
+	vb.add_child(hints)
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	hb.add_theme_constant_override("separation", 14)

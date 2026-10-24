@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：高處下劈怎麼設計？戰鬥文字拿掉多少？</title>
+<style>
+  :root{--ink:#1d2129;--muted:#5b6470;--line:#e3e6ea;--bg:#fff;--soft:#f6f7f9;
+    --c1:#c75c4c;--c2:#3c6fb0;--c3:#3a9a6e;--c4:#9a6bb8;--c5:#d08a2a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",Roboto,sans-serif;line-height:1.7;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 64px}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:28px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin:18px 0;background:#fff}
+  .card.q{background:var(--soft)}
+  .card h2{font-size:18px;margin:0 0 12px}
+  .verdict h3{font-size:16px;margin:20px 0 6px;padding-left:10px;border-left:4px solid var(--ink)}
+  .verdict p,.verdict li{margin:6px 0}
+  .first{background:#fff8e6;border:1px solid #f0d890;border-radius:8px;padding:14px 16px;margin-top:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+  .adv{border:1px solid var(--line);border-radius:8px;padding:12px;border-top:4px solid}
+  .adv .n{font-weight:700;font-size:14px}
+  .adv .p{font-size:13px;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft)}
+  td.y{color:#1f7a4d;font-weight:600} td.n{color:#a33b2d;font-weight:600} td.m{color:#8a6a12;font-weight:600}
+  details{border:1px solid var(--line);border-radius:8px;margin:10px 0}
+  summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;align-items:center;gap:10px}
+  summary::-webkit-details-marker{display:none}
+  summary .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  details .body{padding:0 18px 16px;color:#2a2f36}
+  .c1{border-color:var(--c1)} .c2{border-color:var(--c2)} .c3{border-color:var(--c3)} .c4{border-color:var(--c4)} .c5{border-color:var(--c5)}
+  .d1{background:var(--c1)} .d2{background:var(--c2)} .d3{background:var(--c3)} .d4{background:var(--c4)} .d5{background:var(--c5)}
+  .footer{color:var(--muted);font-size:13px;margin-top:36px;border-top:1px solid var(--line);padding-top:14px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LLM Council 報告：高處下劈怎麼設計？戰鬥文字拿掉多少？</h1>
+  <div class="sub">2026-10-24 18:19 · 五位顧問獨立回答 → 匿名互評 → 主席統整 · 逐字稿：council-transcript-20261024-1819.md</div>
+
+  <div class="card q">
+    <h2>提問</h2>
+    <p>一、從高處往下按攻擊應有額外傷害的「向下砍劈」（現況只有對未察覺敵人的落下忍殺，對警戒敵人什麼都不發生）。二、對戰與拾取時跳出的中文字能不能不要，改靠表情與血條看懂。議會要答：下劈的條件、傷害、對架刀武士、風險、可讀性；文字刪哪些留哪些、用什麼取代；先後。</p>
+    <p style="color:var(--muted);font-size:14px;margin:0">現況文字：中央大字「被發現了！」「體幹崩壞」「彈反！」「念珠 +10」「卷軸：…」「敗北」「再起」「任務完成」「大將逃了！」「追！」「撤離！」關卡名；敵人頭上「？」「！」「危」「反」「背」「崩」「喘」「逃」；拾取飄字；傷害數字。敵人已有眼睛表情、身體色調、聲音、震動。</p>
+  </div>
+
+  <div class="card verdict">
+    <h2>主席裁決</h2>
+
+    <h3>議會一致同意的地方</h3>
+    <p>五人都同意兩件事都該做，而且根因是同一個：膠囊人沒動畫，文字在替身體打工。凡是「已經發生、身體看得見」的字——被發現了、體幹崩壞、彈反、傷害數字、拾取飄字、頭上的背／崩／喘——全體同意拿掉。任務旁白（敗北、再起、任務完成、關卡名、撤離）全體同意留。下劈方面一致：落空必須有硬直、對架刀武士必須有獨特意義、起手那一刻要有可讀提示，且不能動到「未察覺才有忍殺」這條潛行底線。</p>
+
+    <h3>議會意見衝突的地方</h3>
+    <p>傷害數值分四派：14（反方）、28（第一性、執行者）、35（局外人）、落差倍率封頂 84（擴張者）。架刀武士：反方主張照擋只吃體幹，其餘四人主張必破防。落差門檻：2.5 m、1.5 m、不設門檻三種。「危／？／！」：擴張者全砍改純眼睛，其餘四人留；「反」：第一性主張補起手後砍，局外人主張留。先後：執行者先下劈，其餘先文字。</p>
+
+    <h3>互評抓到的盲點</h3>
+    <ol>
+      <li>手機常靜音、震動可關、單手拇指遮下半畫面——音效震動不能當唯一替代通道。</li>
+      <li>打地鼠的解藥在敵人 AI 不在數值：被壓頂會抬頭側步、武士會舉刀上頂，迴圈自然斷。</li>
+      <li>過肩鏡頭往下看時敵人在螢幕下緣甚至畫面外，加上遮蔽層，所有「看表情」方案在下劈起手那刻失效。</li>
+      <li>紅黃眼色弱難分，表情要有形狀差。</li>
+      <li>沒人問落空代價與敵人在上方時的對稱處理；也該先用 bot／debug 記錄每種文字出現次數再拆。</li>
+    </ol>
+
+    <h3>建議</h3>
+    <p><strong>下劈（第一性骨架＋執行者實作＋互評補反制）</strong></p>
+    <ul>
+      <li>條件：離地 ≥1.5 m 且正在下落，按攻擊即進下劈狀態，鎖落點、下墜加速。落點有未察覺敵人→照舊忍殺；有警戒敵人→下劈。不做落差倍率。</li>
+      <li>傷害固定 28、體幹兩倍，落點半徑 1.2 m 內生效。足輕兩下、武士四下、武將五下。</li>
+      <li>架刀武士：<code>from_above</code> 不擋，破防 0.6 秒（刀架不住頭頂）。</li>
+      <li>落空：硬直 0.5 秒，落地 3 m 內敵人全部轉警戒。</li>
+      <li>敵人反制：被壓頂時 0.4 秒內抬頭（大圓眼）；被下劈命中過的敵人 6 秒內再被下劈必側步；武士 1/3 機率舉刀上頂，玩家被彈開＋硬直 0.6 秒、自身體幹扣一段。</li>
+      <li>可讀性三通道：目標腳下紅色地面環、敵人抬頭大圓眼、短震。鏡頭：下劈瞄準時俯角加 15 度、拉遠 1 m。</li>
+    </ul>
+    <p><strong>文字逐項</strong></p>
+    <ul>
+      <li>刪：「被發現了！」→紅瞪眼＋喝聲＋震動；「體幹崩壞」「崩」→「><」眼＋身體脫色；「彈反！」→火花＋敵人後仰；「背」→敵人朝向本身；「喘」→降飽和＋低頭；「逃」→敵人在跑；傷害數字→血條受擊段白閃再縮；「念珠 +10」→血條變長並閃一下；「手裡劍 +1」「口糧」「卷軸」→角落圖示彈一下＋數字跳。</li>
+      <li>留並改形：「危」→刀身閃紅＋頭上紅三角；「反」→補起手（刀舉過頭 0.4 秒＋眼睛紅閃）後刪字；「？」「！」原樣留。</li>
+      <li>留：敗北、再起、任務完成、關卡名、撤離；「大將逃了！」「追！」合併為一條。</li>
+      <li>新增「輔助文字」設定開關，預設關、新手前 10 秒自動開；debug 模式記錄每種提示出現次數與其後 10 秒內死亡率。</li>
+    </ul>
+    <p><strong>先後與工時</strong>：文字減法一下午（3 小時）→ 鏡頭俯角與遮蔽驗證半天 → 下劈含敵人反制與 bot 一天半 → 第四關。</p>
+
+    <div class="first">
+      <strong>第一件該做的事：</strong>今天下午完成文字減法：刪掉九項「已發生」文字並補上對應的身體／血條／圖示回饋，同時在 debug 模式加上提示出現計數。做完這件事，下劈要用的表情語言才有地基可站。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>顧問立場一覽</h2>
+    <div class="grid">
+      <div class="adv c1"><div class="n">反方</div><div class="p">下劈會殺潛行；傷害 14、武士照擋；「危？！」留；先刪字</div></div>
+      <div class="adv c2"><div class="n">第一性原理</div><div class="p">一件事：遊戲的語言；已發生刪、預告補起手；下劈 28 破架刀</div></div>
+      <div class="adv c3"><div class="n">擴張者</div><div class="p">落差倍率封頂 84、壓刀破防、震波；文字全砍只留眼睛</div></div>
+      <div class="adv c4"><div class="n">局外人</div><div class="p">空中按攻擊要永遠有事；不要門檻；頭上單字留、中央大字砍</div></div>
+      <div class="adv c5"><div class="n">執行者</div><div class="p">1.5 m 門檻、28、from_above 不擋、地面環；先下劈一天半</div></div>
+    </div>
+    <table>
+      <tr><th>議題</th><th>反方</th><th>第一性原理</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr>
+      <tr><td>下劈傷害</td><td>14</td><td>28</td><td class="n">落差倍率至 84</td><td>35</td><td>28</td></tr>
+      <tr><td>架刀武士</td><td class="n">照擋只吃體幹</td><td class="y">必破防</td><td class="y">壓刀破防</td><td class="y">踉蹌空檔</td><td class="y">不擋</td></tr>
+      <tr><td>落差門檻</td><td>≥2.5 m</td><td>有敵人即可</td><td>2.4 m 起</td><td class="n">不要門檻</td><td>≥1.5 m</td></tr>
+      <tr><td>「危／？／！」</td><td class="y">留</td><td class="m">補起手後刪</td><td class="n">全砍改眼睛</td><td class="y">留</td><td class="y">留＋閃紅</td></tr>
+      <tr><td>中央大字</td><td>短閃＋音效</td><td>旁白留、回饋刪</td><td class="n">全砍</td><td>方向指令留</td><td>只留敗北／任務完成／關卡名</td></tr>
+      <tr><td>先後</td><td>字→下劈排第四關後</td><td>字→下劈進第四關</td><td>字→下劈</td><td>字→下劈</td><td class="n">下劈→字</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>顧問完整回答</h2>
+    <details><summary><span class="dot d1"></span>反方（The Contrarian）</summary><div class="body">
+      <p><strong>先打致命缺陷：下劈會殺掉這遊戲的潛行。</strong>現在高處落下忍殺是「未察覺才有獎勵」，逼玩家繞路、等待、讀表情。一旦警戒敵人也能被下劈重傷，最佳解變成「爬上去、跳下來、再爬上去」——屋頂越多的關卡越像打地鼠。隻狼的下劈只是普通傷害＋略高體幹，正因為如此。</p>
+      <p>若要做，條件要苛刻：落差≥2.5 m、傷害固定約 14、體幹 1.5 倍、落地硬直 0.5 秒，架刀武士照擋、只吃體幹。對警戒敵人的真正價值是「從上方破架勢」。可讀性用既有忍殺提示換色。</p>
+      <p><strong>第二件事的真坑：使用者沒說自己死了幾次還看不懂。</strong>敵人是膠囊、沒手臂，「危」是唯一的提前量；眼睛在過肩鏡頭背對時看不到。先量再拆：拿掉「背／崩／喘／反」與傷害數字；「危」「？」「！」留到有測試者。中央大字改短閃＋音效。</p>
+      <p><strong>先後：文字減法先做，兩小時內。下劈排到第四關之後。</strong></p>
+    </div></details>
+    <details><summary><span class="dot d2"></span>第一性原理思考者</summary><div class="body">
+      <p>這不是兩件事，是一件事——這款遊戲用什麼語言跟玩家說話。字幕存在的唯一理由是膠囊人沒有動畫，字在替動畫打工。先立語言，再加動詞。</p>
+      <p>字的取捨只看一條：「已發生、身體可見的事」全刪——被發現了、背、崩、體幹崩壞、彈反、傷害數字、撿取飄字。「尚未發生的預告」（危、反、喘）是真資訊，但答案是補起手：刀舉過頭 0.4 秒、眼睛閃紅。任務文字是旁白，留著。</p>
+      <p>下劈：空中、落點下方有已警戒敵人；傷害等於第三段 28、體幹兩倍；對架刀武士必破防——刀架不住頭頂。落空硬直半秒。可讀性：地面落點影圈壓到警戒敵人就變紅，敵人眼睛抬頭看你。文字這週做，下劈排進第四關。</p>
+    </div></details>
+    <details><summary><span class="dot d3"></span>擴張者（The Expansionist）</summary><div class="body">
+      <p>下劈把整個關卡的高低差變成武器，鉤繩從移動工具升格為進攻工具。傷害照落差算：2.4 公尺起跳、每多 1 公尺加 50%、封頂 3 倍（約 84）。對架刀武士直接「壓刀」破防 0.6 秒。落地震波 1.5 公尺內小體幹。可讀性：敵人眼睛變「大圓驚眼」＋身體發白一閃。</p>
+      <p>文字：全砍中央字與飄字，只留「危」改成眼睛純紅閃爍；拾取用物件飛進角落圖示；傷害數字改血條掉格＋受擊色塊噴出。做完後 HANZO 從「隻狼仿作」變成「全靠表情講故事的幾何體忍者」。先表情取代文字，再下劈。</p>
+    </div></details>
+    <details><summary><span class="dot d4"></span>局外人（The Outsider）</summary><div class="body">
+      <p><strong>我根本不知道「空中按攻擊沒反應」是設計，會以為遊戲壞了。</strong>下劈最大價值是「空中按攻擊永遠有事發生」：直直往下砸，落地砍一刀；沒察覺的照舊忍殺；警戒的吃一刀大傷（約 35）；架刀武士被砸就刀被壓歪、踉蹌。不要加落差條件，手機上量不出高度。落地半秒僵直是自然風險。</p>
+      <p><strong>文字我要唱反調一半。</strong>「？」「！」「危」「反」三次就學會，而且在敵人頭上，留著。真礙事的是畫面中央大字：「被發現了！」是第四次重複；「念珠 +10」血條變長我看得到；傷害數字可拿。「敗北」「任務完成」「撤離！」告訴我接下來幹嘛的要留。「背」「崩」「喘」多餘。先刪字，再下劈。</p>
+    </div></details>
+    <details><summary><span class="dot d5"></span>執行者（The Executor）</summary><div class="body">
+      <p>下劈先做：<code>_try_plunge()</code> 找不到未察覺敵人時改抓同射線任何敵人，落差 ≥1.5 公尺進下劈狀態——鎖落點、下墜加速、落地對半徑 1.2 公尺內 <code>take_hit(28, heavy, from_above)</code>，體幹兩倍。武士架刀看到 <code>from_above</code> 不擋。落地硬直 0.4 秒。提示：空中準心變向下三角、目標腳下地面環，半天。整段一天半含 bot。</p>
+      <p>文字：「危」「？」「！」留，「危」加刀身閃紅。拿掉背／崩／喘／反／逃、拾取飄字、傷害數字——崩有「><」眼；喘用色調降飽和加低頭；拾取改角落圖示；傷害改血條受擊段落閃白再縮。中央大字只留敗北、任務完成、關卡名。一個下午。順序：下劈一天半→文字一下午→第四關。</p>
+    </div></details>
+  </div>
+
+  <div class="card">
+    <h2>互評重點</h2>
+    <details><summary>五份匿名互評（A＝擴張者、B＝執行者、C＝局外人、D＝反方、E＝第一性原理）</summary><div class="body">
+      <p><strong>評審一：</strong>E 最強——一條判準、「危」補起手根治、刀架不住頭頂。A 盲點最大——3 倍傷害＋破防＋震波＝殺潛行，手機量不出 2.4 m。全漏：手機多靜音、震動可關；提示文字應做成設定開關、預設關、新手前 10 秒自動開；沒人問落空代價與敵人在上方的對稱規則。</p>
+      <p><strong>評審二：</strong>E 最強；A 盲點最大。全漏：敵人對下劈的反制（抬頭側步、武士舉刀上頂）——有反制迴圈打地鼠自然消失；紅黃眼色弱不可讀，要加形狀差異。</p>
+      <p><strong>評審三：</strong>E 最強；A 盲點最大。全漏：過肩鏡頭往下看時敵人在螢幕下緣甚至畫面外，「看表情」方案在下劈起手那一刻失效；先解鏡頭俯角或用聲音震動當主通道。</p>
+      <p><strong>評審四：</strong>E 最強（缺 D 的潛行風險）；A 盲點最大。全漏：下劈的解藥在敵人 AI 不在數值；遮蔽層與過肩鏡頭撞牆讓從上往下看時眼睛常被遮，可讀性先靠鏡頭驗證。</p>
+      <p><strong>評審五：</strong>E 最強；A 盲點最大。全漏：手機常靜音、單手拇指遮下半畫面；色弱；先用 debug／bot 記錄每種文字出現與其後死亡率再決定拆哪些。</p>
+    </div></details>
+  </div>
+
+  <div class="footer">2026-10-24 18:19 · 議題：高處下劈設計與戰鬥文字減法 · 專案：半藏 HANZO（Godot 4.7.2，iOS 優先）</div>
+</div>
+</body>
+</html>

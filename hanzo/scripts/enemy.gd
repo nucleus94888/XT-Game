@@ -100,6 +100,11 @@ var _lean := 0.0
 var _stride := 0.0
 var _step_left := 0.6
 var _blink_t := 2.0
+## 喘氣（取代「喘」字）、被壓頂後抬頭警覺（6 秒內再下劈會側步）、血條受擊閃光
+var _pant_t := 0.0
+var _heads_up_t := 0.0
+var _bar_flash_t := 0.0
+var _bar_flash_color := Color(1, 1, 1)
 var _body_mat: StandardMaterial3D
 var _eye_mat: StandardMaterial3D
 
@@ -337,6 +342,9 @@ func _physics_process(delta: float) -> void:
 	_stun_t -= delta
 	_posture_t -= delta
 	_hook_immune_t -= delta
+	_pant_t -= delta
+	_heads_up_t -= delta
+	_bar_flash_t -= delta
 	_swing_rest_t -= delta
 	if _swing_rest_t <= 0.0:
 		_swings = 0
@@ -546,7 +554,6 @@ func start_flee() -> void:
 	state = State.FLEE
 	_flee_i = 0
 	alerted_once = true
-	_show_mark("逃", Color(0.9, 0.6, 1.0), 1.2)
 	flee_started.emit(self)
 	get_tree().call_group("enemies", "hear_shout", global_position)
 
@@ -649,6 +656,11 @@ func _do_alert(delta: float) -> void:
 	to.y = 0.0
 	var dist := to.length()
 	var speed: float = spec.run
+	# 被壓頂過的敵人：玩家又從上方下劈時側步閃開
+	if _heads_up_t > 0.0 and _player.get("state") == _player.State.PLUNGE and _player.global_position.y - global_position.y > 1.0 and dist < 2.5:
+		var side := Vector3(-to.z, 0.0, to.x).normalized() * 2.6
+		_move_to(global_position + side, speed, delta)
+		return
 	if kind == Kind.ARCHER:
 		if dist < 4.5:
 			_move_to(global_position - to.normalized() * 5.0, speed, delta)
@@ -682,7 +694,8 @@ func _try_attack() -> void:
 		_stun_t = 0.8
 		_attack_cd = 0.8
 		_guard = false
-		_show_mark("喘", Color(0.75, 0.85, 1.0), 0.8)
+		# 不跳「喘」字：身體褪色、低頭、眼睛瞇成線（_update_face）
+		_pant_t = 0.8
 		return
 	_swings += 1
 	_swing_rest_t = 4.0
@@ -868,7 +881,20 @@ func take_hit(info: Dictionary) -> void:
 	# 要傷到他：彈反他的攻擊讓他硬直、手裡劍／鉤繩、或把體幹打滿。
 	# 連擋第三刀立刻反擊（連按攻擊的下場）。
 	var sword_hit: bool = not info.get("shuriken", false) and not info.get("hook", false)
-	if _guard and sword_hit and _forward().dot(-dir) > 0.3:
+	var from_above: bool = info.get("from_above", false)
+	# 下劈：刀架不住頭頂。武士／武將架刀中有三分之一機率舉刀上頂，把你彈開
+	if from_above and _guard and (kind == Kind.SAMURAI or kind == Kind.TARGET) and randf() < 0.33:
+		Sfx.play(_sfx_block)
+		Feel.hitstop(0.6)
+		weapon.rotation.x = -1.6
+		var tw0 := weapon.create_tween()
+		tw0.set_ignore_time_scale(true)
+		tw0.tween_property(weapon, "rotation:x", 0.0, 0.3).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+		var src0 = info.get("src")
+		if src0 and src0.has_method("plunge_parried"):
+			src0.plunge_parried(self)
+		return
+	if _guard and sword_hit and not from_above and _forward().dot(-dir) > 0.3:
 		Sfx.play(_sfx_block)
 		_blocked_streak += 1
 		_blocked_streak_t = 2.5
@@ -914,9 +940,14 @@ func take_hit(info: Dictionary) -> void:
 		info = info.duplicate()
 		info.dmg = dmg
 	hp -= dmg
-	posture += (16.0 if heavy else 8.0) * (2.0 if backstab else 1.0)
-	if backstab:
-		_show_mark("背", Color(1.0, 0.8, 0.3), 0.4)
+	posture += (16.0 if heavy else 8.0) * (2.0 if (backstab or from_above) else 1.0)
+	if from_above:
+		# 被壓頂過：6 秒內會抬頭盯著上方，再被下劈會側步閃開（打地鼠無效）
+		_heads_up_t = 6.0
+		_guard = false
+		if state != State.BROKEN:
+			state = State.STAGGER
+			_stun_t = maxf(_stun_t, 0.6)
 	_posture_t = 1.5
 	_hit_streak += 1
 	_hit_streak_t = 2.0
@@ -928,10 +959,9 @@ func take_hit(info: Dictionary) -> void:
 	particles.global_position = info.pos
 	particles.direction = dir + Vector3(0, 0.6, 0)
 	particles.restart()
-	if headshot:
-		Fx.damage_number(info.pos, int(info.dmg), true, Color(1.0, 0.55, 0.2))
-	else:
-		Fx.damage_number(info.pos, int(info.dmg), heavy)
+	# 不跳傷害數字：血條受擊段閃白（爆頭閃橘）再縮
+	_bar_flash_t = 0.18
+	_bar_flash_color = Color(1.0, 0.6, 0.2) if headshot else Color(1, 1, 1)
 	_react(dir, heavy)
 	if hp <= 0:
 		_die(false)
@@ -991,7 +1021,7 @@ func _break_posture() -> void:
 	_perilous = false
 	mark.visible = false
 	weapon.rotation = Vector3.ZERO
-	_show_mark("崩", Color(1.0, 0.55, 0.2), 2.3)
+	# 不跳「崩」字：「><」眼＋身體褪色＋血條閃紅白（_update_face／_update_visual）
 	Feel.shake(0.5)
 	if _react_tw and _react_tw.is_valid():
 		_react_tw.kill()
@@ -1083,6 +1113,7 @@ func _update_face(delta: float) -> void:
 	var sc := Vector3(1.0, 1.0, 1.0)
 	var tilt := 0.0
 	var tint := base
+	var head_rot_x := 0.0
 	match state:
 		State.SUSPICIOUS, State.SEARCH:
 			eye = Color(1.0, 0.85, 0.3)
@@ -1095,10 +1126,17 @@ func _update_face(delta: float) -> void:
 		State.STAGGER:
 			eye = Color(0.9, 0.9, 0.95)
 			sc = Vector3(0.6, 0.6, 1.0)
+			if _pant_t > 0.0:
+				# 喘氣：眼睛瞇成線、身體褪色、低頭
+				eye = Color(0.8, 0.85, 0.9)
+				sc = Vector3(1.2, 0.25, 1.0)
+				tint = base.lerp(Color(0.55, 0.55, 0.6), 0.55)
+				head_rot_x = 0.5
 		State.BROKEN:
 			eye = Color(1.0, 0.75, 0.4)
 			sc = Vector3(1.3, 0.3, 1.0)
 			tilt = 0.7
+			tint = base.lerp(Color(0.6, 0.6, 0.62), 0.5)
 		State.DEAD:
 			eye = Color(0.55, 0.55, 0.6)
 			sc = Vector3(1.3, 0.18, 1.0)
@@ -1111,6 +1149,14 @@ func _update_face(delta: float) -> void:
 				_blink_t = randf_range(2.0, 5.0)
 			elif _blink_t < 0.12:
 				sc = Vector3(1.0, 0.1, 1.0)
+	# 被壓頂過（或玩家正在上方下劈）：抬頭、眼睛睜大成圓
+	if state in [State.ALERT, State.ATTACK, State.STAGGER] and _player and (_heads_up_t > 0.0 or (_player.get("state") == _player.State.PLUNGE and _player.global_position.y - global_position.y > 1.0)):
+		sc = Vector3(1.6, 2.0, 1.0)
+		head_rot_x = -0.45
+	if state != State.STAGGER or _pant_t > 0.0 or head_rot_x != 0.0:
+		# 受擊反應的 tween 也會動 head.rotation，只在沒有 tween 跑時才接手
+		if not (_react_tw and _react_tw.is_valid() and _react_tw.is_running()):
+			head.rotation.x = lerpf(head.rotation.x, head_rot_x, 1.0 - exp(-10.0 * delta))
 	var k := 1.0 - exp(-16.0 * delta)
 	eye_l.scale = eye_l.scale.lerp(sc, k)
 	eye_r.scale = eye_r.scale.lerp(sc, k)
@@ -1143,7 +1189,10 @@ func _update_visual(delta: float) -> void:
 	bar_fill.position.x = -0.62 * (1.0 - ratio)
 	bar_fill.visible = ratio > 0.001
 	var blink := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.02)
-	bar_mat.albedo_color = Color(1.0, 0.3 + 0.7 * blink, 0.3 + 0.7 * blink) if state == State.BROKEN else Color(0.9, 0.2, 0.18)
+	if _bar_flash_t > 0.0:
+		bar_mat.albedo_color = _bar_flash_color
+	else:
+		bar_mat.albedo_color = Color(1.0, 0.3 + 0.7 * blink, 0.3 + 0.7 * blink) if state == State.BROKEN else Color(0.9, 0.2, 0.18)
 	if state in [State.SUSPICIOUS, State.SEARCH] and not mark.visible:
 		_show_mark("？", Color(1.0, 0.85, 0.3), 0.0)
 	elif not state in [State.SUSPICIOUS, State.SEARCH] and mark.text == "？":

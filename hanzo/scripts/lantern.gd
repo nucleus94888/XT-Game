@@ -55,7 +55,7 @@ func extinguish() -> void:
 	lit = false
 	_light.visible = false
 	_lamp_mat.albedo_color = Color(0.25, 0.2, 0.15)
-	Fx.damage_number(global_position + Vector3(0, 2.8, 0), 0, false, Color(0.6, 0.6, 0.7), "熄")
+	pass
 
 
 ## 玩家是否在這盞燈的照明範圍內

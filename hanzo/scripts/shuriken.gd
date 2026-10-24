@@ -156,7 +156,6 @@ func _on_pick(b: Node3D) -> void:
 		return
 	_done = true
 	b.pickup_shuriken()
-	Fx.damage_number(global_position + Vector3(0.0, 1.0, 0.0), 1, false, Color(0.75, 0.85, 1.0), "手裡劍 +1")
 	var tw := create_tween()
 	tw.tween_property(self, "scale", Vector3.ZERO, 0.12)
 	tw.tween_callback(queue_free)

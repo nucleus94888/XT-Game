@@ -134,9 +134,41 @@ func _throw_test() -> void:
 	get_tree().quit()
 
 
+## plunge：下劈量測。敵人（--kind）在起點警戒，玩家在他上方 4 公尺按攻擊，印落地後敵人 hp／狀態與玩家狀態
+func _plunge_test() -> void:
+	for i in range(3):
+		for n in get_tree().get_nodes_in_group("enemies"):
+			n.queue_free()
+		await get_tree().process_frame
+		var e := Enemy.new()
+		e.kind = kind
+		e.face_dir = Vector3(0, 0, 1)
+		level.add_child(e)
+		e.global_position = _start_pos + Vector3(0.0, 0.0, -2.0)
+		e.alerted_once = true
+		e._go_alert()
+		player.revive()
+		player.global_position = _start_pos + Vector3(0.3, 4.0, -2.3)
+		player.velocity = Vector3.ZERO
+		await get_tree().create_timer(0.15).timeout
+		var hp0: int = e.hp
+		player.request_attack()
+		var st0: String = player.State.keys()[player.state]
+		await get_tree().create_timer(1.2).timeout
+		var es: String = e.State.keys()[e.state] if is_instance_valid(e) else "freed"
+		print("PLUNGE %s run %d: 按下後狀態=%s　敵人 hp %d→%d（%s）　體幹 %.0f　玩家最後狀態=%s hp=%d" % [
+			e.spec.name if is_instance_valid(e) else "?", i + 1, st0, hp0, e.hp if is_instance_valid(e) else 0, es,
+			e.posture if is_instance_valid(e) else 0.0, player.State.keys()[player.state], player.hp])
+		await get_tree().create_timer(0.3).timeout
+	get_tree().quit()
+
+
 func _begin_run() -> void:
 	if mode == "throw":
 		_throw_test()
+		return
+	if mode == "plunge":
+		_plunge_test()
 		return
 	_run += 1
 	_t = 0.0
@@ -225,7 +257,7 @@ var _trace := false
 
 
 func _physics_process(delta: float) -> void:
-	if mode == "throw":
+	if mode == "throw" or mode == "plunge":
 		return
 	if _done or not is_instance_valid(enemy) or player == null:
 		return

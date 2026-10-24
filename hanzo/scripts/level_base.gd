@@ -661,7 +661,7 @@ func _spawn(kind: Enemy.Kind, pos: Vector3, route: Array = [], face := Vector3.F
 func _on_enemy_alerted(_e: Enemy) -> void:
 	_alert_count += 1
 	if _alert_count == 1:
-		hud.say("被發現了！", Color(1.0, 0.4, 0.3))
+		hud.say_hint("被發現了！", Color(1.0, 0.4, 0.3))
 
 
 func _on_enemy_died(e: Enemy, stealth: bool) -> void:
@@ -678,7 +678,9 @@ func _on_enemy_died(e: Enemy, stealth: bool) -> void:
 		_bead_given = true
 		Progress.add_bead()
 		get_tree().create_timer(0.9).timeout.connect(func() -> void:
-			hud.say("念珠　最大 HP +10", Color(1.0, 0.85, 0.5)))
+			# 血條變長並閃金色就是回饋；輔助文字開著才說
+			hud.flash_hp(Color(1.0, 0.85, 0.4))
+			hud.say_hint("念珠　最大 HP +10", Color(1.0, 0.85, 0.5)))
 	_on_enemy_died_hook(e, stealth)
 
 

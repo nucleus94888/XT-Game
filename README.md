@@ -78,6 +78,9 @@ C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=throw
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level2.tscn ++ --bot=throw --at=0,0.8,-10
 
+# 下劈量測 bot（第九次議會）：敵人警戒，玩家在他上方 4 公尺按攻擊，印敵人掉血／體幹與玩家狀態（預期 28 傷、體幹 32）
+C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=plunge --kind=samurai
+
 # 追擊量測 bot（第七次議會）：敵人 6 公尺外已警戒，玩家只走路直線逃；印拉近速率與幾秒被追上
 # 目標：每種近戰敵人都追得上走路的玩家（足輕約 5 秒、武士約 3 秒），閃步才有存在理由
 C:\Users\Win\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --path hanzo scenes/level1.tscn ++ --bot=chase --kind=ashigaru --runs=3

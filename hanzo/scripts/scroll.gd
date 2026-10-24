@@ -66,10 +66,12 @@ func _on_body(b: Node3D) -> void:
 	_taken = true
 	Progress.pickup_scroll(id)
 	var name_text: String = Progress.SCROLLS.get(id, "卷軸")
-	Fx.damage_number(global_position + Vector3(0, 1.6, 0), 1, true, Color(1.0, 0.9, 0.6), "卷軸：%s" % name_text)
+	# 不跳字：效果本身會顯示（手裡劍數字跳到 7、口糧欄位、鉤繩行為）；輔助文字開著才說
 	var hud := get_tree().get_first_node_in_group("hud")
-	if hud and hud.has_method("say"):
-		hud.say("卷軸：%s" % name_text, Color(1.0, 0.9, 0.6))
+	if hud and hud.has_method("say_hint"):
+		hud.say_hint("卷軸：%s" % name_text, Color(1.0, 0.9, 0.6))
+		hud.pop_items()
+	Feel.haptic(40)
 	var tw := create_tween()
 	tw.tween_property(self, "scale", Vector3.ZERO, 0.2)
 	tw.tween_callback(queue_free)

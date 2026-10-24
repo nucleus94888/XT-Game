@@ -19,6 +19,7 @@ const PARAMS := {
 	"look_sens": ["視角靈敏度", 0.4, 2.0, 0.05, 1.0],
 	"volume": ["音量", 0.0, 1.0, 0.05, 1.0],
 	"lefty": ["左撇子（0/1）", 0.0, 1.0, 1.0, 0.0],
+	"hints": ["輔助文字（0/1）", 0.0, 1.0, 1.0, 0.0],
 	"windup_ms": ["出刀前置 ms", 20.0, 400.0, 5.0, 140.0],
 	"active_ms": ["命中窗 ms", 40.0, 250.0, 5.0, 120.0],
 	"recovery_ms": ["收刀硬直 ms", 60.0, 600.0, 5.0, 260.0],
@@ -46,8 +47,9 @@ const PRESETS := {
 	"戊・無料": {"hitstop_ms": 0.0, "shake_amp": 0.0, "hit_flash_ms": 0.0, "knockback": 0.5, "trail_alpha": 0.0, "lunge": 0.0},
 }
 
-## 手機預設介面倍率：以 720 高的基準畫布算，1.6 倍讓「斬」鍵直徑約佔螢幕高度 30%（拇指好按）
-const MOBILE_UI_SCALE := 1.6
+## 手機預設介面倍率：以 720 高的基準畫布算。1.6 倍時使用者回饋「按鍵太大太亂」，改 1.3，
+## 攻擊鍵直徑約佔螢幕高度 25%，其餘鍵更小、排成攻擊鍵周圍的菱形
+const MOBILE_UI_SCALE := 1.3
 
 var p: Dictionary = {}
 
@@ -106,7 +108,7 @@ func apply_preset(preset_name: String) -> void:
 	if not PRESETS.has(preset_name):
 		return
 	var keep := {}
-	for k in ["ui_scale", "look_sens", "volume", "lefty"]:
+	for k in ["ui_scale", "look_sens", "volume", "lefty", "hints"]:
 		keep[k] = get_p(k)
 	for k in PARAMS:
 		p[k] = PARAMS[k][4]

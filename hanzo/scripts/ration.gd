@@ -64,10 +64,8 @@ func _on_body(b: Node3D) -> void:
 	if _taken or not b.is_in_group("player") or not b.has_method("heal"):
 		return
 	_taken = true
-	if b.heal(HEAL):
-		Fx.damage_number(global_position + Vector3(0, 1.2, 0), HEAL, false, Color(0.6, 1.0, 0.6), "+%d" % HEAL)
-	else:
-		Fx.damage_number(global_position + Vector3(0, 1.2, 0), 1, false, Color(0.75, 0.95, 0.75), "口糧 帶著")
+	# 不跳字：回血→血條閃綠；帶著→持有物欄位彈一下（player 那邊處理）
+	b.heal(HEAL)
 	var tw := create_tween()
 	tw.tween_property(self, "scale", Vector3.ZERO, 0.15)
 	tw.tween_callback(queue_free)

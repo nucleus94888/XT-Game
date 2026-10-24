@@ -14,12 +14,15 @@ signal weapon_toggle
 ## 右側空白處拖曳：轉視角（螢幕像素位移）
 signal look_delta(delta: Vector2)
 
-const JOY_R := 78.0
-const ATK_R := 70.0
-const DASH_R := 50.0
-const BLOCK_R := 50.0
-const HOOK_R := 44.0
-const SWAP_R := 30.0
+## 按鍵尺寸（邏輯像素，手機再乘 ui_scale 1.3）：攻擊最大，其餘排在它周圍的菱形，「換」塞在菱形中央
+const JOY_R := 66.0
+const ATK_R := 54.0
+const DASH_R := 38.0
+const BLOCK_R := 38.0
+const HOOK_R := 36.0
+const SWAP_R := 24.0
+## 計數器（手裡劍數量）變動時彈一下
+var _count_pop := 0.0
 
 var move_vector := Vector2.ZERO
 ## 這些控制項可見且覆蓋到的區域，不會觸發搖桿（例如手感面板）
@@ -53,28 +56,29 @@ func _ready() -> void:
 
 
 func _joy_home() -> Vector2:
-	return _mx(Vector2(150.0, size.y - 150.0))
+	return _mx(Vector2(135.0, size.y - 135.0))
 
 
-## 鍵位離角落稍遠一點，拇指自然彎曲就按得到，也避開 iPhone 圓角與手勢區
+## 鍵位：攻擊在右下角，閃在左、格擋在上、鉤在左上（菱形），換在菱形中央。
+## 離角落稍遠一點，拇指自然彎曲就按得到，也避開 iPhone 圓角與手勢區
 func _atk_center() -> Vector2:
-	return _mx(Vector2(size.x - 140.0, size.y - 140.0))
+	return _mx(Vector2(size.x - 105.0, size.y - 105.0))
 
 
 func _dash_center() -> Vector2:
-	return _mx(Vector2(size.x - 290.0, size.y - 92.0))
+	return _mx(Vector2(size.x - 248.0, size.y - 72.0))
 
 
 func _block_center() -> Vector2:
-	return _mx(Vector2(size.x - 130.0, size.y - 300.0))
+	return _mx(Vector2(size.x - 96.0, size.y - 242.0))
 
 
 func _hook_center() -> Vector2:
-	return _mx(Vector2(size.x - 315.0, size.y - 255.0))
+	return _mx(Vector2(size.x - 246.0, size.y - 198.0))
 
 
 func _swap_center() -> Vector2:
-	return _mx(Vector2(size.x - 70.0, size.y - 235.0))
+	return _mx(Vector2(size.x - 176.0, size.y - 156.0))
 
 
 ## 左撇子：左右鏡像（搖桿到右、按鍵到左）
@@ -268,7 +272,15 @@ func _process(delta: float) -> void:
 	_atk_flash = maxf(_atk_flash - delta * 5.0, 0.0)
 	_dash_flash = maxf(_dash_flash - delta * 5.0, 0.0)
 	_hook_flash = maxf(_hook_flash - delta * 5.0, 0.0)
+	_count_pop = maxf(_count_pop - delta * 3.0, 0.0)
 	_watchdog()
+
+
+## 手裡劍數量變了（撿回、卷軸）：數字彈一下，取代「手裡劍 +1」飄字
+func set_shuriken_count(n: int) -> void:
+	if n != shuriken_count:
+		_count_pop = 1.0
+	shuriken_count = n
 	queue_redraw()
 
 
@@ -308,35 +320,36 @@ func _draw() -> void:
 	draw_arc(ac, ATK_R, 0.0, TAU, 64, Color(1, 0.92, 0.85, 0.9), 3.0, true)
 	if font:
 		if shuriken:
-			draw_string(font, ac + Vector2(-ATK_R, 8.0), "手裡劍", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 30, Color(1, 1, 1, 0.95))
-			draw_string(font, ac + Vector2(-ATK_R, 34.0), "×%d" % shuriken_count, HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 18, Color(1, 1, 1, 0.85))
+			var cs := 15 + int(8.0 * _count_pop)
+			draw_string(font, ac + Vector2(-ATK_R, 6.0), "手裡劍", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 24, Color(1, 1, 1, 0.95))
+			draw_string(font, ac + Vector2(-ATK_R, 30.0), "×%d" % shuriken_count, HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, cs, Color(1, 1, 0.8 + 0.2 * (1.0 - _count_pop), 0.9))
 		else:
-			draw_string(font, ac + Vector2(-ATK_R, 13.0), "攻擊", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 36, Color(1, 1, 1, 0.95))
+			draw_string(font, ac + Vector2(-ATK_R, 11.0), "攻擊", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 30, Color(1, 1, 1, 0.95))
 	# 武器切換小鍵
 	var sc := _swap_center()
 	draw_circle(sc, SWAP_R, Color(0.2, 0.2, 0.25, 0.8))
 	draw_arc(sc, SWAP_R, 0.0, TAU, 32, Color(0.9, 0.9, 0.9, 0.8), 2.0, true)
 	if font:
-		draw_string(font, sc + Vector2(-SWAP_R, 9.0), "換", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0, 24, Color(1, 1, 1, 0.95))
+		draw_string(font, sc + Vector2(-SWAP_R, 8.0), "換", HORIZONTAL_ALIGNMENT_CENTER, SWAP_R * 2.0, 20, Color(1, 1, 1, 0.95))
 	# 閃
 	var dc := _dash_center()
 	draw_circle(dc, DASH_R, Color(0.2, 0.3, 0.55, 0.5 + 0.4 * _dash_flash))
 	draw_arc(dc, DASH_R, 0.0, TAU, 48, Color(0.85, 0.9, 1, 0.85), 2.5, true)
 	if dash_cd > 0.0:
-		_draw_cd(dc, DASH_R, dash_cd, 0.8, font, 30)
+		_draw_cd(dc, DASH_R, dash_cd, 0.8, font, 24)
 	elif font:
-		draw_string(font, dc + Vector2(-DASH_R, 12.0), "閃", HORIZONTAL_ALIGNMENT_CENTER, DASH_R * 2.0, 34, Color(1, 1, 1, 0.95))
+		draw_string(font, dc + Vector2(-DASH_R, 10.0), "閃", HORIZONTAL_ALIGNMENT_CENTER, DASH_R * 2.0, 28, Color(1, 1, 1, 0.95))
 	# 鉤繩（按住瞄準）；拉人冷卻中顯示倒數（鉤牆頂／屋頂不受冷卻限制）
 	var hc := _hook_center()
 	draw_circle(hc, HOOK_R, Color(0.75, 0.6, 0.2, 0.55 + 0.4 * _hook_flash))
 	draw_arc(hc, HOOK_R, 0.0, TAU, 48, Color(1, 0.95, 0.8, 0.9), 2.5, true)
 	if hook_cd > 0.0:
-		_draw_cd(hc, HOOK_R, hook_cd, 4.0, font, 26)
+		_draw_cd(hc, HOOK_R, hook_cd, 4.0, font, 22)
 	elif font:
-		draw_string(font, hc + Vector2(-HOOK_R, 11.0), "鉤", HORIZONTAL_ALIGNMENT_CENTER, HOOK_R * 2.0, 32, Color(1, 1, 1, 0.95))
+		draw_string(font, hc + Vector2(-HOOK_R, 9.0), "鉤", HORIZONTAL_ALIGNMENT_CENTER, HOOK_R * 2.0, 26, Color(1, 1, 1, 0.95))
 	# 格擋（按住時亮起）
 	var bc := _block_center()
 	draw_circle(bc, BLOCK_R, Color(0.18, 0.5, 0.32, 0.9 if _block_on else 0.5))
 	draw_arc(bc, BLOCK_R, 0.0, TAU, 48, Color(0.85, 1, 0.9, 0.9), 2.5, true)
 	if font:
-		draw_string(font, bc + Vector2(-BLOCK_R, 10.0), "格擋", HORIZONTAL_ALIGNMENT_CENTER, BLOCK_R * 2.0, 28, Color(1, 1, 1, 0.95))
+		draw_string(font, bc + Vector2(-BLOCK_R, 8.0), "格擋", HORIZONTAL_ALIGNMENT_CENTER, BLOCK_R * 2.0, 24, Color(1, 1, 1, 0.95))

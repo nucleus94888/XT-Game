@@ -206,8 +206,7 @@ func _on_enemy_died_hook(e: Enemy, _stealth: bool) -> void:
 	hud.set_objective("副將已除。大將往後門逃了，追上去")
 	get_tree().create_timer(1.6).timeout.connect(func() -> void:
 		_gate_set("rear", true)
-		_open_exit("追擊")
-		hud.say("追！", Color(0.6, 0.9, 1.0)))
+		_open_exit("追擊"))
 
 
 # ---------------------------------------------------------------- 自動試玩

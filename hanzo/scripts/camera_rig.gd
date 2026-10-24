@@ -24,6 +24,9 @@ var _kick := Vector3.ZERO
 var _last_ms := 0
 var _blend := 0.0
 var _base_fov := 55.0
+## 下劈時多壓一點俯角、拉遠一點，落點與目標留在畫面中段（不被拇指蓋住）
+var extra_pitch := 0.0
+var _extra := 0.0
 
 
 func _ready() -> void:
@@ -116,7 +119,10 @@ func _process(delta: float) -> void:
 	) * sh * 1.6
 	var roll := sin(t * 2.9) * sh * 0.09
 	# 俯視環繞
-	var orbit_pos := Vector3(0.0, sin(pitch) * distance, cos(pitch) * distance).rotated(Vector3.UP, yaw)
+	_extra = lerpf(_extra, extra_pitch, 1.0 - exp(-6.0 * real_dt))
+	var p := pitch + _extra
+	var dist := distance + _extra * 4.0
+	var orbit_pos := Vector3(0.0, sin(p) * dist, cos(p) * dist).rotated(Vector3.UP, yaw)
 	var orbit_look := Vector3(0.0, look_height, 0.0)
 	# 過肩
 	var f := forward()
