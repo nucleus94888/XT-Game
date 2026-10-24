@@ -18,6 +18,9 @@ var next_label := "下一關"
 var bounds := AABB(Vector3(-20, -2, -40), Vector3(40, 30, 80))
 
 var _region: NavigationRegion3D
+## 旋轉群組：_group_begin(center, yaw) 之後建的東西都掛在一個旋轉過的節點下（座標變成相對 center），
+## 整棟小屋、整段柵欄就能斜著放，地圖才不會全是對齊座標軸的方塊。導航烘焙照樣看得到（節點仍在 _region 底下）
+var _pivot: Node3D = null
 ## 遮蔽層：半藏走進某個範圍（屋簷下、樓下）時，把該範圍上方的屋頂／樓板隱藏，鏡頭才看得到室內
 var _covers := {}
 var _cover_key := ""
@@ -51,6 +54,13 @@ func _ready() -> void:
 	player.damaged.connect(func(_a: int) -> void:
 		_hits_taken += 1)
 	_parse_args()
+	# 看地圖用：++ --cam=俯角度,距離（例 --cam=75,60 從高空俯瞰整張關卡）
+	for a in _extra_args:
+		if a.begins_with("--cam="):
+			var c: PackedStringArray = a.substr(6).split(",")
+			if c.size() == 2:
+				cam_rig.pitch = deg_to_rad(float(c[0]))
+				cam_rig.distance = float(c[1])
 	_checkpoint = start_pos
 	player.global_position = start_pos
 	# 玩家傳送後鏡頭立刻定位；再用黑幕蓋住開場的著色器預熱（火花、刀光），淡入 0.45 秒
@@ -199,9 +209,77 @@ func _shot(name: String) -> void:
 
 ## 開始收集：之後建的東西都歸到 key 這個遮蔽層；半藏站進 aabb 裡時整層隱藏。_cover_end() 結束收集。
 func _cover_begin(key: String, aabb: AABB) -> void:
+	# 在旋轉群組裡建的遮蔽層：範圍留在群組座標，判定時把玩家位置轉進群組座標再比
+	# （若改成包住旋轉後八個角的世界 AABB，人站在屋外斜角也會把屋頂藏掉）
+	var xf := _pivot.transform if _pivot else Transform3D.IDENTITY
 	if not _covers.has(key):
-		_covers[key] = {"aabb": aabb, "nodes": [], "hidden": false}
+		_covers[key] = {"aabb": aabb, "xform": xf, "nodes": [], "hidden": false}
 	_cover_key = key
+
+
+# ---------------------------------------------------------------- 旋轉群組
+
+## 之後建的東西都掛在這個旋轉節點下，座標相對 center（y 也相對）。用 _group_end() 結束
+func _group_begin(center: Vector3, yaw_deg: float) -> void:
+	var p := Node3D.new()
+	_region.add_child(p)
+	p.position = center
+	p.rotation_degrees = Vector3(0.0, yaw_deg, 0.0)
+	_pivot = p
+
+
+func _group_end() -> void:
+	_pivot = null
+
+
+## 折線柵欄：points 是一串 Vector3（y＝該點柵欄底部高度），逐段用旋轉群組建
+func _fence_poly(points: Array, h: float, color: Color, collide_h: float = 0.0) -> void:
+	for i in range(points.size() - 1):
+		var a: Vector3 = points[i]
+		var b: Vector3 = points[i + 1]
+		var d := b - a
+		var flat := Vector2(d.x, d.z)
+		var length := flat.length()
+		if length < 0.1:
+			continue
+		var yaw := rad_to_deg(atan2(-d.x, -d.z))
+		_group_begin(Vector3((a.x + b.x) / 2.0, minf(a.y, b.y), (a.z + b.z) / 2.0), yaw)
+		_fence(0.0, 0.0, length, false, h, color, 0.0, collide_h)
+		_group_end()
+
+
+## 折線小路：一段段旋轉的薄板接起來（純外觀）
+func _path_poly(points: Array, width: float, color: Color, y_off: float = 0.03) -> void:
+	for i in range(points.size() - 1):
+		var a: Vector3 = points[i]
+		var b: Vector3 = points[i + 1]
+		var d := b - a
+		var length := Vector2(d.x, d.z).length() + width * 0.6
+		var yaw := rad_to_deg(atan2(-d.x, -d.z))
+		_box(Vector3((a.x + b.x) / 2.0, (a.y + b.y) / 2.0 + y_off, (a.z + b.z) / 2.0), Vector3(width, 0.06, length), color, Vector3(0.0, yaw, 0.0), false)
+
+
+## 任意方向的斜坡：from → to（含高度），寬 w。長軸沿 -Z 的板子，先依坡度繞 X、再依方向繞 Y
+func _ramp(from: Vector3, to: Vector3, w: float, color: Color, steps: bool = true) -> void:
+	var d := to - from
+	var flat := Vector2(d.x, d.z).length()
+	var slope_len := sqrt(flat * flat + d.y * d.y)
+	var ang := rad_to_deg(atan2(d.y, flat))
+	var yaw := rad_to_deg(atan2(-d.x, -d.z))
+	var center := (from + to) / 2.0 - Vector3(0.0, 0.15, 0.0)
+	_box(center, Vector3(w, 0.3, slope_len), color, Vector3(ang, yaw, 0.0))
+	if steps:
+		var n := int(flat / 0.5)
+		for i in range(n):
+			var k := (float(i) + 0.5) / n
+			var p := from.lerp(to, k)
+			_box(p + Vector3(0.0, 0.02, 0.0), Vector3(w + 0.1, 0.06, 0.12), color.darkened(0.25), Vector3(0.0, yaw, 0.0), false)
+
+
+## 岩石：幾顆歪斜的方塊疊在一起（台地邊緣、路邊用來打破直線）
+func _rock(pos: Vector3, size: float, yaw_deg: float, color: Color) -> void:
+	_box(pos + Vector3(0.0, size * 0.35, 0.0), Vector3(size * 1.4, size * 0.7, size), color, Vector3(0.0, yaw_deg, 6.0))
+	_box(pos + Vector3(size * 0.3, size * 0.75, size * 0.2), Vector3(size * 0.8, size * 0.6, size * 0.7), color.lightened(0.08), Vector3(8.0, yaw_deg + 30.0, -5.0))
 
 
 func _cover_end() -> void:
@@ -217,7 +295,8 @@ func _update_covers() -> void:
 	var covered := false
 	for key in _covers:
 		var c: Dictionary = _covers[key]
-		var inside: bool = (c.aabb as AABB).has_point(player.global_position)
+		var local_p: Vector3 = (c.xform as Transform3D).affine_inverse() * player.global_position
+		var inside: bool = (c.aabb as AABB).has_point(local_p)
 		covered = covered or inside
 		if inside != bool(c.hidden):
 			c.hidden = inside
@@ -290,7 +369,7 @@ func _box(center: Vector3, size: Vector3, color: Color, rot: Vector3 = Vector3.Z
 		node = sb
 	else:
 		node = mi
-	(parent if parent else _region).add_child(node)
+	(parent if parent else (_pivot if _pivot else _region)).add_child(node)
 	node.position = center
 	node.rotation_degrees = rot
 	# 除錯回報用：準心指到這塊時，螢幕上印出它的中心與尺寸，對回關卡原始碼就找得到那一行
@@ -312,7 +391,7 @@ func _invisible(center: Vector3, size: Vector3) -> void:
 	# 標記「幽靈牆」：鏡頭碰撞與手裡劍飛行要無視它（它只擋人與鉤繩），不然站在柵欄邊鏡頭會被頂到頭上、無法瞄準
 	sb.set_meta("ghost", true)
 	sb.set_meta("desc", "透明牆 中心(%.1f, %.1f, %.1f) 尺寸(%.1f×%.1f×%.1f)" % [center.x, center.y, center.z, size.x, size.y, size.z])
-	_region.add_child(sb)
+	(_pivot if _pivot else _region).add_child(sb)
 	sb.position = center
 
 
@@ -425,7 +504,10 @@ func _hut(cx: float, cz: float, sx: float, sz: float, wall_h: float, y_base: flo
 			_box(Vector3(x, y_base + wall_h / 2.0, cz), Vector3(t, wall_h, sz), wall_color)
 	# 屋頂：人走進屋裡就隱藏
 	var prev := _cover_key
-	_cover_begin("hut_%d_%d" % [int(cx * 10.0), int(cz * 10.0)], AABB(Vector3(cx - sx / 2.0, y_base - 0.3, cz - sz / 2.0), Vector3(sx, wall_h + 0.2, sz)))
+	# 遮蔽層的鍵用世界座標（旋轉群組裡每棟小屋的 cx, cz 都是 0）
+	var kx := cx + (_pivot.position.x if _pivot else 0.0)
+	var kz := cz + (_pivot.position.z if _pivot else 0.0)
+	_cover_begin("hut_%d_%d" % [int(kx * 10.0), int(kz * 10.0)], AABB(Vector3(cx - sx / 2.0, y_base - 0.3, cz - sz / 2.0), Vector3(sx, wall_h + 0.2, sz)))
 	_gable(cx, cz, sx, sz, y_base + wall_h, rise, roof_color, sz >= sx)
 	_cover_key = prev
 
@@ -460,7 +542,7 @@ func _tree(pos: Vector3, scale_k: float = 1.0) -> void:
 	canopy.mesh = sm
 	canopy.material_override = _mat(leaf)
 	canopy.position = pos + Vector3(0.3, 3.2 * scale_k, 0.0)
-	add_child(canopy)
+	(_pivot if _pivot else self).add_child(canopy)
 	var canopy2 := MeshInstance3D.new()
 	var sm2 := SphereMesh.new()
 	sm2.radius = 1.2 * scale_k
@@ -468,7 +550,7 @@ func _tree(pos: Vector3, scale_k: float = 1.0) -> void:
 	canopy2.mesh = sm2
 	canopy2.material_override = _mat(leaf.lightened(0.08))
 	canopy2.position = pos + Vector3(-0.6, 4.3 * scale_k, 0.4)
-	add_child(canopy2)
+	(_pivot if _pivot else self).add_child(canopy2)
 
 
 ## 鳥居（朱紅）
@@ -534,7 +616,7 @@ func _shoji(cx: float, cz: float, length: float, along_x: bool, h: float, y_base
 	cs.shape = bs
 	sb.add_child(cs)
 	sb.add_child(mi)
-	_region.add_child(sb)
+	(_pivot if _pivot else _region).add_child(sb)
 	sb.position = Vector3(cx, y_base + h / 2.0, cz)
 	_cover_add(sb)
 	# 木框格子
