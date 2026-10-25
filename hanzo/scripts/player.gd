@@ -380,7 +380,89 @@ func interact() -> void:
 	_update_ctx(true)
 
 
-## 水遁：站在深水區自動潛下；氣 8 秒；用完被迫浮上 3 秒
+## 竹筒：潛下時從水面斜斜伸出一截青竹（有竹節），頂端偶爾冒一串小氣泡；人怎麼走竹筒就跟著滑
+var _bamboo: Node3D
+var _bubble_t := 0.0
+
+
+func _update_bamboo(delta: float) -> void:
+	if _bamboo == null:
+		_bamboo = Node3D.new()
+		var green := StandardMaterial3D.new()
+		green.albedo_color = Color(0.55, 0.78, 0.3)
+		var node_mat := StandardMaterial3D.new()
+		node_mat.albedo_color = Color(0.35, 0.45, 0.18)
+		var tube := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.045
+		cm.bottom_radius = 0.05
+		cm.height = 0.75
+		cm.radial_segments = 8
+		tube.mesh = cm
+		tube.material_override = green
+		tube.position = Vector3(0, 0.375, 0)
+		_bamboo.add_child(tube)
+		for y in [0.15, 0.45]:
+			var ring := MeshInstance3D.new()
+			var rm := CylinderMesh.new()
+			rm.top_radius = 0.058
+			rm.bottom_radius = 0.058
+			rm.height = 0.035
+			rm.radial_segments = 8
+			ring.mesh = rm
+			ring.material_override = node_mat
+			ring.position = Vector3(0, y, 0)
+			_bamboo.add_child(ring)
+		# 斜口（竹筒頂端削斜）：深色小圓片
+		var mouth := MeshInstance3D.new()
+		var mm := CylinderMesh.new()
+		mm.top_radius = 0.04
+		mm.bottom_radius = 0.04
+		mm.height = 0.01
+		mouth.mesh = mm
+		var dark := StandardMaterial3D.new()
+		dark.albedo_color = Color(0.1, 0.12, 0.06)
+		mouth.material_override = dark
+		mouth.position = Vector3(0, 0.755, 0)
+		_bamboo.add_child(mouth)
+		_bamboo.rotation_degrees = Vector3(18, 0, 0)
+		add_child(_bamboo)
+	_bamboo.visible = submerged
+	if not submerged:
+		return
+	_bamboo.scale = Vector3(1.6, 1.4, 1.6)   # 手機小螢幕上要看得出是竹筒
+	# 原點在地面下約 0.2 公尺：竹筒從水面往上伸；朝面向的反方向斜（像人仰躺在水裡含著）
+	_bamboo.position = Vector3(0, 0.15, 0)
+	# 往畫面左右斜（對著鏡頭斜會被透視壓扁，看不出長度）
+	var side_yaw: float = (cam_rig.yaw if cam_rig != null else _facing) + PI / 2.0
+	_bamboo.rotation = Vector3(deg_to_rad(25) + sin(Time.get_ticks_msec() * 0.002) * 0.04, side_yaw, 0)
+	_bubble_t -= delta
+	if _bubble_t <= 0.0:
+		_bubble_t = randf_range(1.2, 2.2)
+		var top := _bamboo.global_transform * Vector3(0, 0.78, 0)  # 已含縮放
+		for i in range(3):
+			var b := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.03
+			sm.height = 0.06
+			sm.radial_segments = 6
+			sm.rings = 3
+			b.mesh = sm
+			var bm := StandardMaterial3D.new()
+			bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			bm.albedo_color = Color(0.85, 0.95, 1.0, 0.7)
+			b.material_override = bm
+			get_tree().current_scene.add_child(b)
+			b.global_position = top
+			var tw := b.create_tween()
+			tw.tween_interval(i * 0.12)
+			tw.tween_property(b, "global_position", top + Vector3(randf_range(-0.05, 0.05), 0.35, randf_range(-0.05, 0.05)), 0.6)
+			tw.parallel().tween_property(bm, "albedo_color:a", 0.0, 0.6)
+			tw.tween_callback(b.queue_free)
+
+
+## 水遁：站在深水區自動潛下，用竹筒呼吸（不限時間）
 func _update_water(delta: float) -> void:
 	var in_water := false
 	for w in get_tree().get_nodes_in_group("water"):
@@ -396,16 +478,9 @@ func _update_water(delta: float) -> void:
 	elif not want and submerged:
 		submerged = false
 		visual.visible = true
-	if submerged:
-		breath -= delta
-		if breath <= 0.0:
-			breath = 0.0
-			_surface_lock = 3.0
-			submerged = false
-			visual.visible = true
-			Feel.haptic(50)
-	else:
-		breath = minf(breath + delta * 2.0, BREATH_MAX)
+	# 竹筒呼吸（水遁之術）：潛著不限時間；代價是竹筒露出水面，守衛走到 1.6 公尺內看過來會發現（enemy._los）
+	breath = BREATH_MAX
+	_update_bamboo(delta)
 	if _ripple == null:
 		_ripple = MeshInstance3D.new()
 		var tm := TorusMesh.new()
@@ -483,6 +558,11 @@ func _begin_aim(kind: int) -> void:
 		return
 	if kind == AIM_SHURIKEN and shuriken <= 0:
 		denied.emit("shuriken")
+		return
+	# 鉤繩冷卻中（按鍵在倒數）就整個不能用，鉤牆頂／屋頂也一樣：倒數＝不能放（使用者回報倒數中還放得出來）
+	if kind == AIM_HOOK and _hook_cd > 0.0:
+		denied.emit("hook")
+		Feel.haptic(15)
 		return
 	if state == State.BLOCK:
 		state = State.FREE
@@ -1237,11 +1317,11 @@ func request_dash() -> void:
 			return
 		var now := Time.get_ticks_msec()
 		_dash_times = _dash_times.filter(func(t: int) -> bool: return now - t < int(DASH_BURST_WINDOW * 1000.0))
-		if _dash_times.size() >= DASH_BURST:
-			_dash_lock_t = DASH_LOCKOUT
-			denied.emit("dash")
-			return
 		_dash_times.append(now)
+		# 連閃第二次的瞬間就開始 0.8 秒冷卻（按鍵立刻顯示倒數；以前要等第三下被擋才出現倒數，看起來像「倒數中還能閃」）
+		if _dash_times.size() >= DASH_BURST:
+			_dash_times.clear()
+			_dash_lock_t = DASH_LOCKOUT
 		_start_dash()
 
 

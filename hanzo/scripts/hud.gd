@@ -610,7 +610,8 @@ func _update_breath() -> void:
 		return
 	var b: float = _pl.get("breath")
 	var mx: float = _pl.BREATH_MAX
-	var show: bool = _pl.get("submerged") == true or b < mx - 0.01
+	# 改成竹筒呼吸後不限時間，氣息條只在氣沒滿時出現（目前不會出現；保留給之後的「沒竹筒的深水」）
+	var show: bool = b < mx - 0.01
 	_breath.visible = show
 	if not show:
 		return

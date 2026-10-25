@@ -463,7 +463,11 @@ func _los() -> bool:
 	var to := _player.global_position + Vector3(0, 1.0, 0)
 	# 水遁中看不到；煙裡、或視線穿過煙也看不到（第十二次議會）
 	if _player.get("submerged") == true:
-		return false
+		# 竹筒露在水面：走到 1.6 公尺內、看得到那個位置才會發現（下面照常判斷視線與正面）
+		var flat := _player.global_position - global_position
+		flat.y = 0.0
+		if flat.length() > 1.6:
+			return false
 	for s in get_tree().get_nodes_in_group("smoke"):
 		if s.contains(to) or s.blocks(from, to):
 			return false
