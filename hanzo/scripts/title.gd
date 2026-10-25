@@ -123,7 +123,9 @@ func _ready() -> void:
 	ver.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	ver.anchor_left = 1.0
 	ver.anchor_top = 1.0
-	ver.offset_left = -120
+	ver.offset_left = -260
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ver.offset_right = -14
 	ver.offset_top = -40
 	ver.modulate = Color(1, 1, 1, 0.4)
 	add_child(ver)
