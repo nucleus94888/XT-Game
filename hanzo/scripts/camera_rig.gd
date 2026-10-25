@@ -85,6 +85,40 @@ var _occ_target := 12.5
 var _occ_clear_t := 0.0
 var _occ_frame := 0
 var _faded := {}
+## 被擋住時先把鏡頭抬高（更俯視、從障礙物上方看下來），抬到底還擋才拉近
+var occ_pitch := 0.0
+var _occ_pitch_target := 0.0
+const OCC_PITCHES := [0.0, 0.22, 0.42, 0.6]
+const MAX_PITCH := 1.4
+
+
+## 從頭頂往鏡頭打射線：回傳第一個實心障礙的距離（沒擋＝-1），樹幹與透明牆略過；fade 收集要變半透明的東西
+func _occ_probe(space: PhysicsDirectSpaceState3D, head: Vector3, cam_w: Vector3, fade: Dictionary, fade_walls: bool) -> float:
+	var ex: Array = [_target.get_rid()] if _target is CollisionObject3D else []
+	var first_d := -1.0
+	for i in range(5):
+		var q := PhysicsRayQueryParameters3D.create(head, cam_w, 1)
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			break
+		ex.append(hit.rid)
+		var c: Node = hit.collider
+		if c is Node3D and (c.has_meta("ghost") or not (c as Node3D).is_visible_in_tree()):
+			continue
+		if c.has_meta("no_pull") or fade_walls:
+			for ch in c.get_children():
+				if ch is MeshInstance3D:
+					fade[ch] = true
+			if c.has_meta("no_pull"):
+				continue
+		if first_d < 0.0:
+			first_d = head.distance_to(hit.position)
+	return first_d
+
+
+func _cam_at(pitch_v: float, dist: float) -> Vector3:
+	return global_position + Vector3(0.0, sin(pitch_v) * dist, cos(pitch_v) * dist).rotated(Vector3.UP, yaw)
 
 
 func _update_occlusion(p: float, dt: float) -> void:
@@ -93,39 +127,42 @@ func _update_occlusion(p: float, dt: float) -> void:
 	_occ_frame += 1
 	if _occ_frame % 3 == 0:
 		var head := _target.global_position + Vector3(0.0, 1.5, 0.0)
-		var cam_w := global_position + Vector3(0.0, sin(p) * distance, cos(p) * distance).rotated(Vector3.UP, yaw) + Vector3(0.0, look_height, 0.0) * 0.0
 		var pull := Feel.get_p("cam_pull") >= 0.5
 		var want := {}
-		# 牆
-		var ex: Array = [_target.get_rid()] if _target is CollisionObject3D else []
-		var first_d := -1.0
 		var space := get_world_3d().direct_space_state
-		for i in range(5):
-			var q := PhysicsRayQueryParameters3D.create(head, cam_w, 1)
-			q.exclude = ex
-			var hit := space.intersect_ray(q)
-			if hit.is_empty():
-				break
-			ex.append(hit.rid)
-			var c: Node = hit.collider
-			if c is Node3D and (c.has_meta("ghost") or not (c as Node3D).is_visible_in_tree()):
-				continue
-			if first_d < 0.0:
-				first_d = head.distance_to(hit.position)
-			if not pull:
-				for ch in c.get_children():
-					if ch is MeshInstance3D:
-						want[ch] = true
+		var cam_w := _cam_at(p, distance)
 		if pull:
-			if first_d >= 0.0:
-				_occ_target = clampf(first_d - 0.6, 3.0, distance)
-				_occ_clear_t = 0.0
-			else:
+			# 依序試：原角度、抬高 12°、24°、34°；第一個沒被擋的就用它。全部都擋才拉近（最近 4 公尺）
+			var chosen := -1.0
+			var last_d := -1.0
+			for extra in OCC_PITCHES:
+				var pp := minf(p + float(extra), MAX_PITCH)
+				var scratch := {}
+				var d := _occ_probe(space, head, _cam_at(pp, distance), scratch, false)
+				if d < 0.0:
+					chosen = float(extra)
+					cam_w = _cam_at(pp, distance)
+					for k in scratch:
+						want[k] = true
+					break
+				last_d = d
+			if chosen >= 0.0:
+				_occ_pitch_target = chosen
 				_occ_clear_t += dt * 3.0
-				if _occ_clear_t > 0.5:
+				if chosen > 0.0 or _occ_clear_t > 0.5:
 					_occ_target = distance
+				if chosen > 0.0:
+					_occ_clear_t = 0.0
+			else:
+				_occ_pitch_target = float(OCC_PITCHES[-1])
+				_occ_target = clampf(last_d - 0.6, 4.0, distance)
+				_occ_clear_t = 0.0
+				cam_w = _cam_at(minf(p + _occ_pitch_target, MAX_PITCH), _occ_target)
+				_occ_probe(space, head, cam_w, want, false)
 		else:
+			_occ_pitch_target = 0.0
 			_occ_target = distance
+			_occ_probe(space, head, cam_w, want, true)
 		# 樹冠
 		var seg := cam_w - head
 		var seg_len2 := seg.length_squared()
@@ -153,9 +190,11 @@ func _update_occlusion(p: float, dt: float) -> void:
 				mi.set_meta("fade_mat", m)
 			mi.material_override = mi.get_meta("fade_mat")
 			_faded[n] = true
-	# 拉近快、拉回慢
+	# 拉近／抬高快、恢復慢
 	var rate := 1.0 / 0.3 if _occ_target < _occ_dist else 1.0 / 0.6
-	_occ_dist = move_toward(_occ_dist, _occ_target, (distance - 3.0) * rate * dt)
+	_occ_dist = move_toward(_occ_dist, _occ_target, (distance - 4.0) * rate * dt)
+	var prate := 1.0 / 0.3 if _occ_pitch_target > occ_pitch else 1.0 / 0.8
+	occ_pitch = move_toward(occ_pitch, _occ_pitch_target, 0.6 * prate * dt)
 
 
 ## 射線，但跳過被遮蔽層隱藏的東西（屋頂、樓板隱藏時還有碰撞）
@@ -209,6 +248,7 @@ func _process(delta: float) -> void:
 		_occ_dist = distance
 		_occ_target = distance
 	_update_occlusion(p, real_dt)
+	p = minf(p + occ_pitch, MAX_PITCH)
 	var dist := _occ_dist + _extra * 4.0
 	var orbit_pos := Vector3(0.0, sin(p) * dist, cos(p) * dist).rotated(Vector3.UP, yaw)
 	var orbit_look := Vector3(0.0, look_height, 0.0)

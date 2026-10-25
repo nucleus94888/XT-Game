@@ -197,6 +197,19 @@ func _debug_where() -> String:
 		String(job.get("kind", "-")), int(touch.get("_joy_idx")), int(touch.get("_look_idx")), str(touch.get("_btn_touch").values()),
 		Engine.time_scale, "　暫停" if get_tree().paused else ""]
 	line += "\n%s　玩家 (%.1f, %.1f, %.1f)" % [lv, p.x, p.y, p.z]
+	# 最近的敵人：他的高度、視野錐畫在哪個高度、用哪種畫法（俯視＝斜往下看的格點；平視＝水平射線）
+	var best: Node3D = null
+	var bd := 1e9
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Node3D and e.get("_cone") != null:
+			var dd := (e as Node3D).global_position.distance_to(p)
+			if dd < bd:
+				bd = dd
+				best = e
+	if best:
+		var cone: Node3D = best.get("_cone")
+		var mode := "俯視" if best.global_position.y - p.y > 0.8 else "平視"
+		line += "\n最近敵人 %s 距 %.1f m　身高 y=%.1f　錐 y=%.1f（%s）%s" % [best.spec.name, bd, best.global_position.y, cone.global_position.y, mode, "" if cone.visible else "　錐隱藏"]
 	if cam == null:
 		return line
 	var c := cam.global_position

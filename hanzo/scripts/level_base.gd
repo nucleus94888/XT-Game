@@ -108,7 +108,15 @@ func _warmup() -> void:
 
 
 func _parse_args() -> void:
-	for a in OS.get_cmdline_user_args():
+	var args: Array = Array(OS.get_cmdline_user_args())
+	# 網頁版測試：網址 ?level=2&tour=x,y,z 會把參數帶進來（自動測試在真網頁版上傳送到指定位置）
+	if OS.has_feature("web"):
+		var qs = JavaScriptBridge.eval("window.location.search", true)
+		if typeof(qs) == TYPE_STRING and String(qs).contains("tour="):
+			for part in String(qs).trim_prefix("?").split("&"):
+				if part.begins_with("tour="):
+					args.append("--tour=" + part.substr(5).uri_decode())
+	for a in args:
 		if a.begins_with("--shot="):
 			_shot_dir = a.substr(7)
 		elif a.begins_with("--bot="):
@@ -607,7 +615,9 @@ func _tower(cx: float, cz: float, platform_y: float, y_base: float, wood: Color,
 func _tree(pos: Vector3, scale_k: float = 1.0) -> void:
 	var trunk := Color(0.3, 0.22, 0.14)
 	var leaf := Color(0.12, 0.27, 0.14)
-	_box(pos + Vector3(0.0, 1.5 * scale_k, 0.0), Vector3(0.4, 3.0 * scale_k, 0.4) * Vector3(scale_k, 1.0, scale_k), trunk)
+	# 樹幹：鏡頭不因它拉近（細細一根，拉近只會把鏡頭撞到人背上），改成跟樹冠一樣變半透明
+	var tr := _box(pos + Vector3(0.0, 1.5 * scale_k, 0.0), Vector3(0.4, 3.0 * scale_k, 0.4) * Vector3(scale_k, 1.0, scale_k), trunk)
+	tr.set_meta("no_pull", true)
 	var canopy := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 1.7 * scale_k

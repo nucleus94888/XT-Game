@@ -13,6 +13,16 @@ var _sfx: AudioStreamPlayer
 
 
 func _ready() -> void:
+	# 網頁版測試：網址 ?level=2 直接進第二關
+	if OS.has_feature("web"):
+		var qs = JavaScriptBridge.eval("window.location.search", true)
+		if typeof(qs) == TYPE_STRING:
+			for part in String(qs).trim_prefix("?").split("&"):
+				if part.begins_with("level="):
+					var n := int(part.substr(6))
+					if n >= 1 and n <= LEVELS.size():
+						get_tree().change_scene_to_file.call_deferred(LEVELS[n - 1].scene)
+						return
 	_sfx = Sfx.player(self, "dash", -6.0, 0.9)
 	var bg := ColorRect.new()
 	bg.color = Color(0.07, 0.075, 0.1)
