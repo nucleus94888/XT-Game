@@ -64,6 +64,9 @@ func _build_world() -> void:
 	# 池（可涉水）：水面抬高 3 公分，不然和地面同高會 z-fighting 閃爍
 	_box(Vector3(-9.0, -0.37, 8.0), Vector3(9.0, 0.8, 6.0), water, Vector3.ZERO, true, 0.2)
 	_box(Vector3(-9.0, 0.25, 8.0), Vector3(1.6, 0.3, 7.6), stone)                               # 石橋
+	# 水遁（第十二次議會，第二關主題「潛」）：石橋兩側的池子走進去就潛下（氣 8 秒）
+	_water(Vector3(-11.65, 0.0, 8.0), Vector3(3.6, 1.0, 5.8))
+	_water(Vector3(-6.35, 0.0, 8.0), Vector3(3.6, 1.0, 5.8))
 	for p in [Vector3(-13.8, 0.0, 11.2), Vector3(-4.2, 0.0, 4.8), Vector3(-5.0, 0.0, 11.5)]:
 		_box(p + Vector3(0.0, 0.35, 0.0), Vector3(1.2, 0.7, 0.9), stone.darkened(0.2))              # 庭石
 	_hut(11.0, 9.0, 4.0, 4.0, 2.4, 0.0, Color(0.78, 0.74, 0.66), thatch, "w", 1.0)              # 茶室

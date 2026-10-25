@@ -352,6 +352,12 @@ func _build() -> void:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	# 煙玉落下時正在出刀／硬直：收刀後再追丟
+	if _smoke_pending > 0.0:
+		_smoke_pending -= delta
+		if state == State.ALERT:
+			_smoke_pending = 0.0
+			smoke_lost(_smoke_pos)
 	_attack_cd -= delta
 	_stun_t -= delta
 	_posture_t -= delta
@@ -450,6 +456,12 @@ func _los() -> bool:
 	var space := get_world_3d().direct_space_state
 	var from := global_position + Vector3(0, 1.5, 0)
 	var to := _player.global_position + Vector3(0, 1.0, 0)
+	# 水遁中看不到；煙裡、或視線穿過煙也看不到（第十二次議會）
+	if _player.get("submerged") == true:
+		return false
+	for s in get_tree().get_nodes_in_group("smoke"):
+		if s.contains(to) or s.blocks(from, to):
+			return false
 	# 透明牆（只擋人和鉤繩）、被遮蔽層隱藏的屋頂／樓板：敵人的視線要穿過去
 	# （以前會被柵欄上方的透明牆擋住，造成「站在正前方也沒被發現」）
 	var ex: Array = [get_rid(), _player.get_rid()]
@@ -1051,7 +1063,7 @@ func take_hit(info: Dictionary) -> void:
 	# 武士架刀（隻狼式）：正面的刀全部擋下，輕重都一樣，只累積體幹（重擊累積較多）。
 	# 要傷到他：彈反他的攻擊讓他硬直、手裡劍／鉤繩、或把體幹打滿。
 	# 連擋第三刀立刻反擊（連按攻擊的下場）。
-	var sword_hit: bool = not info.get("shuriken", false) and not info.get("hook", false)
+	var sword_hit: bool = not info.get("shuriken", false) and not info.get("hook", false) and not info.get("bomb", false) and not info.get("fire", false)
 	var from_above: bool = info.get("from_above", false)
 	# 下劈：刀架不住頭頂。武士／武將架刀中有三分之一機率舉刀上頂，把你彈開
 	if from_above and _guard and (kind == Kind.SAMURAI or kind == Kind.TARGET) and randf() < 0.33:
@@ -1142,6 +1154,49 @@ func take_hit(info: Dictionary) -> void:
 	elif heavy and state != State.ATTACK:
 		state = State.STAGGER
 		_stun_t = 0.45
+
+
+## 被火燒到（fire.gd 每 0.6 秒呼叫）：掉血、往火外退開、不知道是誰放的 → 起疑搜索火源
+func burn(fire_pos: Vector3) -> void:
+	if state == State.DEAD:
+		return
+	if kind == Kind.LORD:
+		start_flee()
+		return
+	var away := global_position - fire_pos
+	away.y = 0.0
+	away = away.normalized() if away.length() > 0.01 else -_forward()
+	hp -= 8
+	_kb = away * 5.0
+	_flash_t = Feel.sec("hit_flash_ms")
+	_set_emission(Color(1.0, 0.5, 0.1), 2.5)
+	_bar_flash_t = 0.18
+	_bar_flash_color = Color(1.0, 0.5, 0.1)
+	_refresh_bar(true)
+	if hp <= 0:
+		_die(false)
+		return
+	if state in [State.IDLE, State.PATROL, State.SUSPICIOUS]:
+		_start_search(fire_pos)
+
+
+## 煙玉冒出來：正在追我的人追丟（改成搜索煙的位置）
+var _smoke_pending := 0.0
+var _smoke_pos := Vector3.ZERO
+
+
+func smoke_lost(pos: Vector3) -> void:
+	if state == State.DEAD or kind == Kind.LORD:
+		return
+	if state in [State.ATTACK, State.STAGGER]:
+		_smoke_pending = 2.0
+		_smoke_pos = pos
+	elif state == State.ALERT:
+		state = State.PATROL
+		_start_search(pos)
+		_detect = 0.6
+	elif state == State.SUSPICIOUS:
+		_start_search(pos)
 
 
 ## 我的刀被玩家普通格擋：刀彈回來、人被頂退半步、身體一震（不算硬直，攻擊照常收刀）

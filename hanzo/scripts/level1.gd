@@ -167,6 +167,15 @@ func _build_world() -> void:
 	_path_poly([Vector3(-6.0, T2, -12.0), Vector3(2.0, T2, -13.0), Vector3(8.0, T2, -16.5), Vector3(HX, T2, -17.5)], 2.4, gravel)
 	_hall()
 
+	# 油與火（第十二次議會，第一關主題「攻」）：
+	# 村落西農家後的稻草堆（燒起來把死巷口的哨兵引過來）、長屋旁的稻草堆（武士巡邏會經過）、
+	# 土藏東側的油壺（大火＋聲響，把守陣屋的人引出來）；第一台地西北角藏一顆焙烙玉
+	_straw(Vector3(-12.3, 0.0, 17.5), 70.0)
+	_straw(Vector3(-8.2, T1, -4.5), 8.0)
+	_oil_jar(Vector3(17.6, T2, -17.5))
+	_oil_jar(Vector3(16.8, T2, -18.6))
+	_bomb(Vector3(-19.8, T1, -11.5))
+
 	# 後門：殺了副將才開；大將逃跑時會先開再關
 	_gate("rear", REAR_GATE, 4.0, 2.4, true, wood)
 	_path_poly([Vector3(HX, T2, -26.5), Vector3(HX, T2, -35.5)], 2.4, gravel)
@@ -309,7 +318,7 @@ func _process(delta: float) -> void:
 			_auto_done["s4"] = true
 			print("STORY: target_dead=%s gate_open=%s exit_ready=%s" % [_target_dead, _gates["rear"].open, _exit_ready])
 			player.global_position = exit_pos + Vector3(0.0, 0.1, 0.0)
-		if _story_t > 10.0 and not _auto_done.has("s5"):
+		if _story_t > 9.2 and not _auto_done.has("s5"):
 			_auto_done["s5"] = true
 			print("STORY: finished=%s" % _finished)
 			get_tree().quit()

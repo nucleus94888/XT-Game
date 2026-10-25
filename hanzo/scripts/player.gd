@@ -224,10 +224,206 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 ## 攻擊鍵：刀模式按下即斬；手裡劍模式按住瞄準、放開射出
 func on_attack_down() -> void:
+	if submerged:
+		return
 	if weapon_mode == WEAPON_SHURIKEN:
 		_begin_aim(AIM_SHURIKEN)
+	elif weapon_mode == WEAPON_SMOKE:
+		throw_smoke()
 	else:
 		request_attack()
+
+
+# ---------------------------------------------------------------- 第十二次議會：煙玉、焙烙玉、情境鍵、水遁
+
+const WEAPON_SMOKE := 2
+const SMOKE_MAX := 2
+const BREATH_MAX := 8.0
+const SmokeScript := preload("res://scripts/smoke.gd")
+const FireScript2 := preload("res://scripts/fire.gd")
+signal smoke_changed(n: int)
+signal ctx_changed(label: String)
+var smoke := SMOKE_MAX
+## 手上拿著焙烙玉（一次性；情境鍵變「丟出」）
+var held_bomb := false
+## 水遁
+var submerged := false
+var breath := BREATH_MAX
+var _surface_lock := 0.0
+var _ctx: Node = null
+var _ctx_label := ""
+var _ripple: MeshInstance3D
+
+
+## 煙玉：腳下爆一團煙，7 秒擋住敵人視線（檢查點補滿 2 顆）
+func throw_smoke() -> void:
+	if smoke <= 0 or not state in [State.FREE, State.BLOCK]:
+		denied.emit("smoke")
+		return
+	smoke -= 1
+	smoke_changed.emit(smoke)
+	# 腳下爆煙（忍者遁術）：人在煙裡＝看不到，追兵追丟，趁 7 秒溜走
+	var s: Node3D = SmokeScript.new()
+	get_tree().current_scene.add_child(s)
+	s.global_position = global_position
+	Sfx.play(sfx_dash)
+	Feel.haptic(25)
+
+
+func refill_smoke() -> void:
+	smoke = SMOKE_MAX
+	smoke_changed.emit(smoke)
+
+
+func pickup_bomb() -> void:
+	held_bomb = true
+	Feel.haptic(30)
+	_update_ctx(true)
+
+
+## 丟焙烙玉：往前 6 公尺拋物線，落地爆炸（3 公尺內敵人重傷硬直、點著附近的稻草油壺、也會燙到太近的自己）
+func throw_bomb() -> void:
+	if not held_bomb or not state in [State.FREE, State.BLOCK]:
+		return
+	held_bomb = false
+	var f: Vector3 = cam_rig.forward() if cam_rig != null and cam_rig.has_method("forward") else _forward()
+	var from := global_position + Vector3(0, 1.4, 0)
+	var to := global_position + f * 6.0
+	# 落點：往下找地面
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(to + Vector3(0, 4, 0), to + Vector3(0, -8, 0), 1)
+	var hit := space.intersect_ray(q)
+	if not hit.is_empty():
+		to = hit.position
+	var ball := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.2
+	sm.height = 0.4
+	ball.mesh = sm
+	var bm := StandardMaterial3D.new()
+	bm.albedo_color = Color(0.15, 0.13, 0.12)
+	ball.material_override = bm
+	get_tree().current_scene.add_child(ball)
+	ball.global_position = from
+	var tw := ball.create_tween()
+	tw.tween_method(func(k: float) -> void:
+		ball.global_position = from.lerp(to, k) + Vector3(0, sin(k * PI) * 2.5, 0), 0.0, 1.0, 0.6)
+	tw.tween_callback(func() -> void:
+		_explode(ball.global_position)
+		ball.queue_free())
+	Sfx.play(sfx_swing)
+	_update_ctx(true)
+
+
+func _explode(at: Vector3) -> void:
+	Feel.shake(1.2)
+	Feel.hitstop(0.8)
+	Feel.flash(Color(1.0, 0.8, 0.4, 0.35), 0.25)
+	Feel.haptic(80)
+	get_tree().call_group("enemies", "hear_noise", at, 18.0)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Node3D
+		if en and en.global_position.distance_to(at) < 3.2 and e.has_method("take_hit") and e.get("state") != e.State.DEAD:
+			var d := en.global_position - at
+			d.y = 0.0
+			e.take_hit({"dmg": 40, "dir": d.normalized() if d.length() > 0.01 else Vector3.FORWARD, "kb": 8.0, "heavy": true, "pos": en.global_position + Vector3(0, 1, 0), "src": self, "bomb": true})
+	if global_position.distance_to(at) < 2.2:
+		var dd := global_position - at
+		dd.y = 0.0
+		take_hit({"dmg": 25, "dir": dd.normalized() if dd.length() > 0.01 else Vector3.BACK, "kb": 6.0, "heavy": true, "pos": global_position + Vector3(0, 1, 0), "src": self, "unblockable": true})
+	for n in get_tree().get_nodes_in_group("flammable"):
+		if n is Node3D and (n as Node3D).global_position.distance_to(at) < 3.8 and n.has_method("ignite"):
+			n.ignite()
+	var f: Node3D = FireScript2.new()
+	f.radius = 1.6
+	f.duration = 4.0
+	get_tree().current_scene.add_child(f)
+	f.global_position = at
+	_burst_spark(at + Vector3(0, 0.5, 0), Vector3.UP, 2.0)
+
+
+## 情境鍵：手上有焙烙玉＝丟出；否則找身邊最近、可互動的東西
+func _update_ctx(force: bool = false) -> void:
+	var label := ""
+	_ctx = null
+	if held_bomb:
+		label = "丟出"
+	else:
+		var best_d := 1e9
+		for n in get_tree().get_nodes_in_group("interactable"):
+			if not (n is Node3D) or not n.can_interact(self):
+				continue
+			var d := (n as Node3D).global_position - global_position
+			if absf(d.y) > 1.5:
+				continue
+			d.y = 0.0
+			var dist := d.length()
+			if dist < float(n.interact_radius()) and dist < best_d:
+				best_d = dist
+				_ctx = n
+		if _ctx:
+			label = String(_ctx.interact_label())
+	if label != _ctx_label or force:
+		_ctx_label = label
+		ctx_changed.emit(label)
+
+
+func interact() -> void:
+	if submerged:
+		return
+	if held_bomb:
+		throw_bomb()
+		return
+	if _ctx and is_instance_valid(_ctx) and _ctx.can_interact(self):
+		_ctx.interact(self)
+		Feel.haptic(20)
+	_update_ctx(true)
+
+
+## 水遁：站在深水區自動潛下；氣 8 秒；用完被迫浮上 3 秒
+func _update_water(delta: float) -> void:
+	var in_water := false
+	for w in get_tree().get_nodes_in_group("water"):
+		if w.contains(global_position):
+			in_water = true
+			break
+	_surface_lock -= delta
+	var want := in_water and _surface_lock <= 0.0 and state in [State.FREE, State.BLOCK, State.ATTACK, State.DASH]
+	if want and not submerged:
+		submerged = true
+		visual.visible = false
+		Sfx.play(sfx_dash)
+	elif not want and submerged:
+		submerged = false
+		visual.visible = true
+	if submerged:
+		breath -= delta
+		if breath <= 0.0:
+			breath = 0.0
+			_surface_lock = 3.0
+			submerged = false
+			visual.visible = true
+			Feel.haptic(50)
+	else:
+		breath = minf(breath + delta * 2.0, BREATH_MAX)
+	if _ripple == null:
+		_ripple = MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.45
+		tm.outer_radius = 0.55
+		_ripple.mesh = tm
+		var rm := StandardMaterial3D.new()
+		rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		rm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		rm.albedo_color = Color(0.8, 0.9, 1.0, 0.6)
+		_ripple.material_override = rm
+		_ripple.position = Vector3(0, 0.3, 0)
+		add_child(_ripple)
+	_ripple.visible = submerged
+	if submerged:
+		var k := fmod(Time.get_ticks_msec() * 0.0015, 1.0)
+		_ripple.scale = Vector3.ONE * (0.6 + k * 0.9)
+		(_ripple.material_override as StandardMaterial3D).albedo_color.a = 0.7 * (1.0 - k)
 
 
 func on_attack_up() -> void:
@@ -245,8 +441,9 @@ func on_hook_up() -> void:
 		_release_aim()
 
 
+## 換武器：刀 → 手裡劍 → 煙玉 → 刀
 func toggle_weapon() -> void:
-	weapon_mode = WEAPON_SHURIKEN if weapon_mode == WEAPON_SWORD else WEAPON_SWORD
+	weapon_mode = (weapon_mode + 1) % 3
 	weapon_changed.emit(weapon_mode)
 
 
@@ -888,6 +1085,7 @@ func refresh_progress() -> void:
 func refill_shuriken() -> void:
 	shuriken = Progress.shuriken_max()
 	shuriken_changed.emit(shuriken)
+	refill_smoke()
 
 
 ## 撿回射出的手裡劍
@@ -1015,7 +1213,7 @@ func _after_action() -> State:
 
 
 func _tick_block(delta: float, input: Vector3) -> void:
-	var dir := input
+	var dir := input * (0.5 if submerged else 1.0)
 	velocity.x = move_toward(velocity.x, dir.x * SPEED * 0.3, ACCEL * delta)
 	velocity.z = move_toward(velocity.z, dir.z * SPEED * 0.3, ACCEL * delta)
 	_face_input(input, false)
@@ -1090,6 +1288,8 @@ func _watchdog(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	_watchdog(delta)
 	_update_light_disc(delta)
+	_update_water(delta)
+	_update_ctx()
 	var input := _read_input()
 	match state:
 		State.FREE:
@@ -1166,7 +1366,7 @@ func _tick_free(delta: float, input: Vector3) -> void:
 	if aim_mode != AIM_NONE:
 		_tick_aim(delta)
 		return
-	var dir := input
+	var dir := input * (0.5 if submerged else 1.0)
 	velocity.x = move_toward(velocity.x, dir.x * SPEED, ACCEL * delta)
 	velocity.z = move_toward(velocity.z, dir.z * SPEED, ACCEL * delta)
 	_face_input(input, false)

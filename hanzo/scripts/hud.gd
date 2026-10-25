@@ -122,7 +122,14 @@ func attach(player: Node, cam_rig: Node) -> void:
 	touch.hook_up.connect(player.on_hook_up)
 	touch.weapon_toggle.connect(player.toggle_weapon)
 	player.weapon_changed.connect(func(m: int) -> void:
-		touch.weapon_label = "劍" if m == 1 else "刀")
+		touch.weapon_label = ["刀", "劍", "煙"][clampi(m, 0, 2)])
+	touch.ctx_pressed.connect(player.interact)
+	player.ctx_changed.connect(touch.set_ctx)
+	player.smoke_changed.connect(func(n: int) -> void:
+		touch.smoke_count = n)
+	touch.smoke_count = player.smoke
+	_pl = player
+	_build_breath()
 	touch.dash_pressed.connect(player.request_dash)
 	touch.block_changed.connect(player.set_block)
 	player.shuriken_changed.connect(func(n: int) -> void:
@@ -567,7 +574,50 @@ func curtain(dur: float) -> void:
 	_flash_tw.tween_property(flash, "color:a", 0.0, dur)
 
 
+## 水遁的氣息條：潛水中／氣沒滿才出現，畫面上方中央一條藍色細條（快沒氣變紅閃）
+var _pl: Node = null
+var _breath: ProgressBar
+
+
+func _build_breath() -> void:
+	_breath = ProgressBar.new()
+	_breath.show_percentage = false
+	_breath.max_value = 1.0
+	_breath.step = 0.0
+	_breath.custom_minimum_size = Vector2(180, 10)
+	_breath.size = Vector2(180, 10)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0, 0, 0, 0.45)
+	bg.set_corner_radius_all(5)
+	var fg := StyleBoxFlat.new()
+	fg.bg_color = Color(0.45, 0.8, 1.0)
+	fg.set_corner_radius_all(5)
+	_breath.add_theme_stylebox_override("background", bg)
+	_breath.add_theme_stylebox_override("fill", fg)
+	_breath.visible = false
+	add_child(_breath)
+
+
+func _update_breath() -> void:
+	if _pl == null or _breath == null:
+		return
+	var b: float = _pl.get("breath")
+	var mx: float = _pl.BREATH_MAX
+	var show: bool = _pl.get("submerged") == true or b < mx - 0.01
+	_breath.visible = show
+	if not show:
+		return
+	var vr := get_viewport().get_visible_rect().size
+	_breath.position = Vector2((vr.x - _breath.size.x) / 2.0, vr.y * 0.18)
+	_breath.value = b / mx
+	var low := b < 2.5
+	var fg := _breath.get_theme_stylebox("fill") as StyleBoxFlat
+	fg.bg_color = Color(1.0, 0.35, 0.3) if low else Color(0.45, 0.8, 1.0)
+	_breath.modulate.a = (0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.02)) if low else 1.0
+
+
 func _process(delta: float) -> void:
+	_update_breath()
 	if _combo_t > 0.0:
 		_combo_t -= delta
 		if _combo_t <= 0.0:

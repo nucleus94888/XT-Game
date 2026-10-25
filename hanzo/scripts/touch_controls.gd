@@ -11,6 +11,8 @@ signal block_changed(on: bool)
 signal hook_down
 signal hook_up
 signal weapon_toggle
+## 情境鍵（靠近可互動的東西才出現：放火／點燃／撿起／割斷／丟出）
+signal ctx_pressed
 ## 右側空白處拖曳：轉視角（螢幕像素位移）
 signal look_delta(delta: Vector2)
 
@@ -21,6 +23,12 @@ const DASH_R := 38.0
 const BLOCK_R := 38.0
 const HOOK_R := 36.0
 const SWAP_R := 19.0
+const CTX_R := 34.0
+## 情境鍵文字（空字串＝不顯示）；煙玉數量
+var ctx_label := ""
+var smoke_count := 0
+var _ctx_flash := 0.0
+var _ctx_pop := 0.0
 ## 計數器（手裡劍數量）變動時彈一下
 var _count_pop := 0.0
 
@@ -90,6 +98,13 @@ func _hook_center() -> Vector2:
 	if _portrait():
 		return _mx(Vector2(size.x - 195.0, size.y - 205.0))
 	return _mx(Vector2(size.x - 246.0, size.y - 198.0))
+
+
+## 情境鍵：菱形鍵位的上方（直立／橫放都不壓到搖桿區）
+func _ctx_center() -> Vector2:
+	if _portrait():
+		return _mx(Vector2(size.x - 140.0, size.y - 345.0))
+	return _mx(Vector2(size.x - 178.0, size.y - 330.0))
 
 
 ## 「換」：攻擊鍵右上角的小徽章（壓在大圓邊上），直立橫放都一樣
@@ -197,6 +212,12 @@ func _unhandled_input(ev: InputEvent) -> void:
 				_btn_last.erase(t.index)
 			if _blocked(t.position):
 				return
+			if ctx_label != "" and t.position.distance_to(_ctx_center()) < CTX_R * 1.35:
+				_btn_touch[t.index] = "ctx"
+				_ctx_flash = 1.0
+				ctx_pressed.emit()
+				get_viewport().set_input_as_handled()
+				return
 			if t.position.distance_to(_swap_center()) < SWAP_R * 1.4:
 				_btn_touch[t.index] = "swap"
 				weapon_toggle.emit()
@@ -291,6 +312,8 @@ func _process(delta: float) -> void:
 	_dash_flash = maxf(_dash_flash - delta * 5.0, 0.0)
 	_hook_flash = maxf(_hook_flash - delta * 5.0, 0.0)
 	_count_pop = maxf(_count_pop - delta * 3.0, 0.0)
+	_ctx_flash = maxf(_ctx_flash - delta * 5.0, 0.0)
+	_ctx_pop = maxf(_ctx_pop - delta * 4.0, 0.0)
 	_watchdog()
 	# 每幀重繪：按鍵文字、準心、冷卻倒數都在 _draw 裡算，少了這行畫面就停在上一次有人叫重繪的那一幀
 	queue_redraw()
@@ -335,11 +358,17 @@ func _draw() -> void:
 	# 攻擊（刀＝紅；手裡劍＝紫，顯示數量）
 	var ac := _atk_center()
 	var shuriken := weapon_label == "劍"
+	var smoke := weapon_label == "煙"
 	var acol := Color(0.45, 0.3, 0.6, 0.6 + 0.35 * _atk_flash) if shuriken else Color(0.72, 0.14, 0.12, 0.55 + 0.4 * _atk_flash)
+	if smoke:
+		acol = Color(0.45, 0.47, 0.5, 0.6 + 0.35 * _atk_flash)
 	draw_circle(ac, ATK_R, acol)
 	draw_arc(ac, ATK_R, 0.0, TAU, 64, Color(1, 0.92, 0.85, 0.9), 3.0, true)
 	if font:
-		if shuriken:
+		if smoke:
+			draw_string(font, ac + Vector2(-ATK_R, 6.0), "煙玉", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 26, Color(1, 1, 1, 0.95 if smoke_count > 0 else 0.4))
+			draw_string(font, ac + Vector2(-ATK_R, 30.0), "×%d" % smoke_count, HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 15, Color(1, 1, 0.85, 0.9))
+		elif shuriken:
 			var cs := 15 + int(8.0 * _count_pop)
 			draw_string(font, ac + Vector2(-ATK_R, 6.0), "手裡劍", HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, 24, Color(1, 1, 1, 0.95))
 			draw_string(font, ac + Vector2(-ATK_R, 30.0), "×%d" % shuriken_count, HORIZONTAL_ALIGNMENT_CENTER, ATK_R * 2.0, cs, Color(1, 1, 0.8 + 0.2 * (1.0 - _count_pop), 0.9))
@@ -349,10 +378,15 @@ func _draw() -> void:
 	var sc := _swap_center()
 	draw_circle(sc, SWAP_R, Color(0.9, 0.9, 0.92, 0.85))
 	draw_arc(sc, SWAP_R, 0.0, TAU, 32, Color(1, 1, 1, 0.9), 1.5, true)
-	if shuriken:
+	if smoke:
 		# 小刀：一條斜線＋短護手
 		draw_line(sc + Vector2(-7, 7), sc + Vector2(7, -7), Color(0.15, 0.15, 0.2), 2.5)
 		draw_line(sc + Vector2(-5, -1), sc + Vector2(0, 4), Color(0.15, 0.15, 0.2), 2.0)
+	elif shuriken:
+		# 小煙玉：三團灰圓
+		draw_circle(sc + Vector2(-4, 3), 5.0, Color(0.35, 0.35, 0.4))
+		draw_circle(sc + Vector2(4, 3), 5.0, Color(0.35, 0.35, 0.4))
+		draw_circle(sc + Vector2(0, -4), 5.5, Color(0.35, 0.35, 0.4))
 	else:
 		# 小手裡劍：四芒
 		for i in range(4):
@@ -381,3 +415,20 @@ func _draw() -> void:
 	draw_arc(bc, BLOCK_R, 0.0, TAU, 48, Color(0.85, 1, 0.9, 0.9), 2.5, true)
 	if font:
 		draw_string(font, bc + Vector2(-BLOCK_R, 8.0), "格擋", HORIZONTAL_ALIGNMENT_CENTER, BLOCK_R * 2.0, 24, Color(1, 1, 1, 0.95))
+	# 情境鍵：靠近才出現，金色、外圈呼吸
+	if ctx_label != "":
+		var cc := _ctx_center()
+		var r := CTX_R * (1.0 + 0.25 * _ctx_pop)
+		var breathe := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.006)
+		draw_circle(cc, r, Color(0.85, 0.6, 0.15, 0.6 + 0.35 * _ctx_flash))
+		draw_arc(cc, r + 3.0 + 3.0 * breathe, 0.0, TAU, 48, Color(1, 0.9, 0.5, 0.35 + 0.4 * breathe), 2.5, true)
+		draw_arc(cc, r, 0.0, TAU, 48, Color(1, 0.95, 0.8, 0.95), 2.5, true)
+		if font:
+			draw_string(font, cc + Vector2(-r, 9.0), ctx_label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 24, Color(1, 1, 1, 0.97))
+
+
+## 情境鍵文字變了：出現時彈一下
+func set_ctx(label: String) -> void:
+	if label != ctx_label and label != "":
+		_ctx_pop = 1.0
+	ctx_label = label

@@ -129,7 +129,7 @@ func _parse_args() -> void:
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_shot_dir))
 		var scripted := false
 		for a in _extra_args:
-			if a == "--walk" or a.begins_with("--tour="):
+			if a == "--walk" or a == "--props" or a.begins_with("--tour="):
 				scripted = true
 		if not scripted:
 			get_tree().create_timer(1.0).timeout.connect(func() -> void:
@@ -159,6 +159,8 @@ var _tour_i := 0
 func _process(delta: float) -> void:
 	if not _finished and not _dead:
 		_time += delta
+	if _extra_args.has("--props"):
+		_props_test(delta)
 	# 巡迴截圖：--tour=x,y,z;x,y,z… 把半藏傳送到每個點各拍一張（AI 看關卡用）
 	if _tour.is_empty():
 		for a in _extra_args:
@@ -264,6 +266,11 @@ func _physics_process(_delta: float) -> void:
 		if l.lights(player.global_position):
 			lit = true
 			break
+	if not lit:
+		for f in get_tree().get_nodes_in_group("fires"):
+			if f.lights(player.global_position):
+				lit = true
+				break
 	player.in_light = lit
 	_update_covers()
 	_update_hunt()
@@ -673,6 +680,137 @@ func _scroll(pos: Vector3, id: String) -> void:
 	s.id = id
 	add_child(s)
 	s.global_position = pos
+
+
+## 第十二次議會的關卡道具：油壺、稻草堆、焙烙玉、警鈴繩、水遁區
+const PropScript := preload("res://scripts/props.gd")
+const BellWireScript := preload("res://scripts/bell_wire.gd")
+const WaterScript := preload("res://scripts/water.gd")
+
+
+func _prop(kind: String, pos: Vector3, yaw_deg: float = 0.0) -> Node3D:
+	var p: Node3D = PropScript.new()
+	p.kind = kind
+	add_child(p)
+	p.global_position = pos
+	p.rotation.y = deg_to_rad(yaw_deg)
+	return p
+
+
+func _oil_jar(pos: Vector3) -> Node3D:
+	return _prop("oil", pos)
+
+
+func _straw(pos: Vector3, yaw_deg: float = 0.0) -> Node3D:
+	return _prop("straw", pos, yaw_deg)
+
+
+func _bomb(pos: Vector3) -> Node3D:
+	return _prop("bomb", pos)
+
+
+func _bell_wire(a: Vector3, b: Vector3) -> Node3D:
+	var w: Node3D = BellWireScript.new()
+	w.a = a
+	w.b = b
+	add_child(w)
+	return w
+
+
+func _water(center: Vector3, size: Vector3) -> Node3D:
+	var w: Node3D = WaterScript.new()
+	w.size = size
+	add_child(w)
+	w.global_position = center
+	return w
+
+
+## 道具自動測試：--props  每種可互動道具依序：傳送到旁邊 → 看情境鍵文字 → 按下 → 印結果
+## （第二關另測水遁、煙玉；有 --shot 時每步拍一張）
+var _pt := 0.0
+var _pstep := 0
+var _pqueue: Array = []
+
+
+func _props_test(delta: float) -> void:
+	_pt += delta
+	if _pstep == 0 and _pt > 1.0:
+		_pstep = 1
+		for n in get_tree().get_nodes_in_group("interactable"):
+			_pqueue.append(n)
+		for w in get_tree().get_nodes_in_group("water"):
+			_pqueue.append(w)
+		_pqueue.append("smoke")
+		print("PROPS: %d items" % _pqueue.size())
+		_pt = 0.0
+		return
+	if _pstep == 1:
+		if _pqueue.is_empty():
+			print("PROPS: done hp=%d" % player.hp)
+			get_tree().quit()
+			return
+		if _pt < 0.1:
+			return
+		var it = _pqueue[0]
+		if it is String:
+			var e := _nearest_enemy_alive()
+			if e:
+				player.global_position = e.global_position + Vector3(0, 0.2, 4.0)
+				e._go_alert()
+		elif not is_instance_valid(it):
+			pass
+		elif it.is_in_group("water"):
+			player.global_position = (it as Node3D).global_position + Vector3(0, 0.3, 0)
+		else:
+			var at := (it as Node3D).global_position + Vector3(float(it.interact_radius()) * 0.7, 0.3, 0.0)
+			if it.get("a") is Vector3:
+				at = ((it.a + it.b) / 2.0) + Vector3(0.6, 0.3, 0.6)
+			player.global_position = at
+		_pstep = 2
+		_pt = 0.0
+	elif _pstep == 2 and _pt > 0.5:
+		var it = _pqueue[0]
+		if it is String:
+			player.weapon_mode = 2
+			player.on_attack_down()
+			print("PROPS: smoke left=%d smokes=%d state=%d" % [player.smoke, get_tree().get_nodes_in_group("smoke").size(), player.state])
+		if it is String:
+			var e := _nearest_enemy_alive()
+			print("PROPS: after smoke enemy state=%s" % (Enemy.State.keys()[e.state] if e else "-"))
+		elif is_instance_valid(it) and it.is_in_group("water"):
+			print("PROPS: water submerged=%s breath=%.1f visible=%s" % [player.submerged, player.breath, player.visual.visible])
+			_shot("props_water")
+		elif is_instance_valid(it):
+			print("PROPS: %s ctx='%s' rung=%s" % [it.get("kind") if it.get("kind") else "bell", player._ctx_label, it.get("rung")])
+			_pstep = 3
+			_pt = 0.0
+			await _shot("props_%s_before" % str(_pqueue.size()))
+			player.interact()
+			if player.held_bomb:
+				print("PROPS: holding bomb, ctx='%s'" % player._ctx_label)
+				player.interact()
+		_pstep = 3
+		_pt = 0.0
+	elif _pstep == 3 and _pt > 2.2:
+		var ne := _nearest_enemy_alive()
+		print("PROPS:   fires=%d in_light=%s hp=%d nearest=%s" % [get_tree().get_nodes_in_group("fires").size(), player.in_light, player.hp, Enemy.State.keys()[ne.state] if ne else "-"])
+		_shot("props_smoke" if _pqueue[0] is String else "props_%s_after" % str(_pqueue.size()))
+		player.hp = player.max_hp
+		_pqueue.pop_front()
+		_pstep = 1
+		_pt = 0.0
+
+
+func _nearest_enemy_alive() -> Enemy:
+	var best: Enemy = null
+	var bd := 1e9
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.state != Enemy.State.DEAD and e.kind != Enemy.Kind.LORD:
+			var d: float = e.global_position.distance_to(player.global_position)
+			if d < bd:
+				bd = d
+				best = e
+	return best
 
 
 ## 會亮的燈籠（可用手裡劍熄滅）

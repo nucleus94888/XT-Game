@@ -47,7 +47,9 @@ await down(...px(P.hook)); await sleep(700); await shot('3-hook-hold');
 await up(); await sleep(800); await shot('4-hook-release');
 await down(...px(P.atk)); await sleep(700); await shot('5-attack-hold');
 await up(); await sleep(800); await shot('6-attack-release');
-await tap(...px(P.swap)); await sleep(600); await shot('7-swap-back');
+await tap(...px(P.swap)); await sleep(600); await shot('7-swap-smoke');
+await tap(...px(P.atk)); await sleep(900); await shot('8-smoke-thrown');
+await tap(...px(P.swap)); await sleep(600); await shot('9-swap-back');
 
 console.log(log.length ? `console 問題 ${log.length} 筆：\n` + [...new Set(log)].slice(0, 30).join('\n') : 'console 無錯誤');
 await browser.close();
