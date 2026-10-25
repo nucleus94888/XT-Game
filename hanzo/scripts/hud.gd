@@ -110,6 +110,11 @@ func attach(player: Node, cam_rig: Node) -> void:
 	_cam = cam_rig
 	compass.player = player
 	player.touch = touch
+	# 鉤點畫面記號：畫在按鍵下面
+	var marks: Control = preload("res://scripts/hook_marks.gd").new()
+	marks.player = player
+	touch.get_parent().add_child(marks)
+	touch.get_parent().move_child(marks, touch.get_index())
 	player.cam_rig = cam_rig
 	touch.look_delta.connect(cam_rig.look)
 	player.posture_changed.connect(set_posture)

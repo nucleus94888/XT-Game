@@ -84,6 +84,22 @@ func _build_world() -> void:
 
 	# 屋敷
 	_mansion(wood, dark_wood, roof, tatami)
+	# 鉤點（第十三次議會：鉤繩只能鉤發光鉤點）
+	_hook_point(Vector3(0.0, F2, -23.6))            # 北側露台（從後院潛入）
+	_hook_point(Vector3(0.0, F2 + 4.6, -16.75))     # 後段屋脊（殺了大將後撤離）
+	_hook_point(Vector3(9.6, 2.9, 9.0))             # 茶室西側屋簷（弓兵在屋脊上）
+	_hook_point(Vector3(-10.0, 3.75, -2.6))         # 前段屋頂西側屋簷（從庭園翻上去，繞過正門）
+	_landmark_pagoda(Vector3(34.0, 0.0, -42.0))
+	_decision("決一", Vector3(0.0, 0.0, 6.0), [
+		{"name": "正門", "pts": [Vector3(0, 0, 6), Vector3(0, 0, -0.5), Vector3(0, F1, -3), Vector3(0, F1, -9)]},
+		{"name": "前屋頂", "pts": [Vector3(0, 0, 6), Vector3(-10, 0, 3), Vector3(-10, 3.75, -2.6), Vector3(-12, F1, -12), Vector3(-7, F1, -13)]},
+		{"name": "茶室", "pts": [Vector3(0, 0, 6), Vector3(6.5, 0, 9.5), Vector3(9.6, 2.9, 9.0), Vector3(13, 0, 2), Vector3(14, F1, -13)]},
+		{"name": "後院露台", "pts": [Vector3(0, 0, 6), Vector3(-17, 0, 1), Vector3(-17, 0, -27), Vector3(0, 0, -28), Vector3(0, F2, -23.6), Vector3(0, F2, -21)]},
+	])
+	_decision("撤離", Vector3(0.0, F2, -22.0), [
+		{"name": "露台上屋脊", "pts": [Vector3(0, F2, -21), Vector3(0, F2, -23.8), Vector3(0, F2 + 4.6, -16.75)]},
+		{"name": "下樓繞前屋頂", "pts": [Vector3(0, F2, -21), Vector3(10.5, F2, -10.5), Vector3(10.5, F1, -4), Vector3(0, 0, 1), Vector3(-10, 0, 3), Vector3(-10, 3.75, -2.6), Vector3(0, F2 + 4.6, -16.75)]},
+	])
 	_lantern(Vector3(-3.0, 0.0, -1.0))
 	_lantern(Vector3(3.0, 0.0, -1.0))
 

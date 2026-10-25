@@ -125,7 +125,7 @@ func _build_world() -> void:
 	_tree(Vector3(19.0, 0.0, 8.0), 1.1)
 	_lantern(Vector3(-4.0, 0.0, 22.0))
 	_lantern(Vector3(7.0, 0.0, 12.0))
-	_lantern(Vector3(-12.0, 0.0, 11.0))
+	_lantern(Vector3(-8.5, 0.0, 16.8))   # 西農家門口（西石階那邊是暗的）
 	_lantern(Vector3(13.0, 0.0, 30.0))
 	# 西邊死巷：農家後面一條窄路，盡頭有口糧
 	_fence_poly([Vector3(-14.5, 0.0, 18.0), Vector3(-15.0, 0.0, 10.5)], 1.6, palisade, 14.0)
@@ -142,9 +142,9 @@ func _build_world() -> void:
 	_group_end()
 	_tree(Vector3(-19.5, T1, -3.0), 0.9)
 	_tree(Vector3(-2.0, T1, -13.5), 0.8)
-	_lantern(Vector3(-5.0, T1, -2.0))
+	# 燈只點在練兵場和西北角：長屋東側是暗的（屋頂路線），石階頂另有一盞（正面路線在燈下）
+	_lantern(Vector3(-1.5, T1, 0.8))
 	_lantern(Vector3(-17.0, T1, -14.5))
-	_lantern(Vector3(-8.0, T1, -12.0))
 
 	# 第二台地：土藏（兩層高，斜放）、陣幕、燈籠、松；本陣在東北角
 	_group_begin(Vector3(14.0, T2, -12.0), -12.0)
@@ -161,6 +161,7 @@ func _build_world() -> void:
 	_tree(Vector3(0.0, T2, -30.0), 0.9)
 	_tree(Vector3(-1.5, T2, -22.0), 0.8)
 	_lantern(Vector3(1.5, T2, -10.0))
+	_lantern(Vector3(-3.8, T2, -9.6))   # 石階頂：走階梯就是走在燈下（不想被看見就走長屋屋頂或台地鉤點）
 	_lantern(Vector3(19.0, T2, -16.0))
 	_lantern(Vector3(4.0, T2, -25.0))
 	_lantern(Vector3(19.5, T2, -25.0))
@@ -175,6 +176,30 @@ func _build_world() -> void:
 	_oil_jar(Vector3(17.6, T2, -17.5))
 	_oil_jar(Vector3(16.8, T2, -18.6))
 	_bomb(Vector3(-19.8, T1, -11.5))
+
+	# 鉤點（第十三次議會：鉤繩只能鉤發光鉤點）：每個高處都是一條要選的路，而不是哪裡都能鉤
+	_hook_point(Vector3(4.6, 5.0, 3.6))           # 櫓頂（弓兵、卷軸）
+	_hook_point(Vector3(-1.5, T1, 2.8))           # 村落 → 第一台地東南角（不走石階的捷徑，但正對武士巡邏）
+	_hook_point(Vector3(-11.7, T1 + 3.3, -8.2))   # 長屋東側屋簷（從上面繞過武士）
+	_hook_point(Vector3(-2.4, T2, -16.2))         # 第一台地北角 → 第二台地西緣暗處（避開階梯口的燈與哨兵）
+	_hook_point(Vector3(12.4, T2 + 4.9, -12.3))   # 土藏西側屋簷（俯瞰陣屋）
+	_hook_point(Vector3(HX, HALL_Y + 4.6, HZ))    # 陣屋屋脊（從屋頂下劈副將）
+	_landmark_pagoda(Vector3(-34.0, 0.0, -44.0))
+	_decision("決一", Vector3(-3.0, 0.0, 10.0), [
+		{"name": "西石階", "pts": [Vector3(-3, 0, 10), Vector3(-12, 0, 9), Vector3(-14, 0, 8.5), Vector3(-14, T1, 3.5), Vector3(-9, T1, -2)]},
+		{"name": "東石階", "pts": [Vector3(-3, 0, 10), Vector3(1, 0, 8.5), Vector3(1, T1, 3.5), Vector3(-9, T1, -2)]},
+		{"name": "鉤點", "pts": [Vector3(-3, 0, 10), Vector3(-1.5, 0, 7.5), Vector3(-1.5, T1, 2.8), Vector3(-9, T1, -2)]},
+	])
+	_decision("決二", Vector3(-9.0, T1, -2.0), [
+		{"name": "石階", "pts": [Vector3(-9, T1, -2), Vector3(-10.5, T1, -12), Vector3(-4, T2, -12), Vector3(-1, T2, -17.5)]},
+		{"name": "長屋屋頂", "pts": [Vector3(-9, T1, -2), Vector3(-8.5, T1, -6), Vector3(-11.7, T1 + 3.3, -8.2), Vector3(-2.4, T2, -16.2), Vector3(-1, T2, -17.5)]},
+		{"name": "台地鉤點", "pts": [Vector3(-9, T1, -2), Vector3(-6.5, T1, -14.5), Vector3(-2.4, T2, -16.2), Vector3(-1, T2, -17.5)]},
+	])
+	_decision("決三", Vector3(4.0, T2, -14.0), [
+		{"name": "正面", "pts": [Vector3(4, T2, -14), Vector3(8, T2, -16.5), Vector3(12, HALL_Y, -18)]},
+		{"name": "土藏屋頂", "pts": [Vector3(4, T2, -14), Vector3(8.5, T2, -10.5), Vector3(12.4, T2 + 4.9, -12.3), Vector3(HX, HALL_Y + 4.6, HZ)]},
+		{"name": "後門繞", "pts": [Vector3(4, T2, -14), Vector3(2, T2, -27), Vector3(9, T2, -29), Vector3(12, HALL_Y, -25.5)]},
+	])
 
 	# 後門：殺了副將才開；大將逃跑時會先開再關
 	_gate("rear", REAR_GATE, 4.0, 2.4, true, wood)
@@ -230,7 +255,8 @@ func _spawn_enemies() -> void:
 	# 櫓上的弓兵（卷軸也在上面）
 	_spawn(Enemy.Kind.ARCHER, Vector3(4.0, 5.0, 3.0), [], Vector3(-1.0, 0.0, 0.3))
 	# 第一台地：武士繞長屋巡邏
-	_spawn(Enemy.Kind.SAMURAI, Vector3(-9.0, T1, -3.0), [Vector3(-9.0, T1, -3.0), Vector3(-4.0, T1, -10.0), Vector3(-15.0, T1, -14.0), Vector3(-19.0, T1, -5.0)])
+	# 武士繞長屋北邊、經過石階口（看守上第二台地的階梯；長屋東側屋頂那條就是暗路）
+	_spawn(Enemy.Kind.SAMURAI, Vector3(-17.5, T1, -3.0), [Vector3(-17.5, T1, -3.0), Vector3(-17.5, T1, -13.5), Vector3(-9.0, T1, -14.0), Vector3(-6.5, T1, -11.0), Vector3(-9.0, T1, -14.0), Vector3(-17.5, T1, -13.5)])
 	# 第二台地：階梯口哨兵、練兵場巡邏
 	_spawn(Enemy.Kind.ASHIGARU, Vector3(-1.0, T2, -12.0), [], Vector3(-1.0, 0.0, 0.0))
 	_spawn(Enemy.Kind.ASHIGARU, Vector3(8.0, T2, -13.0), [Vector3(8.0, T2, -13.0), Vector3(2.0, T2, -27.0), Vector3(17.0, T2, -29.0)])

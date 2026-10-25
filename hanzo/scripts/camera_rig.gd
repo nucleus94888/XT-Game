@@ -273,6 +273,10 @@ func _process(delta: float) -> void:
 	var look_at_p := global_position + orbit_look.lerp(shoulder_look, k) + _kick * 0.5
 	cam.look_at(look_at_p, Vector3.UP)
 	cam.rotate_object_local(Vector3(0.0, 0.0, 1.0), roll)
-	cam.fov = lerpf(_base_fov, 42.0, k)
+	# 直立手機：鏡頭固定垂直視角，水平只剩 27°（決定點兩側的巷子、屋簷鉤點全在畫面外）。
+	# 直立時視角放大 1.33 倍（水平約 37°），再大就變魚眼
+	var vs := get_viewport().get_visible_rect().size
+	var pk := 1.33 if vs.y > vs.x * 1.2 else 1.0
+	cam.fov = lerpf(_base_fov * pk, 42.0 * pk, k)
 	_trauma = maxf(_trauma - _decay * real_dt, 0.0)
 	_kick = _kick.lerp(Vector3.ZERO, 1.0 - exp(-14.0 * real_dt))

@@ -9,6 +9,8 @@ const FireScript := preload("res://scripts/fire.gd")
 
 var kind := "oil"
 var used := false
+## kind = "latch"（門閂）：拉開時呼叫（第十三次議會的捷徑門）
+var on_use: Callable
 var _body: StaticBody3D
 var _mesh_root: Node3D
 var _t := 0.0
@@ -16,7 +18,7 @@ var _t := 0.0
 
 func _ready() -> void:
 	add_to_group("interactable")
-	if kind != "bomb":
+	if kind != "bomb" and kind != "latch":
 		add_to_group("flammable")
 	_mesh_root = Node3D.new()
 	add_child(_mesh_root)
@@ -30,6 +32,10 @@ func _ready() -> void:
 			for i in range(3):
 				_box(Vector3(1.6, 0.6, 1.0), Color(0.62, 0.52, 0.25), Vector3(0, 0.3 + i * 0.6, 0), Vector3(0, i * 12.0, 0))
 			_solid(Vector3(1.8, 1.8, 1.2), Vector3(0, 0.9, 0))
+		"latch":
+			_box(Vector3(1.6, 0.18, 0.18), Color(0.4, 0.28, 0.16), Vector3(0, 1.1, 0))
+			_box(Vector3(0.12, 0.5, 0.3), Color(0.25, 0.25, 0.27), Vector3(-0.6, 1.1, 0))
+			_box(Vector3(0.12, 0.5, 0.3), Color(0.25, 0.25, 0.27), Vector3(0.6, 1.1, 0))
 		"bomb":
 			_sphere(0.22, Color(0.15, 0.13, 0.12), Vector3(0, 0.3, 0))
 			_box(Vector3(0.05, 0.18, 0.05), Color(0.9, 0.7, 0.3), Vector3(0, 0.55, 0))  # 引信
@@ -67,6 +73,7 @@ func interact_label() -> String:
 		"oil": return "放火"
 		"straw": return "點燃"
 		"bomb": return "撿起"
+		"latch": return "拉開"
 	return ""
 
 
@@ -80,6 +87,17 @@ func interact(p: Node) -> void:
 	match kind:
 		"oil", "straw":
 			_light_fuse()
+		"latch":
+			used = true
+			remove_from_group("interactable")
+			var ring0 := get_node_or_null("Ring")
+			if ring0:
+				ring0.queue_free()
+			var tw := create_tween()
+			tw.tween_property(_mesh_root, "position:y", 0.8, 0.3)
+			tw.parallel().tween_property(_mesh_root, "rotation:z", 1.2, 0.3)
+			if on_use.is_valid():
+				on_use.call()
 		"bomb":
 			used = true
 			if p.has_method("pickup_bomb"):

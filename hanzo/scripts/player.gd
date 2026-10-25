@@ -599,12 +599,23 @@ func _tick_aim(delta: float) -> void:
 	_aim_head = lock.head
 	aim_status = "lock" if _aim_target else ""
 	if aim_mode == AIM_HOOK and _aim_target == null:
-		var r := _hook_probe_ray(origin, dir)
-		_hook_ok = r.ok
-		_hook_pos = r.pos
+		if get_tree().get_first_node_in_group("hook_points") != null:
+			# 鉤點制：自動吸附畫面前方最近的鉤點（觸控不用精準瞄屋簷）
+			var hp = _pick_hook_point(origin, dir)
+			_set_hook_highlight(hp)
+			_hook_ok = hp != null
+			_hook_pos = hp.land_pos() + Vector3(0.0, 0.05, 0.0) if hp else origin + dir * 8.0
+			aim_status = "lock" if hp else ""
+		else:
+			var r := _hook_probe_ray(origin, dir)
+			_hook_ok = r.ok
+			_hook_pos = r.pos
+	elif _hook_hl != null:
+		_set_hook_highlight(null)
 
 
 func _release_aim() -> void:
+	_set_hook_highlight(null)
 	var kind := aim_mode
 	aim_mode = AIM_NONE
 	aim_status = ""
@@ -677,6 +688,62 @@ func _ray_visible(from: Vector3, to: Vector3, mask: int) -> Dictionary:
 
 
 ## 鉤繩落點（準心射線）：打到頂面直接落在那裡（可上可下，不能同高度平移）；打到牆面就往上找牆頂
+## 鉤點吸附：射程內、準心前方 42° 以內、看得到（中間沒有牆）的鉤點裡，最靠近準心的那一顆
+## （同樣靠近時選近的）。快速點一下鉤繩也會走這裡：瞄準方向＝鏡頭正前方。
+var _hook_hl: Node3D = null
+const HOOK_SNAP_COS := 0.74
+const HOOK_MAX_RISE := 7.0
+
+
+func _pick_hook_point(origin: Vector3, dir: Vector3) -> Node3D:
+	var best: Node3D = null
+	var best_score := INF
+	var head := global_position + Vector3(0.0, 1.4, 0.0)
+	for n in get_tree().get_nodes_in_group("hook_points"):
+		var hp = n
+		if not (hp is Node3D) or not hp.is_visible_in_tree():
+			continue
+		var p: Vector3 = hp.land_pos()
+		var d := global_position.distance_to(p)
+		if d > hook_range or d < 1.5:
+			continue
+		# 一次最多往上拉 7 公尺：地面鉤不上城牆，要先上番所屋頂（高處路線要一段一段爬）
+		if p.y - global_position.y > HOOK_MAX_RISE:
+			continue
+		# 腳下（同一塊屋頂）的鉤點不算
+		var flat := Vector2(p.x - global_position.x, p.z - global_position.z).length()
+		if flat < 1.2:
+			continue
+		# 主要比水平方向（平常鏡頭是往下看的，快速點一下時高處的鉤點不會因為仰角被排除）；
+		# 仰角只拿來在上下疊著的鉤點之間挑
+		var to := (p + Vector3(0.0, 1.0, 0.0) - origin).normalized()
+		var dot := dir.dot(to)
+		var fd := Vector2(dir.x, dir.z).normalized()
+		var ft := Vector2(p.x - global_position.x, p.z - global_position.z).normalized()
+		var flat_dot := fd.dot(ft)
+		if flat_dot < HOOK_SNAP_COS:
+			continue
+		var hit := _ray_visible(head, p + Vector3(0.0, 0.8, 0.0), 1)
+		# 打到的是落腳那片屋頂本身（離落點 3 公尺內）也算看得到
+		if not hit.is_empty() and (hit.position as Vector3).distance_to(p) > 3.0:
+			continue
+		var score := (1.0 - flat_dot) * 12.0 + (1.0 - dot) * 3.0 + d * 0.03
+		if score < best_score:
+			best_score = score
+			best = hp
+	return best
+
+
+func _set_hook_highlight(hp: Node3D) -> void:
+	if _hook_hl == hp:
+		return
+	if is_instance_valid(_hook_hl) and _hook_hl.has_method("set_target"):
+		_hook_hl.set_target(false)
+	_hook_hl = hp
+	if is_instance_valid(hp) and hp.has_method("set_target"):
+		hp.set_target(true)
+
+
 func _hook_probe_ray(origin: Vector3, dir: Vector3) -> Dictionary:
 	var space := get_world_3d().direct_space_state
 	var hit := _ray_visible(origin, origin + dir * 30.0, 1)
@@ -1260,6 +1327,7 @@ func _tick_broken(delta: float) -> void:
 
 
 func _release_aim_silent() -> void:
+	_set_hook_highlight(null)
 	aim_mode = AIM_NONE
 	aim_status = ""
 	_aim_target = null

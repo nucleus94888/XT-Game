@@ -69,6 +69,8 @@ func _ready() -> void:
 	player.hook_bounds = bounds
 	_nav_begin()
 	_build_world()
+	if outskirts:
+		_build_outskirts()
 	_build_bounds_walls()
 	_build_exit_beacon()
 	_nav_end()
@@ -82,6 +84,14 @@ func _ready() -> void:
 		hud.say(level_title, Color(0.95, 0.9, 0.8))
 	_warmup()
 	_on_level_ready()
+	if _extra_args.has("--map"):
+		_draw_decisions()
+		cam_rig.pitch = deg_to_rad(88.0)
+		cam_rig.distance = 95.0
+	if _extra_args.has("--routes"):
+		_measure_routes()
+	if _extra_args.has("--hooktest"):
+		_hook_test()
 
 
 ## 子類別覆寫
@@ -682,6 +692,363 @@ func _scroll(pos: Vector3, id: String) -> void:
 	s.id = id
 	add_child(s)
 	s.global_position = pos
+
+
+## ---------------------------------------------------------------- 第十三次議會：鉤點、外圍景、地標、決定點
+
+const HookPointScript := preload("res://scripts/hook_point.gd")
+## 外圍景（山、林、遠處屋頂）：關卡框外一圈，只有外觀沒有碰撞，地圖不再像漂在黑暗裡的盒子
+var outskirts := true
+## 決定點：每個都有 2–3 條路線（--map 畫出來、--routes 量代價）
+var decisions: Array = []
+
+
+## 鉤點：pos 是落腳點（屋脊、牆頂、平台頂面）
+func _hook_point(pos: Vector3) -> Node3D:
+	var hp: Node3D = HookPointScript.new()
+	add_child(hp)
+	hp.global_position = _pivot.transform * pos if _pivot else pos
+	return hp
+
+
+## 引路微光：冷色、很暗、不算「光裡」（不會讓你被看見），只告訴玩家「這邊有路」
+func _guide_glow(pos: Vector3) -> void:
+	var l := OmniLight3D.new()
+	l.light_color = Color(0.55, 0.7, 1.0)
+	l.light_energy = 0.9
+	l.omni_range = 4.5
+	l.shadow_enabled = false
+	add_child(l)
+	l.global_position = pos + Vector3(0, 1.6, 0)
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.09
+	sm.height = 0.18
+	mi.mesh = sm
+	mi.material_override = _mat(Color(0.6, 0.78, 1.0), 1.0, true)
+	add_child(mi)
+	mi.global_position = pos + Vector3(0, 1.6, 0)
+
+
+## 決定點：id、位置、路線清單 [{name, pts: [Vector3...]}]
+func _decision(id: String, pos: Vector3, routes: Array) -> void:
+	decisions.append({"id": id, "pos": pos, "routes": routes})
+
+
+## 外圍：遠處的地面、山、林、屋頂剪影（依 bounds 自動排一圈）
+func _build_outskirts() -> void:
+	var c := bounds.get_center()
+	var far_ground := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(360, 360)
+	far_ground.mesh = pm
+	far_ground.material_override = _mat(Color(0.09, 0.1, 0.1))
+	far_ground.position = Vector3(c.x, -0.06, c.z)
+	add_child(far_ground)
+	var hill := _mat(Color(0.1, 0.12, 0.13))
+	var hill2 := _mat(Color(0.13, 0.15, 0.15))
+	var leaf := _mat(Color(0.08, 0.16, 0.1))
+	var roof := _mat(Color(0.14, 0.15, 0.19))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(level_title)
+	var hx := bounds.size.x / 2.0
+	var hz := bounds.size.z / 2.0
+	# 遠山：一圈大錐體
+	for i in range(14):
+		var a := TAU * float(i) / 14.0 + rng.randf() * 0.2
+		var r := maxf(hx, hz) + rng.randf_range(38.0, 60.0)
+		var m := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = rng.randf_range(2.0, 6.0)
+		cm.bottom_radius = rng.randf_range(22.0, 34.0)
+		cm.height = rng.randf_range(14.0, 30.0)
+		cm.radial_segments = 7
+		m.mesh = cm
+		m.material_override = hill if i % 2 == 0 else hill2
+		m.position = Vector3(c.x + cos(a) * r, cm.height / 2.0 - 1.0, c.z + sin(a) * r)
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(m)
+	# 框外一圈林：樹冠球（沒有樹幹碰撞），貼著外牆外 4–14 公尺
+	for i in range(46):
+		var side := i % 4
+		var t := rng.randf_range(-1.0, 1.0)
+		var off := rng.randf_range(4.0, 14.0)
+		var p := Vector3.ZERO
+		match side:
+			0: p = Vector3(c.x + t * (hx + 8.0), 0.0, bounds.position.z - off)
+			1: p = Vector3(c.x + t * (hx + 8.0), 0.0, bounds.end.z + off)
+			2: p = Vector3(bounds.position.x - off, 0.0, c.z + t * (hz + 8.0))
+			3: p = Vector3(bounds.end.x + off, 0.0, c.z + t * (hz + 8.0))
+		var s := rng.randf_range(1.6, 3.2)
+		var m := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = s
+		sm.height = s * 1.5
+		sm.radial_segments = 8
+		sm.rings = 4
+		m.mesh = sm
+		m.material_override = leaf
+		m.position = p + Vector3(0, s * 0.9 + rng.randf_range(0.5, 2.5), 0)
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(m)
+	# 遠處屋頂剪影：外圍幾排矮矮的切妻屋頂（城下町、村落延伸出去的感覺）
+	for i in range(16):
+		var side2 := i % 4
+		var t2 := rng.randf_range(-0.9, 0.9)
+		var off2 := rng.randf_range(16.0, 30.0)
+		var p2 := Vector3.ZERO
+		match side2:
+			0: p2 = Vector3(c.x + t2 * hx, 0.0, bounds.position.z - off2)
+			1: p2 = Vector3(c.x + t2 * hx, 0.0, bounds.end.z + off2)
+			2: p2 = Vector3(bounds.position.x - off2, 0.0, c.z + t2 * hz)
+			3: p2 = Vector3(bounds.end.x + off2, 0.0, c.z + t2 * hz)
+		var w := rng.randf_range(5.0, 9.0)
+		var body := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(w, rng.randf_range(2.5, 4.5), rng.randf_range(4.0, 6.0))
+		body.mesh = bm
+		body.material_override = roof
+		body.position = p2 + Vector3(0, bm.size.y / 2.0, 0)
+		body.rotation.y = rng.randf_range(-0.4, 0.4)
+		body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(body)
+		var cap := MeshInstance3D.new()
+		var pr := PrismMesh.new()
+		pr.size = Vector3(w + 1.0, 1.6, bm.size.z + 1.0)
+		cap.mesh = pr
+		cap.material_override = roof
+		cap.position = Vector3(0, bm.size.y / 2.0 + 0.8, 0)
+		cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		body.add_child(cap)
+
+
+## 遠方地標：天守（三層、窗戶亮著），只有外觀
+func _landmark_keep(pos: Vector3, scale_k: float = 1.0) -> void:
+	var wall := _mat(Color(0.82, 0.8, 0.74))
+	var roof := _mat(Color(0.16, 0.18, 0.24))
+	var win := _mat(Color(1.0, 0.75, 0.4), 1.0, true)
+	var stone := _mat(Color(0.32, 0.32, 0.3))
+	var y := 0.0
+	var base := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(18, 6, 16) * scale_k
+	base.mesh = bm
+	base.material_override = stone
+	base.position = pos + Vector3(0, bm.size.y / 2.0, 0)
+	add_child(base)
+	y = bm.size.y
+	for tier in range(3):
+		var w := (13.0 - tier * 3.2) * scale_k
+		var h := 4.2 * scale_k
+		var body := MeshInstance3D.new()
+		var b := BoxMesh.new()
+		b.size = Vector3(w, h, w * 0.85)
+		body.mesh = b
+		body.material_override = wall
+		body.position = pos + Vector3(0, y + h / 2.0, 0)
+		add_child(body)
+		for k in range(3):
+			var wi := MeshInstance3D.new()
+			var wm := BoxMesh.new()
+			wm.size = Vector3(0.9, 1.2, 0.1) * scale_k
+			wi.mesh = wm
+			wi.material_override = win
+			wi.position = pos + Vector3((k - 1) * w * 0.28, y + h * 0.5, w * 0.425 + 0.06)
+			add_child(wi)
+		var cap := MeshInstance3D.new()
+		var pr := PrismMesh.new()
+		pr.size = Vector3(w + 3.0 * scale_k, 2.4 * scale_k, w * 0.85 + 3.0 * scale_k)
+		cap.mesh = pr
+		cap.material_override = roof
+		cap.position = pos + Vector3(0, y + h + 1.2 * scale_k, 0)
+		add_child(cap)
+		y += h + 2.0 * scale_k
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.7, 0.4)
+	glow.light_energy = 2.0
+	glow.omni_range = 18.0
+	add_child(glow)
+	glow.global_position = pos + Vector3(0, y * 0.6, 12)
+
+
+## 遠方地標：五重塔
+func _landmark_pagoda(pos: Vector3) -> void:
+	var red := _mat(Color(0.55, 0.16, 0.12))
+	var roof := _mat(Color(0.15, 0.16, 0.2))
+	var y := 0.0
+	for tier in range(5):
+		var w := 6.0 - tier * 0.7
+		var body := MeshInstance3D.new()
+		var b := BoxMesh.new()
+		b.size = Vector3(w, 2.6, w)
+		body.mesh = b
+		body.material_override = red
+		body.position = pos + Vector3(0, y + 1.3, 0)
+		add_child(body)
+		var cap := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = w * 0.35
+		cm.bottom_radius = w * 0.95
+		cm.height = 0.9
+		cm.radial_segments = 4
+		cap.mesh = cm
+		cap.material_override = roof
+		cap.rotation.y = PI / 4.0
+		cap.position = pos + Vector3(0, y + 3.0, 0)
+		add_child(cap)
+		y += 3.3
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color(1.0, 0.75, 0.45)
+	lamp.light_energy = 1.5
+	lamp.omni_range = 10.0
+	add_child(lamp)
+	lamp.global_position = pos + Vector3(0, y * 0.5, 5)
+
+
+## 俯瞰除錯畫面：--map  鏡頭拉到正上方，畫出每個決定點（紅字）與它的路線（彩色線）；鉤點本來就會發光
+func _draw_decisions() -> void:
+	var colors := [Color(1.0, 0.35, 0.3), Color(0.35, 0.8, 1.0), Color(0.5, 1.0, 0.45)]
+	for d in decisions:
+		var lb := Label3D.new()
+		lb.text = String(d.id)
+		lb.font_size = 160
+		lb.pixel_size = 0.03
+		lb.outline_size = 24
+		lb.modulate = Color(1, 0.9, 0.3)
+		lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lb.no_depth_test = true
+		add_child(lb)
+		lb.global_position = (d.pos as Vector3) + Vector3(0, 3.0, 0)
+		var i := 0
+		for r in d.routes:
+			var im := ImmediateMesh.new()
+			var mi := MeshInstance3D.new()
+			mi.mesh = im
+			var m := StandardMaterial3D.new()
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			m.albedo_color = colors[i % colors.size()]
+			m.no_depth_test = true
+			mi.material_override = m
+			im.surface_begin(Mesh.PRIMITIVE_LINES)
+			var pts: Array = r.pts
+			for k in range(pts.size() - 1):
+				for w in [-0.15, 0.0, 0.15]:
+					im.surface_add_vertex((pts[k] as Vector3) + Vector3(w, 0.4, w))
+					im.surface_add_vertex((pts[k + 1] as Vector3) + Vector3(w, 0.4, w))
+			im.surface_end()
+			add_child(mi)
+			var rl := Label3D.new()
+			rl.text = String(r.name)
+			rl.font_size = 90
+			rl.pixel_size = 0.03
+			rl.outline_size = 16
+			rl.modulate = colors[i % colors.size()]
+			rl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			rl.no_depth_test = true
+			add_child(rl)
+			rl.global_position = (pts[pts.size() / 2] as Vector3) + Vector3(0, 1.5, 0)
+			i += 1
+
+
+## 路線代價量測：--routes  每條路線算長度、亮處比例、靠近敵人的段數、鉤繩段數，代價＝長度＋危險×權重。
+## 同一決定點最便宜與最貴的代價要差 30% 以上，不然等於「看起來有三條路、其實都一樣」。
+func _measure_routes() -> void:
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var all_ok := true
+	for d in decisions:
+		var costs: Array = []
+		for r in d.routes:
+			var pts: Array = r.pts
+			var length := 0.0
+			var lit := 0
+			var danger := 0
+			var hooks := 0
+			var samples := 0
+			for k in range(pts.size() - 1):
+				var a: Vector3 = pts[k]
+				var b: Vector3 = pts[k + 1]
+				var seg := a.distance_to(b)
+				length += seg
+				if absf(b.y - a.y) > 1.2 or _near_hook_point(b):
+					hooks += 1
+				var n := maxi(int(seg), 1)
+				for s in range(n):
+					var p := a.lerp(b, float(s) / n)
+					samples += 1
+					for l in _lanterns:
+						if l.lights(p):
+							lit += 1
+							break
+					for e in get_tree().get_nodes_in_group("enemies"):
+						if (e as Node3D).global_position.distance_to(p) < 7.0:
+							danger += 1
+							break
+			var lit_k := float(lit) / maxf(samples, 1)
+			var cost := length + float(danger) * 1.5 + lit_k * 20.0 + hooks * 2.0
+			costs.append(cost)
+			print("ROUTES %s %-6s 長 %5.1f m  亮處 %3d%%  近敵段 %3d  鉤 %d  → 代價 %.1f" % [d.id, r.name, length, int(lit_k * 100), danger, hooks, cost])
+		var lo: float = costs.min()
+		var hi: float = costs.max()
+		var ok := hi >= lo * 1.3
+		all_ok = all_ok and ok
+		print("ROUTES %s 最便宜 %.1f 最貴 %.1f 差 %d%% %s" % [d.id, lo, hi, int((hi / maxf(lo, 0.01) - 1.0) * 100), "OK" if ok else "太接近"])
+	print("ROUTES 總結：%s" % ("全部決定點都有明顯不同代價的路" if all_ok else "有決定點路線代價太接近"))
+	get_tree().quit()
+
+
+## 鉤繩路線實測：--hooktest  每條路線裡「下一點是鉤點」的段落：把半藏放在前一點、鏡頭轉向鉤點、
+## 真的按一下鉤繩，1.3 秒後看有沒有落在那個鉤點上。印出每段 OK／失敗（失敗＝路線走不通）。
+func _hook_test() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.queue_free()
+	await get_tree().physics_frame
+	var ok_n := 0
+	var fail_n := 0
+	for d in decisions:
+		for r in d.routes:
+			var pts: Array = r.pts
+			for k in range(pts.size() - 1):
+				var a: Vector3 = pts[k]
+				var b: Vector3 = pts[k + 1]
+				if not _near_hook_point(b):
+					continue
+				player.global_position = a + Vector3(0, 0.1, 0)
+				player.velocity = Vector3.ZERO
+				player.state = player.State.FREE
+				player._hook_cd = 0.0
+				await get_tree().physics_frame
+				await get_tree().physics_frame
+				var to := b - a
+				cam_rig.yaw = atan2(-to.x, -to.z)
+				cam_rig.aim_pitch = clampf(atan2(to.y + 0.5, Vector2(to.x, to.z).length()), -0.6, 0.9)
+				await get_tree().process_frame
+				await get_tree().process_frame
+				var ray: Array = cam_rig.aim_ray()
+				var pick = player._pick_hook_point(ray[0], ray[1])
+				print("HOOKTEST   吸附到 %s  lock=%.2f state=%s" % [pick.global_position if pick else "（沒有）", player._lock_t, player.State.keys()[player.state]])
+				if pick == null:
+					var h: Dictionary = player._ray_visible(player.global_position + Vector3(0, 1.4, 0), b + Vector3(0, 0.8, 0), 1)
+					var hn: Node = h.get("collider")
+					print("HOOKTEST   視線打到 %s  在 %s  ghost=%s" % [hn.get_meta("desc", hn.name) if hn else "（沒擋）", h.get("position"), hn.has_meta("ghost") if hn else false])
+				player.request_hook()
+				await get_tree().create_timer(1.3).timeout
+				var land: Vector3 = player.global_position
+				var good := land.distance_to(b) < 1.8
+				if good:
+					ok_n += 1
+				else:
+					fail_n += 1
+				print("HOOKTEST %s %s 段%d %s → %s：落在 %s %s" % [d.id, r.name, k, a, b, land, "OK" if good else "失敗"])
+	print("HOOKTEST 總結：成功 %d 段、失敗 %d 段" % [ok_n, fail_n])
+	get_tree().quit()
+
+
+func _near_hook_point(p: Vector3) -> bool:
+	for hp in get_tree().get_nodes_in_group("hook_points"):
+		if (hp as Node3D).global_position.distance_to(p) < 1.6:
+			return true
+	return false
 
 
 ## 第十二次議會的關卡道具：油壺、稻草堆、焙烙玉、警鈴繩、水遁區
