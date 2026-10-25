@@ -339,6 +339,13 @@ func show_settings() -> void:
 	pull.toggled.connect(func(on: bool) -> void:
 		Feel.set_p("cam_pull", 1.0 if on else 0.0))
 	vb.add_child(pull)
+	var cones := CheckButton.new()
+	cones.text = "顯示敵人視野扇形"
+	cones.button_pressed = Feel.get_p("cones") >= 0.5
+	cones.add_theme_font_size_override("font_size", 22)
+	cones.toggled.connect(func(on: bool) -> void:
+		Feel.set_p("cones", 1.0 if on else 0.0))
+	vb.add_child(cones)
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	hb.add_theme_constant_override("separation", 14)

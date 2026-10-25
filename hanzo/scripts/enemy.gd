@@ -1565,7 +1565,9 @@ func _rebuild_cone_from_above(r: float, ir: float, ground_y: float, space: Physi
 
 
 func _update_vision() -> void:
-	var show := kind != Kind.LORD and state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]
+	# 視野扇形預設不畫（使用者：高處敵人的扇形浮在半空看不懂，畫面也亂）；設定裡可以打開。
+	# 不畫時靠頭上的警覺弧、眼睛顏色、「？」「！」讀敵人。
+	var show := Feel.get_p("cones") >= 0.5 and kind != Kind.LORD and state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]
 	var hd := global_position.y - _player.global_position.y if _player else 0.0
 	# 比你低很多的敵人不畫（看不到上面）；比你高的照畫，錐落在你所在的高度
 	var near := _player != null and global_position.distance_to(_player.global_position) < 26.0 and hd > -2.5
