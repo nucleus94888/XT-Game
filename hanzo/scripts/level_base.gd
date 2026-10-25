@@ -107,6 +107,11 @@ func _ready() -> void:
 		_stuck_test()
 	if _extra_args.has("--wallpush"):
 		_wall_push_test()
+	if _extra_args.has("--pockets"):
+		_pocket_scan()
+	for a in _extra_args:
+		if a.begins_with("--escape="):
+			_escape_test(a.substr(9))
 
 
 ## 子類別覆寫
@@ -1173,6 +1178,80 @@ func _stuck_test() -> void:
 	hud.touch.move_vector = Vector2.ZERO
 	var moved := Vector2(player.global_position.x - c.x, player.global_position.z - c.z).length()
 	print("STUCKTEST 從 %s 到 %s，移動 %.1f 公尺 → %s" % [c, player.global_position, moved, "脫困成功" if moved > 0.9 else "還卡著"])
+	get_tree().quit()
+
+
+## 定點脫出測試：--escape=x,y,z  放到該點，往八個方向各推 1 秒（每次從原點重來），印出每個方向走了多遠
+func _escape_test(spec: String) -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.queue_free()
+	var v := spec.split_floats(",")
+	var at := Vector3(v[0], v[1], v[2])
+	await get_tree().create_timer(0.5).timeout
+	var best := 0.0
+	for i in range(8):
+		player.global_position = at
+		player.velocity = Vector3.ZERO
+		await get_tree().physics_frame
+		var a := TAU * i / 8.0
+		cam_rig.yaw = 0.0
+		hud.touch.move_vector = Vector2(cos(a), sin(a))
+		await get_tree().create_timer(1.0).timeout
+		hud.touch.move_vector = Vector2.ZERO
+		var d := Vector2(player.global_position.x - at.x, player.global_position.z - at.z).length()
+		best = maxf(best, d)
+		print("ESCAPE 方向 %d → %s 走了 %.1f m" % [i, player.global_position, d])
+	print("ESCAPE 最遠 %.1f m → %s" % [best, "出得去" if best > 2.0 else "困住"])
+	get_tree().quit()
+
+
+## 死角掃描：--pockets  每 1 公尺取樣：有地板、站得下人、但離導航網格 > 0.7 公尺的點＝可能的死角；
+## 再把每個候選點實際放人、往 8 個方向各推 0.7 秒，全部都走不到 1.5 公尺外的就是真死角
+func _pocket_scan() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.queue_free()
+	await get_tree().create_timer(0.5).timeout
+	var space := get_world_3d().direct_space_state
+	var map := get_world_3d().navigation_map
+	var cands: Array = []
+	var x := bounds.position.x + 0.5
+	while x < bounds.end.x:
+		var z := bounds.position.z + 0.5
+		while z < bounds.end.z:
+			var q := PhysicsRayQueryParameters3D.create(Vector3(x, 20.0, z), Vector3(x, -2.0, z), 1)
+			var hit := space.intersect_ray(q)
+			# 由上往下可能有多層：只看最上面一層（屋頂、台地、地面）
+			if not hit.is_empty() and (hit.normal as Vector3).y > 0.7 and not (hit.collider as Node).has_meta("ghost"):
+				var p: Vector3 = hit.position
+				var np := NavigationServer3D.map_get_closest_point(map, p)
+				if np.distance_to(p) > 0.7:
+					var xf := Transform3D(Basis(), p + Vector3(0, 0.25, 0))
+					if not player.test_move(xf, Vector3(0, 0.05, 0)):
+						cands.append(p)
+			z += 1.0
+		x += 1.0
+	print("POCKETS 候選 %d 個（站得下、但不在導航網格上）" % cands.size())
+	var bad := 0
+	for c in cands:
+		var best := 0.0
+		for i in range(8):
+			player.global_position = c + Vector3(0, 0.1, 0)
+			player.velocity = Vector3.ZERO
+			player._stuck_t = 0.0
+			await get_tree().physics_frame
+			var a := TAU * i / 8.0
+			cam_rig.yaw = 0.0
+			hud.touch.move_vector = Vector2(cos(a), sin(a))
+			for f in range(42):
+				await get_tree().physics_frame
+			hud.touch.move_vector = Vector2.ZERO
+			best = maxf(best, Vector2(player.global_position.x - c.x, player.global_position.z - c.z).length())
+			if best > 1.5:
+				break
+		if best <= 1.5:
+			bad += 1
+			print("POCKETS 死角 %s（最遠只走 %.1f m）" % [c, best])
+	print("POCKETS 結果：真死角 %d 個" % bad)
 	get_tree().quit()
 
 
