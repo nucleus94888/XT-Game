@@ -39,6 +39,8 @@ var blockers: Array[Control] = []
 var weapon_label := "刀"
 var shuriken_count := 0
 var aiming := false
+## 準心只在過肩瞄準時畫（手裡劍）
+var show_crosshair := false
 ## 準心狀態（player.aim_status）
 var aim_status := ""
 
@@ -346,7 +348,7 @@ func _draw() -> void:
 	var knob := _joy_pos if _joy_idx != -1 else jc
 	draw_circle(knob, 28.0, Color(jcol, 0.55 if _joy_idx != -1 else 0.22))
 	# 準心（瞄準中畫在畫面正中央）：單純白色十字，不另外標示能不能鉤／有沒有鎖定
-	if aiming:
+	if show_crosshair:
 		var c := size / 2.0
 		var ccol := Color(1, 1, 1, 0.9)
 		var gap := 10.0

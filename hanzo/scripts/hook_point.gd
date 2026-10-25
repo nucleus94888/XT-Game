@@ -60,10 +60,67 @@ func _orient() -> void:
 	rotation.y = best_a
 
 
+## 畫面記號：掛在鐵環上的 3D 圓圈（永遠面向鏡頭、固定螢幕大小、不被牆擋）。
+## 以前在 2D 畫面上算位置，網頁版的縮放跟本機不同，圓圈畫到別的地方去。改成 3D 就由鏡頭自己投影，哪台裝置都對得準。
+## 0＝不顯示、1＝白色小圈（射程內）、2＝綠色大圈（點一下會鉤到這個）
+static var _ring_tex: ImageTexture
+var _icon: MeshInstance3D
+var _icon_mat: StandardMaterial3D
+var _mark := 0
+
+
+func set_mark(m: int) -> void:
+	if m == _mark:
+		return
+	_mark = m
+	if _icon == null:
+		_build_icon()
+	_icon.visible = m > 0
+	_icon_mat.albedo_color = Color(0.45, 1.0, 0.55, 0.95) if m == 2 else Color(1, 1, 1, 0.8)
+
+
+func _build_icon() -> void:
+	if _ring_tex == null:
+		var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+		for y in range(64):
+			for x in range(64):
+				var d := Vector2(x - 31.5, y - 31.5).length()
+				var a := 0.0
+				if d > 24.0 and d < 30.0:
+					a = 1.0
+				elif d < 5.0:
+					a = 1.0
+				elif d >= 30.0 and d < 31.5:
+					a = 31.5 - d
+				img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
+		_ring_tex = ImageTexture.create_from_image(img)
+	_icon = MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(1, 1)
+	_icon.mesh = q
+	_icon_mat = StandardMaterial3D.new()
+	_icon_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_icon_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_icon_mat.albedo_texture = _ring_tex
+	_icon_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	_icon_mat.fixed_size = true
+	_icon_mat.no_depth_test = true
+	_icon_mat.render_priority = 10
+	_icon.material_override = _icon_mat
+	_icon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_icon)
+	_icon.top_level = true
+
+
 func _process(delta: float) -> void:
 	_t += delta
-	# 被吸附時鐵環輕輕晃（不發光，記號由畫面上的圓圈負責）
-	_ring.rotation.x = sin(_t * 9.0) * 0.25 if _target else 0.0
+	# 被吸附時鐵環輕輕晃
+	_ring.rotation.x = sin(_t * 9.0) * 0.25 if (_target or _mark == 2) else 0.0
+	if _icon and _icon.visible:
+		_icon.global_position = _ring.global_position
+		# 固定螢幕大小的材質會忽略縮放，只能改網格尺寸（1.0 ≈ 畫面高的四成）：白圈小、綠圈大且輕輕脈動
+		var s := 0.03 if _mark == 1 else 0.05 + 0.005 * sin(_t * 9.0)
+		(_icon.mesh as QuadMesh).size = Vector2(s, s)
 
 
 func land_pos() -> Vector3:

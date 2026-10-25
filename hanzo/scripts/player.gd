@@ -571,7 +571,10 @@ func _begin_aim(kind: int) -> void:
 	_aim_target = null
 	_hook_ok = false
 	aim_status = ""
-	if cam_rig != null:
+	# 鉤繩（有鉤點的關卡）照隻狼：不切過肩鏡頭，維持目前視角，綠圈就是會鉤到的點；
+	# 以前會切過肩、沿用上次瞄準的仰角，按下去視角突然往上跳。手裡劍還是過肩瞄準（需要準心）
+	hook_orbit = kind == AIM_HOOK and get_tree().get_first_node_in_group("hook_points") != null
+	if cam_rig != null and not hook_orbit:
 		cam_rig.aiming = true
 	_tick_aim(0.0)
 
@@ -594,7 +597,13 @@ func _tick_aim(delta: float) -> void:
 	var pose := Vector3(-20.0, -60.0, 0.0) if aim_mode == AIM_SHURIKEN else Vector3(-70.0, 0.0, 0.0)
 	sword_pivot.rotation_degrees = sword_pivot.rotation_degrees.lerp(pose, 1.0 - exp(-20.0 * delta))
 	# 兩種瞄準共用：準心附近有敵人就默默鎖定（頭／身），畫面上不另外畫圈
-	var lock := _pick_enemy_ray(origin, dir, 0.992, hook_range if aim_mode == AIM_HOOK else 22.0)
+	# 維持原視角的鉤繩：鏡頭是往下看的，鎖敵改用「頭的高度、鏡頭水平正前方」、角度放寬到 16°
+	var lock: Dictionary
+	if hook_orbit:
+		var flat := Vector3(dir.x, 0.0, dir.z).normalized()
+		lock = _pick_enemy_ray(global_position + Vector3(0.0, 1.4, 0.0), flat, 0.96, hook_range)
+	else:
+		lock = _pick_enemy_ray(origin, dir, 0.992, hook_range if aim_mode == AIM_HOOK else 22.0)
 	_aim_target = lock.target
 	_aim_head = lock.head
 	aim_status = "lock" if _aim_target else ""
@@ -692,6 +701,8 @@ func _ray_visible(from: Vector3, to: Vector3, mask: int) -> Dictionary:
 ## （同樣靠近時選近的）。快速點一下鉤繩也會走這裡：瞄準方向＝鏡頭正前方。
 var _hook_hl: Node3D = null
 const HOOK_SNAP_COS := 0.74
+## 按住鉤繩時維持原本的俯視鏡頭（不切過肩）
+var hook_orbit := false
 const HOOK_MAX_RISE := 7.0
 
 

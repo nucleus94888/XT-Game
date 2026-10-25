@@ -679,6 +679,8 @@ func _process(delta: float) -> void:
 		compass.cam_yaw = _cam.yaw
 	if _player:
 		touch.aiming = _player.aim_mode != 0
+		# 維持原視角的鉤繩不畫準心（綠圈就是目標，畫面中心的十字反而誤導）
+		touch.show_crosshair = _player.aim_mode != 0 and not _player.hook_orbit
 		touch.aim_status = _player.aim_status
 		touch.dash_cd = maxf(_player._dash_lock_t, 0.0)
 		touch.hook_cd = maxf(_player._hook_cd, 0.0)
