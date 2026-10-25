@@ -129,7 +129,7 @@ func _parse_args() -> void:
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_shot_dir))
 		var scripted := false
 		for a in _extra_args:
-			if a == "--walk" or a == "--props" or a.begins_with("--tour="):
+			if a == "--walk" or a == "--props" or a.begins_with("--tour=") or a.begins_with("--hookpull="):
 				scripted = true
 		if not scripted:
 			get_tree().create_timer(1.0).timeout.connect(func() -> void:
@@ -161,6 +161,8 @@ func _process(delta: float) -> void:
 		_time += delta
 	if _extra_args.has("--props"):
 		_props_test(delta)
+	if _extra_args.any(func(a: String) -> bool: return a.begins_with("--hookpull=")):
+		_hookpull_test(delta)
 	# 巡迴截圖：--tour=x,y,z;x,y,z… 把半藏傳送到每個點各拍一張（AI 看關卡用）
 	if _tour.is_empty():
 		for a in _extra_args:
@@ -799,6 +801,43 @@ func _props_test(delta: float) -> void:
 		_pqueue.pop_front()
 		_pstep = 1
 		_pt = 0.0
+
+
+## 鉤人高低差測試：--hookpull=x,y,z;ex,ez  玩家站在 (x,y,z)（台地上），最近的敵人放到地面 (ex,0,ez)，鉤過來，印敵人最後高度
+var _hp_t := 0.0
+var _hp_e: Enemy
+
+
+func _hookpull_test(delta: float) -> void:
+	_hp_t += delta
+	var spec := ""
+	for a in _extra_args:
+		if a.begins_with("--hookpull="):
+			spec = a.substr(11)
+	var parts := spec.split(";")
+	if parts.size() < 2:
+		return
+	var pv := parts[0].split_floats(",")
+	var ev := parts[1].split_floats(",")
+	if _hp_t > 1.0 and _hp_e == null:
+		player.global_position = Vector3(pv[0], pv[1], pv[2])
+		_hp_e = _nearest_enemy_alive()
+		_hp_e.global_position = Vector3(ev[0], 0.0, ev[1])
+		_hp_e.set_physics_process(true)
+		print("HOOKPULL: enemy %s placed at %s" % [_hp_e.name, _hp_e.global_position])
+	if _hp_t > 2.0 and not _auto_hp_done:
+		_auto_hp_done = true
+		if parts.size() > 2 and parts[2] == "nopull":
+			return
+		var dir := Vector3(ev[0] - pv[0], 0, ev[1] - pv[2]).normalized()
+		_hp_e.hooked(player.global_position + dir * 1.6, 1, false, player, 0.45)
+	if _hp_t > 4.0:
+		print("HOOKPULL: player %s enemy %s embedded=%s" % [player.global_position, _hp_e.global_position, _hp_e._embedded()])
+		_shot("hookpull")
+		get_tree().quit()
+
+
+var _auto_hp_done := false
 
 
 func _nearest_enemy_alive() -> Enemy:

@@ -352,6 +352,11 @@ func _build() -> void:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	# 保險：每秒檢查一次有沒有卡進地形／掉到地面下（被拖、被擊退、被炸）
+	_stuck_check_t -= delta
+	if _stuck_check_t <= 0.0:
+		_stuck_check_t = 1.0
+		_unstick()
 	# 煙玉落下時正在出刀／硬直：收刀後再追丟
 	if _smoke_pending > 0.0:
 		_smoke_pending -= delta
@@ -690,6 +695,39 @@ func _pick_search_points(center: Vector3) -> Array:
 		if q.distance_to(center) > 1.5:
 			out.append(q)
 	return out
+
+
+var _stuck_check_t := randf()
+
+
+## 身體卡在地形裡（胸口或膝蓋的點在實心碰撞體內；透明牆不算）
+func _embedded() -> bool:
+	var space := get_world_3d().direct_space_state
+	for h in [0.45, 1.0]:
+		var q := PhysicsPointQueryParameters3D.new()
+		q.position = global_position + Vector3(0, h, 0)
+		q.collision_mask = 1
+		q.exclude = [get_rid()]
+		for r in space.intersect_point(q, 4):
+			var c: Node = r.collider
+			if c is StaticBody3D and not c.has_meta("ghost") and (c as Node3D).is_visible_in_tree():
+				return true
+	return false
+
+
+## 卡住了就救出來：先試指定點（被鉤時是玩家面前），不行就放到最近的導航網格點上
+func _unstick(prefer: Vector3 = Vector3.INF) -> void:
+	if state == State.DEAD or not _embedded() and global_position.y > -0.6:
+		return
+	if prefer != Vector3.INF:
+		global_position = prefer + Vector3(0, 0.05, 0)
+		if not _embedded():
+			velocity = Vector3.ZERO
+			return
+	var q := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, global_position + Vector3(0, 1.0, 0))
+	global_position = q + Vector3(0, 0.05, 0)
+	velocity = Vector3.ZERO
+	push_warning("enemy %s unstuck -> %s" % [name, global_position])
 
 
 ## 大將：沿逃跑路線跑，到終點就消失
@@ -1034,9 +1072,21 @@ func hooked(dest: Vector3, dmg: int, headshot: bool, by: Node3D, pull_dur: float
 	_kb = Vector3.ZERO
 	if _react_tw and _react_tw.is_valid():
 		_react_tw.kill()
+	# 拖到玩家面前、而且是玩家的高度：以前只拖水平、保留原本高度，
+	# 從台地上鉤地面的人會把他拖進台地石塊裡（只剩血條露出地面）。
+	# 往上拉：先抬高再橫移（越過崖邊）；往下拉：先橫移再落下。拖完再檢查一次有沒有卡在地形裡。
+	var from := global_position
+	var to := Vector3(dest.x, dest.y, dest.z)
+	var up := to.y > from.y + 0.3
 	var tw := create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(self, "global_position", Vector3(dest.x, global_position.y, dest.z), pull_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_method(func(k: float) -> void:
+		var kxz := k * k * (3.0 - 2.0 * k)
+		var ky := minf(k * 2.2, 1.0) if up else k * k
+		var arc := sin(k * PI) * (0.5 if up else 0.2)
+		global_position = Vector3(lerpf(from.x, to.x, kxz), lerpf(from.y, to.y, ky) + arc, lerpf(from.z, to.z, kxz)), 0.0, 1.0, pull_dur)
+	tw.chain().tween_callback(_unstick.bind(to))
+	tw.set_parallel(true)
 	tw.tween_property(visual, "rotation:x", -0.5, 0.1)
 	tw.tween_property(visual, "scale", Vector3(0.95, 1.08, 0.95), 0.1)
 	tw.chain().tween_property(visual, "rotation:x", 0.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
