@@ -1350,6 +1350,9 @@ func _rebuild_cone(r: float, ir: float, ground_y: float) -> void:
 	var space := get_world_3d().direct_space_state
 	var eye := global_position + Vector3(0, 1.5, 0)
 	var half := acos(VIEW_COS)
+	if global_position.y - ground_y > 0.8:
+		_rebuild_cone_from_above(r, ir, ground_y, space, eye, half)
+		return
 	var segs := 18
 	var pts: Array = []
 	var ipts: Array = []
@@ -1387,6 +1390,75 @@ func _rebuild_cone(r: float, ir: float, ground_y: float) -> void:
 		im.surface_end()
 
 
+## 高處敵人的視野錐：他的視線是斜往下看，所以不用水平射線，而是對你所在高度的地面
+## 打一格一格的點（12 個方向 × 每 1 公尺），每一格都從他眼睛拉一條視線到「人站在那裡時的胸口」，
+## 看得到的格子才畫。櫓／屋簷正下方會因為平台擋住而空一塊，房子後面被屋頂擋住的地方也會空掉。
+## 偵測用的也是從眼睛到你胸口的同一種視線，所以畫出來的就是他真正看得到的地方
+func _sees_point(space: PhysicsDirectSpaceState3D, eye: Vector3, p: Vector3) -> bool:
+	var ex: Array = [get_rid()]
+	if _player is CollisionObject3D:
+		ex.append((_player as CollisionObject3D).get_rid())
+	for k in range(3):
+		var q := PhysicsRayQueryParameters3D.create(eye, p, 1)
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return true
+		var c: Node = hit.collider
+		if c is Node3D and (c.has_meta("ghost") or not (c as Node3D).is_visible_in_tree()):
+			ex.append(hit.rid)
+			continue
+		return false
+	return true
+
+
+func _rebuild_cone_from_above(r: float, ir: float, ground_y: float, space: PhysicsDirectSpaceState3D, eye: Vector3, half: float) -> void:
+	var dirs := 12
+	var step := 1.0
+	var rings := int(ceil(r / step))
+	var yaw := visual.rotation.y
+	var chest := ground_y + 1.0
+	var vis: Array = []
+	for i in range(dirs + 1):
+		var a := yaw - half + 2.0 * half * float(i) / dirs
+		var dir := Vector3(-sin(a), 0.0, -cos(a))
+		var row: Array = []
+		for j in range(rings):
+			var d := (float(j) + 0.5) * step
+			var p := Vector3(global_position.x, chest, global_position.z) + dir * d
+			row.append(_sees_point(space, eye, p))
+		vis.append(row)
+	var y_off := 0.0
+	for pair in [[_cone_im, r], [_cone_inner_im, ir]]:
+		var im: ImmediateMesh = pair[0]
+		var lim: float = pair[1]
+		im.clear_surfaces()
+		var any := false
+		for i in range(dirs):
+			var a0 := yaw - half + 2.0 * half * float(i) / dirs
+			var a1 := yaw - half + 2.0 * half * float(i + 1) / dirs
+			var d0 := Vector3(-sin(a0), 0.0, -cos(a0))
+			var d1 := Vector3(-sin(a1), 0.0, -cos(a1))
+			for j in range(rings):
+				var n0 := float(j) * step
+				if n0 >= lim:
+					break
+				var n1 := minf(float(j + 1) * step, lim)
+				if not (vis[i][j] and vis[i + 1][j]):
+					continue
+				if not any:
+					im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+					any = true
+				var p00 := d0 * n0 + Vector3(0, y_off, 0)
+				var p01 := d0 * n1 + Vector3(0, y_off, 0)
+				var p10 := d1 * n0 + Vector3(0, y_off, 0)
+				var p11 := d1 * n1 + Vector3(0, y_off, 0)
+				for v in [p00, p11, p01, p00, p10, p11]:
+					im.surface_add_vertex(v)
+		if any:
+			im.surface_end()
+
+
 func _update_vision() -> void:
 	var show := kind != Kind.LORD and state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]
 	var hd := global_position.y - _player.global_position.y if _player else 0.0
@@ -1397,7 +1469,8 @@ func _update_vision() -> void:
 	if _cone.visible:
 		_cone_t -= get_physics_process_delta_time()
 		if _cone_t <= 0.0:
-			_cone_t = 0.15
+			# 高處的錐要打比較多射線，0.3 秒更新一次就好
+			_cone_t = 0.3 if hd > 0.8 else 0.15
 			var ground_y := _player.global_position.y if hd > 0.8 else global_position.y
 			_rebuild_cone(effective_view(), instant_range(), ground_y)
 		_cone_mat.albedo_color = Color(1.0, 0.85, 0.3, 0.3) if state in [State.SUSPICIOUS, State.SEARCH] else Color(1, 1, 1, 0.17)
