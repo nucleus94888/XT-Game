@@ -49,6 +49,12 @@ jobs:
           mv -f /tmp/tpz/templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
           godot --version
 
+      - name: 版本號蓋上日期與提交碼（標題右下角顯示，用來確認手機上跑的是不是最新版）
+        run: |
+          STAMP="$(TZ=Asia/Taipei date +%m%d-%H%M)-${GITHUB_SHA::7}"
+          sed -i "s/^config\/version=.*/config\/version=\"${STAMP}\"/" hanzo/project.godot
+          grep config/version hanzo/project.godot
+
       - name: 匯入資源
         run: godot --headless --path hanzo --import || true
 
