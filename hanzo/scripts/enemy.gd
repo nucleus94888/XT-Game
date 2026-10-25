@@ -566,11 +566,23 @@ const INSTANT_DARK := 1.5
 
 
 func effective_view() -> float:
-	return float(spec.view) * (1.0 if _player_lit() else 0.5) * (1.25 if _wary_t > 0.0 else 1.0)
+	return float(spec.view) * (1.0 if _player_lit() else 0.5) * (1.25 if _wary_t > 0.0 else 1.0) * height_factor()
 
 
 func instant_range() -> float:
-	return INSTANT_LIT if _player_lit() else INSTANT_DARK
+	return (INSTANT_LIT if _player_lit() else INSTANT_DARK) * minf(height_factor(), 1.3)
+
+
+## 居高臨下：站得比你高的敵人看得更遠（每高 1 公尺 +20%，最多 ×1.8）；你站得比他高時他看得較近（×0.8）
+func height_factor() -> float:
+	if _player == null:
+		return 1.0
+	var hd := global_position.y - _player.global_position.y
+	if hd > 0.8:
+		return minf(1.0 + hd * 0.2, 1.8)
+	if hd < -1.5:
+		return 0.8
+	return 1.0
 
 
 func _player_lit() -> bool:
@@ -1315,18 +1327,79 @@ func _build_vision() -> void:
 	add_child(_arc)
 
 
+## 視野錐被牆擋住的地方要切掉（以前錐一路畫穿柵欄，看起來像隔牆也看得到你）：
+## 每 0.15 秒從眼睛高度沿錐內 18 個方向打射線，每條長度取「視野」與「撞到牆」的較小者，重建扇形。
+## 偵測用的是同一種射線（_los），所以畫面上錐碰不到的地方，敵人就真的看不到
+var _cone_t := 0.0
+var _cone_im: ImmediateMesh
+var _cone_inner_im: ImmediateMesh
+
+
+func _rebuild_cone(r: float, ir: float, ground_y: float) -> void:
+	if _cone_im == null:
+		_cone_im = ImmediateMesh.new()
+		_cone.mesh = _cone_im
+		_cone_inner_im = ImmediateMesh.new()
+		_cone_inner.mesh = _cone_inner_im
+	_cone.scale = Vector3.ONE
+	_cone_inner.scale = Vector3.ONE
+	_cone.rotation.y = 0.0
+	_cone_inner.rotation.y = 0.0
+	_cone.global_position = Vector3(global_position.x, ground_y + 0.27, global_position.z)
+	_cone_inner.global_position = _cone.global_position + Vector3(0, 0.01, 0)
+	var space := get_world_3d().direct_space_state
+	var eye := global_position + Vector3(0, 1.5, 0)
+	var half := acos(VIEW_COS)
+	var segs := 18
+	var pts: Array = []
+	var ipts: Array = []
+	var yaw := visual.rotation.y
+	for i in range(segs + 1):
+		var a := yaw - half + 2.0 * half * float(i) / segs
+		var dir := Vector3(-sin(a), 0.0, -cos(a))
+		var reach := r
+		var ex: Array = [get_rid()]
+		if _player is CollisionObject3D:
+			ex.append((_player as CollisionObject3D).get_rid())
+		for k in range(3):
+			var q := PhysicsRayQueryParameters3D.create(eye, eye + dir * r, 1)
+			q.exclude = ex
+			var hit := space.intersect_ray(q)
+			if hit.is_empty():
+				break
+			var c: Node = hit.collider
+			if c is Node3D and (c.has_meta("ghost") or not (c as Node3D).is_visible_in_tree()):
+				ex.append(hit.rid)
+				continue
+			reach = Vector2(hit.position.x - eye.x, hit.position.z - eye.z).length()
+			break
+		pts.append(dir * reach)
+		ipts.append(dir * minf(reach, ir))
+	for pair in [[_cone_im, pts], [_cone_inner_im, ipts]]:
+		var im: ImmediateMesh = pair[0]
+		var arr: Array = pair[1]
+		im.clear_surfaces()
+		im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+		for i in range(segs):
+			im.surface_add_vertex(Vector3.ZERO)
+			im.surface_add_vertex(arr[i + 1])
+			im.surface_add_vertex(arr[i])
+		im.surface_end()
+
+
 func _update_vision() -> void:
 	var show := kind != Kind.LORD and state in [State.IDLE, State.PATROL, State.SUSPICIOUS, State.SEARCH]
-	var near := _player != null and global_position.distance_to(_player.global_position) < 26.0 and absf(global_position.y - _player.global_position.y) < 2.5
+	var hd := global_position.y - _player.global_position.y if _player else 0.0
+	# 比你低很多的敵人不畫（看不到上面）；比你高的照畫，錐落在你所在的高度
+	var near := _player != null and global_position.distance_to(_player.global_position) < 26.0 and hd > -2.5
 	_cone.visible = show and near
 	_cone_inner.visible = _cone.visible
 	if _cone.visible:
-		var r := effective_view()
-		_cone.rotation.y = visual.rotation.y
-		_cone.scale = Vector3(r, 1.0, r)
-		var ir := instant_range()
-		_cone_inner.rotation.y = visual.rotation.y
-		_cone_inner.scale = Vector3(ir, 1.0, ir)
+		_cone_t -= get_physics_process_delta_time()
+		if _cone_t <= 0.0:
+			_cone_t = 0.15
+			var ground_y := _player.global_position.y if hd > 0.8 else global_position.y
+			_rebuild_cone(effective_view(), instant_range(), ground_y)
 		_cone_mat.albedo_color = Color(1.0, 0.85, 0.3, 0.3) if state in [State.SUSPICIOUS, State.SEARCH] else Color(1, 1, 1, 0.17)
 	# 偵測進度弧：0 時不畫；黃→紅
 	var k := _detect if show else 0.0
