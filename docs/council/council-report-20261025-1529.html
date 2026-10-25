@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Council 報告：敵人以外的關卡內容</title>
+<style>
+body{margin:0;font-family:-apple-system,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;color:#1d2129;line-height:1.7}
+.wrap{max-width:900px;margin:0 auto;padding:40px 24px}.card{border:1px solid #e3e6ea;border-radius:10px;padding:22px 24px;margin:18px 0}
+.q{background:#f6f7f9}h3{border-left:4px solid #1d2129;padding-left:10px;font-size:16px}.first{background:#fff8e6;border:1px solid #f0d890;border-radius:8px;padding:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{border:1px solid #e3e6ea;padding:8px}th{background:#f6f7f9}
+.y{color:#1f7a4d;font-weight:600}.n{color:#a33b2d;font-weight:600}.m{color:#8a6a12;font-weight:600}
+details{border:1px solid #e3e6ea;border-radius:8px;margin:10px 0;padding:10px 16px}summary{cursor:pointer;font-weight:600}.f{color:#5b6470;font-size:13px}
+</style></head><body><div class="wrap">
+<h1>LLM Council 報告：敵人以外的關卡內容——水、陷阱、妖怪、限時武器</h1>
+<div class="f">2026-10-25 15:29 · 五位顧問 → 匿名互評 → 主席統整 · 逐字稿 council-transcript-20261025-1529.md</div>
+<div class="card q"><b>提問</b>：一關不一定只放敵人，可以有海、湖、陷阱、妖怪、短暫使用的特殊武器。哪些值得做、怎麼做、不做什麼、先做哪個？（俯視一畫面約 20 公尺、程式幾何、無動畫、一關由 3～4 場遭遇模組串成）</div>
+<div class="card"><h2>主席裁決</h2>
+<h3>議會一致同意的地方</h3><p>五位都同意<b>油與火最先做</b>：光暗反過來用、點火處變亮、聲響引守衛，一眼看得懂。四位把<b>煙玉</b>排進前三。所有人反對即死陷阱、物理推倒晃動、需要瞄準的弓；妖怪不放平常關卡。判準：<b>有沒有動到光、視線、聲音、警戒其中之一</b>。</p>
+<h3>議會意見衝突的地方</h3><ul><li>水：完全不做潛水 vs 做「水遁」（躲水裡、不游泳、不溺死）。</li><li>大太刀：要做 vs 沒動畫感覺不出差別。</li><li>繩橋滾木：好懂 vs 成本高看不清。</li><li>絆線：要做 vs 細線手機看不見。</li></ul>
+<h3>互評抓到的盲點</h3><ol><li>觸控按鍵已滿：新元素用「靠近才出現的情境鍵」＋描邊與震動，不放畫面邊緣。</li><li>真正的工時在敵人新反應（救火、煙裡搜人、被火逼退）。</li><li>iOS 網頁版效能：低數量粒子或半透明幾何。</li><li>每關先定主題動詞，元素跟著動詞走。</li></ol>
+<h3>建議</h3>
+<p><b>做：</b>油與火（2.5 天，情境鍵點燃、變亮、持續傷害、引敵、守衛救火，燃燒範圍固定不蔓延）；煙玉（1.5 天，與手裡劍同鍵切換，半透明圓柱擋視線，敵人進煙改搜索）；警鈴繩（1 天，發亮粗繩加鈴鐺，可割斷可故意踩響）；水遁（2 天，只做第二關，深水隱藏、頭上波紋、8 秒氣息條、水裡不能攻擊、淺水有聲響）；落石只放第五關當腳本事件。</p>
+<p><b>不做：</b>即死陷阱、吊燈、晃動繩橋、弓、可潛行的妖怪；大太刀暫緩。<b>限時武器：</b>唯一一把焙烙玉（0.5 天，撿起佔情境鍵、一次性範圍爆炸、兼作火源）。<b>妖怪：</b>只在第五關霧裡放引路的狐火光點，不當敵人。</p>
+<table><tr><th>關卡</th><th>主題動詞</th><th>環境元素</th></tr>
+<tr><td>一 伊賀夜襲山村</td><td>攻</td><td>稻草加火</td></tr>
+<tr><td>二 湖畔屋敷</td><td>潛</td><td>湖上水遁</td></tr>
+<tr><td>三 城下町出城</td><td>混入</td><td>警鈴繩</td></tr>
+<tr><td>四 本丸天守</td><td>刺殺</td><td>煙玉加熄燈控光</td></tr>
+<tr><td>五 伊賀越え山路</td><td>逃</td><td>追兵的陷阱與落石，白子濱乘船出海（海只在結局）</td></tr></table>
+<p><b>先後：</b>火 → 煙玉 → 警鈴繩 → 焙烙玉 → 水遁，約 7.5 天。</p>
+<div class="first"><b>第一件該做的事：</b>寫 fire_area.gd 與 _oil_jar 放進第一關倉庫模組、加上靠近才出現的情境鍵；用 story bot 驗證守衛被火引過去、視野錐離開玩家要走的路線。</div></div>
+<div class="card"><h2>顧問立場一覽</h2><table><tr><th>元素</th><th>反方</th><th>第一性</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr>
+<tr><td>油與火</td><td class="m">只當光源</td><td class="y">最先</td><td class="y">最先連鎖</td><td class="y">最先</td><td class="y">最先</td></tr>
+<tr><td>煙玉</td><td class="y">最先測</td><td class="y">做</td><td>—</td><td class="y">第二</td><td class="y">第三</td></tr>
+<tr><td>水</td><td class="n">不做</td><td class="y">深水躲藏</td><td class="y">水遁</td><td class="n">看不懂</td><td class="n">改蘆葦</td></tr>
+<tr><td>絆線警鈴</td><td class="y">發亮的線</td><td class="y">做</td><td class="y">引巡邏</td><td class="n">看不見</td><td class="y">做</td></tr>
+<tr><td>妖怪</td><td class="n">不做</td><td class="n">不做</td><td class="m">第五關狐火</td><td class="n">分不出</td><td class="n">Boss 關再說</td></tr>
+<tr><td>大太刀</td><td class="n">不做</td><td class="n">不做</td><td class="y">撿的會斷</td><td class="n">沒感覺</td><td class="y">30 秒</td></tr>
+<tr><td>繩橋滾木</td><td class="n">不做</td><td class="m">落石只第五關</td><td class="y">割繩滾木</td><td class="y">好懂</td><td class="n">不做</td></tr></table></div>
+<div class="card"><h2>顧問完整回答與互評</h2>
+<details><summary>反方</summary><p>看不懂的機制只會讓人死得莫名其妙。不做潛水、妖怪、大太刀與弓、吊燈繩橋；陷阱只做敵人會踩的。可做絆線警鈴、煙玉、稻草加火。先做煙玉放脫離路線，玩家不用就證明方向錯。</p></details>
+<details><summary>第一性原理</summary><p>目的是同一遭遇多出不同解法；判準是動到光、視線、聲音、警戒。做火與油、深水躲藏、絆線警鈴、煙玉與火藥；不做妖怪、大太刀與弓、即死陷阱、物理物件；落石留第五關。每遭遇最多一元素、觀察點看得到。</p></details>
+<details><summary>擴張者</summary><p>油與火連鎖、第二關水遁、撿來的焙烙玉與會斷的大太刀、第五關狐火、陷阱給玩家對付敵人、每遭遇一張環境王牌。</p></details>
+<details><summary>局外人</summary><p>稻草加火、煙玉、滾木、繩橋好懂；潛水、落穴、細絆線、妖怪、弓、大太刀看不懂或沒感覺。先做稻草加火。</p></details>
+<details><summary>執行者</summary><p>油與火 2 天、落穴與警鈴 1.5 天、煙玉 1 天、大太刀 1 天；不做游泳潛水（改蘆葦）、妖怪、繩橋吊燈、滾木。星期一寫 _oil_jar 與 fire_area.gd。</p></details>
+<details><summary>三份互評（A＝執行者 B＝擴張者 C＝反方 D＝局外人 E＝第一性）</summary><p>兩份評 E 最強、一份評 B 最強（唯一綁到具體關卡）。補上：情境鍵、敵人新反應成本、網頁版效能、每關主題動詞（含白子濱出海）。</p></details></div>
+<div class="f">2026-10-25 15:29 · 半藏 HANZO · 非敵人內容設計</div></div></body></html>
