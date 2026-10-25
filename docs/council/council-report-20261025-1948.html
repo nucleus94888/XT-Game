@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第十三次議會：優化方向與地形路線</title>
+<style>
+  body { font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; background: #fff; color: #222; max-width: 860px; margin: 0 auto; padding: 24px 18px 60px; line-height: 1.7; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: #777; font-size: .9rem; margin-bottom: 20px; }
+  .q { background: #f6f7f9; border-left: 4px solid #8a94a6; padding: 12px 16px; border-radius: 6px; margin-bottom: 26px; }
+  .verdict { border: 1px solid #e3e6eb; border-radius: 10px; padding: 6px 20px 14px; margin-bottom: 28px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .verdict h2 { font-size: 1.15rem; margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
+  .first { background: #fff7e6; border: 1px solid #f0d9a8; border-radius: 8px; padding: 12px 16px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: 8px 0 26px; }
+  th, td { border: 1px solid #e3e6eb; padding: 7px 9px; text-align: center; }
+  th { background: #f6f7f9; }
+  td.l { text-align: left; }
+  .y { background: #e7f5ec; } .n { background: #fbeaea; } .m { background: #fff6dd; }
+  details { border: 1px solid #e3e6eb; border-radius: 8px; margin: 8px 0; padding: 8px 14px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .c1 { border-left: 4px solid #d9534f; } .c2 { border-left: 4px solid #5b7bd5; } .c3 { border-left: 4px solid #3aa676; } .c4 { border-left: 4px solid #a46bd6; } .c5 { border-left: 4px solid #e0a020; }
+  footer { color: #999; font-size: .85rem; margin-top: 36px; border-top: 1px solid #eee; padding-top: 10px; }
+</style>
+</head>
+<body>
+<h1>第十三次議會：還有哪裡要優化？地形設計與路線</h1>
+<div class="sub">《半藏 HANZO》｜2026-10-25 19:48</div>
+
+<div class="q"><b>使用者問題：</b>「自主思考是否還有要優化的地方／地形設計跟路線也不夠好」<br>
+背景：第一關已照關卡文法重做（S 形、三層高度），使用者仍說不夠好；第二、三關仍是中軸對稱方格；一關 2–3 分鐘；鉤繩 22 公尺、任何邊緣都能鉤。</div>
+
+<div class="verdict">
+<h2>議會共識</h2>
+<ul>
+<li><b>病根是「沒有選擇」，不是「不夠彎」。</b>第一關重做後使用者仍不滿，證明光把路改斜、改 S 形沒用。路線要成立需要三樣：先看到情報、從幾條路裡挑、挑了要付不同代價。</li>
+<li><b>鉤繩太自由，地形擋不住任何東西。</b>22 公尺、任何邊緣都能鉤，屋頂成了沒人看守的高速公路，地面街道沒有存在的理由。</li>
+<li><b>斜俯視一眼看光，地圖邊界赤裸裸。</b>看不到的東西才有探險感，外圍要補景和遠方地標。</li>
+<li><b>擴張者的範圍爆炸被全票否決。</b>產生器、每日隨機關、整座湖都不做。</li>
+</ul>
+<h2>議會分歧</h2>
+<ul>
+<li><b>先改哪關：</b>執行者選第二關（最對稱、有現成池子）；第一性原理選第三關（屋頂高速公路最典型、最能驗證「限制產生路線」）。主席選第三關。</li>
+<li><b>模組要不要做：</b>執行者、擴張者要先寫產生器；反對者擔心拼出來又是方正重複。一人開發需要重用，但模板未驗證前就是在賭。</li>
+<li><b>要不要先改鏡頭：</b>反對者主張壓低鏡頭實驗；但會牽動戰鬥手感、直立更窄。主席只採「屋簷、二樓遮蔽」，鏡頭不動。</li>
+</ul>
+<h2>互評揪出的盲點</h2>
+<ul>
+<li><b>隻狼的鉤繩只能鉤特定鉤點</b>——使用者指定的參考，也是做出高處路線最直接的工具，五位顧問都沒提。</li>
+<li><b>玩家從來不看俯瞰圖。</b>真正的檢驗是直立 iPhone 的實際鏡頭：從狹口看得到岔路嗎？拇指擋不擋？觸控選得中屋簷嗎？</li>
+<li><b>繞路沒有獎勵。</b>隻狼靠佛珠、藏起來的道具、捷徑門讓人想繞路；現在只有一條死巷藏口糧。</li>
+<li><b>改地形太慢。</b>每輪都要編譯、部署、上 iPhone，應先做俯瞰除錯畫面。</li>
+</ul>
+<h2>建議</h2>
+<ol>
+<li><b>鉤繩改成鉤點制：</b>射程維持 22 公尺，只能鉤發光的鉤點（屋簷梁、樹枝、鉤環），按鉤時自動吸附畫面內最近的鉤點，也解決觸控瞄準不準。拉敵人不受影響。</li>
+<li><b>先改第三關：</b>屋頂分段、斷口只靠鉤點連接；部分屋頂有弓兵或滑瓦；4 個必經狹口當決定點；每條側路放獎勵（道具或捷徑門）；燈光改點在側路和高處；城門天守從起點就看得到；外圍補山、林、遠處屋頂。</li>
+<li><b>遭遇模組現在不寫產生器：</b>第三關 4 個決定點手工做，驗收通過再抽成函式給二、四、五關用。</li>
+<li><b>不硬拉長到 6–10 分鐘：</b>第三關目標 4–6 分鐘，時間來自決定和繞路，不是走路。</li>
+<li><b>驗收：</b>直立真機截圖每個決定點看得到兩條以上的路；沒玩過的人說得出兩條以上路線；<code>--routes</code> 量同一決定點各路代價至少差 30%；俯瞰除錯畫面標出鉤點和決定點。</li>
+</ol>
+<p>第二關等第三關過關後再照同樣做法改。</p>
+<h2>第一件該做的事</h2>
+<div class="first">只在第三關把鉤繩改成「只能鉤發光鉤點＋自動吸附」，擺大約 8 個鉤點讓屋頂斷成幾段，然後用直立 iPhone 錄一段實際遊玩：看屋頂還是不是高速公路、玩家有沒有開始要做選擇。</div>
+</div>
+
+<h3>顧問立場一覽</h3>
+<table>
+<tr><th>議題</th><th>反對者</th><th>第一性原理</th><th>擴張者</th><th>局外人</th><th>執行者</th></tr>
+<tr><td class="l">病根</td><td>鏡頭、鉤繩、邊界</td><td>沒有選擇、限制太少</td><td>沒善用程式生成</td><td>看不出路在哪</td><td>缺能用機制的地形</td></tr>
+<tr><td class="l">限制鉤繩</td><td class="y">贊成</td><td class="y">贊成</td><td class="m">未提</td><td class="m">標示可鉤處</td><td class="m">未提</td></tr>
+<tr><td class="l">遭遇模組產生器</td><td class="n">反對</td><td class="m">先驗證再說</td><td class="y">全力做</td><td class="m">未提</td><td class="y">先做</td></tr>
+<tr><td class="l">拉長到 6–10 分鐘</td><td class="n">反對</td><td class="n">拉大地圖沒用</td><td class="y">靠重玩</td><td class="m">未提</td><td class="y">至少 5 分鐘</td></tr>
+<tr><td class="l">先改哪裡</td><td>鏡頭＋遮蔽實驗</td><td>第三關</td><td>第二關湖、第三關屋頂</td><td>燈光、標示、地標</td><td>第二關</td></tr>
+</table>
+
+<h3>顧問完整回答</h3>
+<details class="c1"><summary>反對者</summary>
+<p><b>致命問題：第一關已經照「關卡文法」重做過，使用者還是說「地形跟路線不夠好」。</b>這等於直接證明那套做法沒解決他的感受。如果再拿同一套去重做第二、三關，或疊成 20×20 的遭遇模組，很可能是多花好幾天，換來三張同樣「不夠好」的圖。</p>
+<p>我懷疑真正的病因不在路線長什麼形狀：1. 鏡頭殺死探索感，斜上方俯視之下轉角後面有什麼一眼就看到。2. 地圖太小、鉤繩太長，三層高度一鉤就跳過去，「繞路」根本不存在。3. 邊界赤裸裸，柵欄框浮在黑色虛空裡。</p>
+<p>反對現在就拉長到 6–10 分鐘（每一分鐘本身不好玩，拉長只是稀釋）；反對模組化（照模板拼正好回到「方正、重複」）。先請使用者錄一段第一關、指出哪一秒無聊；同時做一天的實驗：鏡頭壓低拉近、加會遮視線的屋簷樹叢、外圍補山林。</p></details>
+<details class="c2"><summary>第一性原理思考者</summary>
+<p><b>你問錯問題了。</b>毛病不在方不方正，而在地圖上幾乎沒有要玩家做的「選擇」。路線＝先看到情報、再從幾條路裡挑、挑了付不同代價。第二關一條中軸走到底；第三關屋頂連成一片，成了沒人看守的高速公路；第一關路彎了，但沒多出可以挑的路。</p>
+<p>根本原因是限制太少：1. 有些屋頂上不去（太高、滑瓦、弓兵），高處要付代價；2. 每段之間設「必經的狹口」，從那裡能同時看到兩、三條路和守衛空檔；3. 用屋簷、二樓、牆後擋住視線。把地圖拉大只會變成走得更久的單一通道。</p>
+<p>先拿第三關開刀，數決定點（現在約 0），目標 4 個；驗證成功再決定要不要做模組。</p></details>
+<details class="c3"><summary>擴張者</summary>
+<p><b>最被低估的資產是「所有幾何都是程式生成」。</b>做一套遭遇模組產生器，觀察點、三條路、巡邏空檔、脫離線寫成參數，修好一次全部關卡受惠，之後還能出「每日潛入」隨機關。</p>
+<p>三張圖牆外整片是黑的，是現成擴張空間：湖畔屋敷把湖做成主角（蘆葦、小船、棧橋），水遁變主路線；第三關屋頂才是真正的路，屋頂間留鉤繩斷口、塔樓、晾衣竿，十字方格變立體迷宮。火、煙、水要和地形連動：稻草屋一燒，整條街的照明和巡邏都改；同一張圖換一種走法就有兩倍長度。</p></details>
+<details class="c4"><summary>局外人</summary>
+<p>第一次拿起手機看這三張圖，最大的問題是<b>我根本看不出路線在哪裡</b>。一、屋頂、地面、台地全是同一種深藍，看不出哪裡鉤得上去。二、燈光在帶我走錯路：第二關只亮中間石板路；第三關說「沿屋頂穿過」，亮的卻是大街。三、圍牆外一片虛空，沒有遠方地標。</p>
+<p>重畫地形前先花一天：可鉤邊緣和可走屋頂用不同顏色或掛燈籠，燈光改點在側路和高處，每關放一個從起點就看得到的發光地標。再拿給沒玩過的人看，問他能看出幾條路。</p></details>
+<details class="c5"><summary>執行者</summary>
+<p><b>先別加機制，先做「遭遇模組產生器」，拿第二關開刀。</b>第一天寫 <code>build_encounter(原點, 旋轉, 樣板)</code>，樣板三種：院子、屋頂帶、水邊；每個 20×20，必有觀察高點、三條路、對打空地、脫離路線。第二、三天用 4 個模組重組第二關：西側湖岸進、主屋轉 15 度、池子當水邊模組核心。</p>
+<p>驗收用工具：<code>--routes</code> 量三條路長度，差不到 30% 算失敗；俯瞰圖鏡像比對太對稱就重做；通關時間 5 分鐘以上。第三關等第二關過了再做，四五關不碰。</p></details>
+
+<h3>互評重點</h3>
+<details><summary>五份互評（匿名對照：A＝局外人、B＝執行者、C＝反對者、D＝擴張者、E＝第一性原理）</summary>
+<ul>
+<li><b>最強：</b>五份互評一致選 E（第一性原理）：抓到「沒有選擇」、鉤繩讓屋頂成高速公路、給可數目標（決定點 0→4）、先拿第三關驗證。</li>
+<li><b>盲點最大：</b>五份一致選 D（擴張者）：無視第一關重做失敗、範圍爆炸、沒處理鉤繩太強、隨機拼圖會回到方正重複。</li>
+<li><b>全員漏掉：</b>隻狼的鉤繩只能鉤特定鉤點；玩家是在直立 iPhone 斜俯視的窄畫面裡看路，不是看俯瞰圖；拇指遮擋與觸控瞄準；繞路要有獎勵（佛珠、道具、捷徑門）；改地形一輪太慢，應先做俯瞰除錯畫面。</li>
+<li><b>事實更正：</b>鉤繩實際射程 22 公尺（題目誤寫 12 公尺），可鉤任何牆頂／屋頂邊緣。</li>
+</ul>
+</details>
+
+<footer>第十三次議會｜議題：還有哪裡要優化、地形設計與路線｜2026-10-25 19:48｜完整紀錄：council-transcript-20261025-1948.md</footer>
+</body>
+</html>
