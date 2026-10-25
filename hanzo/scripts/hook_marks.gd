@@ -49,11 +49,12 @@ func _draw() -> void:
 		var sp := cam.unproject_position(world)
 		if behind:
 			sp = center - (sp - center) * 1000.0
-		var inside := not behind and sp.x > EDGE and sp.x < rect.size.x - EDGE and sp.y > EDGE and sp.y < rect.size.y - EDGE
+		# 「在畫面內」用整個螢幕判斷（畫面上方的鉤點本身看得到，不用再畫記號）；貼邊位置才避開 HUD
+		var inside := not behind and sp.x > 8.0 and sp.x < rect.size.x - 8.0 and sp.y > 8.0 and sp.y < rect.size.y - 8.0
 		var col := Color(1.0, 1.0, 0.7, 0.95) if target else Color(1.0, 0.82, 0.35, 0.85)
 		if inside:
-			var r := (15.0 if target else 9.0) + sin(t + i) * 1.5
-			_diamond(sp, r, col, target)
+			# 畫面內的鉤點本身就是發光菱形，不再疊一個 2D 記號（兩者對不準看起來像破圖）
+			continue
 		else:
 			# 夾到螢幕邊緣，菱形加一個指向它的小尖角
 			var dir := (sp - center)

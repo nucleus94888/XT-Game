@@ -60,7 +60,6 @@ func _build_world() -> void:
 	# 台地邊緣的岩石：打破直線
 	_rock(Vector3(-6.0, 0.0, 5.0), 1.3, 20.0, stone)
 	_rock(Vector3(-19.5, 0.0, 5.2), 1.0, -35.0, stone)
-	_rock(Vector3(3.6, 0.0, 1.0), 1.1, 50.0, stone)
 	_rock(Vector3(-6.0, 0.0, -20.0), 1.6, 15.0, stone)
 	_rock(Vector3(-6.5, 0.0, -27.0), 1.2, -20.0, stone)
 	_rock(Vector3(22.0, 0.0, -7.0), 1.4, 40.0, stone)
@@ -113,7 +112,8 @@ func _build_world() -> void:
 	for i in range(4):
 		_box(Vector3(-1.8 + i * 1.2, 0.12, 0.0), Vector3(0.8, 0.24, 5.0), Color(0.22, 0.2, 0.14), Vector3.ZERO, false)  # 菜畦
 	_group_end()
-	_group_begin(Vector3(4.0, 0.0, 3.0), 15.0)
+	# 櫓：整座放在台地東緣外（以前西側兩根柱子插進台地裡，加上旁邊的石頭圍出一個進得去出不來的死角）
+	_group_begin(Vector3(5.8, 0.0, 3.6), 15.0)
 	_tower(0.0, 0.0, 5.0, 0.0, wood, roof)
 	_group_end()
 	_tree(Vector3(0.0, 0.0, 9.0), 1.2)
@@ -137,7 +137,7 @@ func _build_world() -> void:
 	_group_end()
 	_group_begin(Vector3(-3.0, T1, 0.0), 20.0)
 	for i in range(3):
-		_box(Vector3(-2.0 + i * 2.0, 0.9, 0.0), Vector3(0.3, 1.8, 0.3), thatch)
+		_box(Vector3(-2.0 + i * 2.0, 0.87, 0.0), Vector3(0.3, 1.74, 0.3), thatch)
 	_box(Vector3(0.0, 0.02, -0.5), Vector3(7.0, 0.04, 4.0), Color(0.3, 0.27, 0.22), Vector3.ZERO, false)
 	_group_end()
 	_tree(Vector3(-19.5, T1, -3.0), 0.9)
@@ -155,7 +155,7 @@ func _build_world() -> void:
 	_group_begin(Vector3(5.0, T2, -16.5), -8.0)
 	for side in [-1.0, 1.0]:
 		_box(Vector3(side * 4.0, 1.0, 0.0), Vector3(6.0, 2.0, 0.12), Color(0.1, 0.1, 0.12))
-		_box(Vector3(side * 4.0, 1.0, 0.0), Vector3(6.0, 0.5, 0.14), Color(0.75, 0.15, 0.12), Vector3.ZERO, false)
+		_box(Vector3(side * 4.0, 1.0, 0.0), Vector3(6.04, 0.5, 0.16), Color(0.75, 0.15, 0.12), Vector3.ZERO, false)
 	_group_end()
 	_tree(Vector3(19.5, T2, -30.0), 0.8)
 	_tree(Vector3(0.0, T2, -30.0), 0.9)
@@ -178,7 +178,7 @@ func _build_world() -> void:
 	_bomb(Vector3(-19.8, T1, -11.5))
 
 	# 鉤點（第十三次議會：鉤繩只能鉤發光鉤點）：每個高處都是一條要選的路，而不是哪裡都能鉤
-	_hook_point(Vector3(4.6, 5.0, 3.6))           # 櫓頂（弓兵、卷軸）
+	_hook_point(Vector3(6.4, 5.0, 4.2))           # 櫓頂（弓兵、卷軸）
 	_hook_point(Vector3(-1.5, T1, 2.8))           # 村落 → 第一台地東南角（不走石階的捷徑，但正對武士巡邏）
 	_hook_point(Vector3(-11.7, T1 + 3.3, -8.2))   # 長屋東側屋簷（從上面繞過武士）
 	_hook_point(Vector3(-2.4, T2, -16.2))         # 第一台地北角 → 第二台地西緣暗處（避開階梯口的燈與哨兵）
@@ -226,8 +226,8 @@ func _hall() -> void:
 		_box(Vector3(x, HALL_Y + 1.5, z), Vector3(len, 3.0, 0.25), plaster))
 	# 前面：柱子＋橫楣
 	for x in [-6.0, -2.0, 2.0, 6.0]:
-		_box(Vector3(cx + x, HALL_Y + 1.5, cz + sz / 2.0), Vector3(0.3, 3.0, 0.3), wood)
-	_box(Vector3(cx, HALL_Y + 2.9, cz + sz / 2.0), Vector3(sx, 0.25, 0.3), wood, Vector3.ZERO, false)
+		_box(Vector3(cx + x, HALL_Y + 1.52, cz + sz / 2.0), Vector3(0.34, 3.04, 0.34), wood)   # 比牆厚一點，面不疊在一起
+	_box(Vector3(cx, HALL_Y + 2.9, cz + sz / 2.0), Vector3(sx + 0.1, 0.25, 0.4), wood, Vector3.ZERO, false)
 	# 屋頂（屋脊沿 x）：人在陣屋裡就隱藏
 	_cover_begin("hall", AABB(Vector3(cx - sx / 2.0 - 1.0, T2 - 0.3, cz - sz / 2.0 - 1.0), Vector3(sx + 2.0, 3.6, sz + 2.5)))
 	_gable(cx, cz, sx, sz, HALL_Y + 3.0, 1.6, roof, false, 0.8)
@@ -253,7 +253,7 @@ func _spawn_enemies() -> void:
 	_spawn(Enemy.Kind.ASHIGARU, Vector3(10.0, 0.0, 22.0), [Vector3(10.0, 0.0, 22.0), Vector3(2.0, 0.0, 16.5), Vector3(-6.0, 0.0, 11.5), Vector3(-11.0, 0.0, 9.0), Vector3(-5.0, 0.0, 20.0), Vector3(3.0, 0.0, 25.0)])
 	_spawn(Enemy.Kind.ASHIGARU, Vector3(-16.5, 0.0, 13.0), [], Vector3(1.0, 0.0, -0.3))
 	# 櫓上的弓兵（卷軸也在上面）
-	_spawn(Enemy.Kind.ARCHER, Vector3(4.0, 5.0, 3.0), [], Vector3(-1.0, 0.0, 0.3))
+	_spawn(Enemy.Kind.ARCHER, Vector3(5.8, 5.0, 3.6), [], Vector3(-1.0, 0.0, 0.3))
 	# 第一台地：武士繞長屋巡邏
 	# 武士繞長屋北邊、經過石階口（看守上第二台地的階梯；長屋東側屋頂那條就是暗路）
 	_spawn(Enemy.Kind.SAMURAI, Vector3(-17.5, T1, -3.0), [Vector3(-17.5, T1, -3.0), Vector3(-17.5, T1, -13.5), Vector3(-9.0, T1, -14.0), Vector3(-6.5, T1, -11.0), Vector3(-9.0, T1, -14.0), Vector3(-17.5, T1, -13.5)])
@@ -274,7 +274,7 @@ func _spawn_enemies() -> void:
 
 ## 卷軸「手裡劍 ×7」：櫓的平台上（弓兵旁邊）
 func _respawn_scrolls() -> void:
-	_scroll(Vector3(3.2, 5.05, 2.2), "shuriken7")
+	_scroll(Vector3(5.0, 5.05, 2.8), "shuriken7")
 
 
 func _after_respawn() -> void:

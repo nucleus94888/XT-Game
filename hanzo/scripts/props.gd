@@ -26,7 +26,7 @@ func _ready() -> void:
 		"oil":
 			_cyl(0.32, 0.8, Color(0.45, 0.3, 0.18), Vector3(0, 0.4, 0))
 			_cyl(0.18, 0.15, Color(0.25, 0.15, 0.1), Vector3(0, 0.88, 0))
-			_box(Vector3(0.66, 0.06, 0.66), Color(0.15, 0.12, 0.08, 0.6), Vector3(0, 0.02, 0))  # 地上的油漬
+			_box(Vector3(0.66, 0.06, 0.66), Color(0.15, 0.12, 0.08, 0.6), Vector3(0, 0.045, 0))  # 地上的油漬（比街面高，不閃）
 			_solid(Vector3(0.6, 0.9, 0.6), Vector3(0, 0.45, 0))
 		"straw":
 			for i in range(3):

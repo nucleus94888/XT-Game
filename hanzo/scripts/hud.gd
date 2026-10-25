@@ -631,6 +631,22 @@ func _update_breath() -> void:
 
 func _process(delta: float) -> void:
 	_update_breath()
+	# 除錯模式：統計那行放在任務文字下面（直立時任務文字會換兩行，以前會壓在統計上）
+	if stats.visible:
+		var orr := objective.get_global_rect()
+		var sr := stats.get_global_rect()
+		if orr.intersects(sr):
+			stats.position.y = orr.end.y + 2.0
+		if gear.visible:
+			var sr2 := stats.get_global_rect()
+			if gear.get_global_rect().intersects(sr2):
+				gear.position.y = sr2.end.y + 4.0
+	# 除錯模式的「手感」鈕會蓋住持有物那行：鈕出現時，持有物往下讓
+	if gear.visible:
+		var gr := gear.get_global_rect()
+		var ir := items_label.get_global_rect()
+		if gr.intersects(ir):
+			items_label.position.y = gr.end.y + 4.0
 	if _combo_t > 0.0:
 		_combo_t -= delta
 		if _combo_t <= 0.0:

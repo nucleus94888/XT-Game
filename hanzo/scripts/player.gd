@@ -1472,6 +1472,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 	# 先移動再處理鉤繩／繩子：這兩段會呼叫到敵人，萬一那邊出錯，至少這一幀的移動已經做完，人不會釘在原地
 	move_and_slide()
+	_anti_stuck(delta, input)
 	_tick_hook_job(delta)
 	_rope_t -= delta
 	_rope_update()
@@ -1484,6 +1485,66 @@ func _physics_process(delta: float) -> void:
 		_combo_window -= delta
 		if _combo_window <= 0.0:
 			_combo_idx = 0
+
+
+## 脫困：推著搖桿 1.2 秒幾乎沒動（< 0.2 公尺），而且「八個方向都走不出去」或「人掛在半空沒踩到地」
+## → 放到附近最近、站得下的導航網格點（只是頂著牆推不算卡住，不會被亂傳）
+var _stuck_t := 0.0
+var _stuck_from := Vector3.ZERO
+
+
+func _anti_stuck(delta: float, input: Vector3) -> void:
+	if state != State.FREE or aim_mode != AIM_NONE or input.length() < 0.5 or submerged:
+		_stuck_t = 0.0
+		_stuck_from = global_position
+		return
+	if _stuck_t == 0.0:
+		_stuck_from = global_position
+	_stuck_t += delta
+	if global_position.distance_to(_stuck_from) > 0.2:
+		_stuck_t = 0.0
+		return
+	if _stuck_t < 1.2:
+		return
+	_stuck_t = 0.0
+	var trapped := not is_on_floor()
+	if not trapped:
+		trapped = true
+		var xf := global_transform
+		xf.origin += Vector3(0, 0.08, 0)
+		for i in range(8):
+			var a := TAU * i / 8.0
+			if not test_move(xf, Vector3(cos(a), 0.0, sin(a)) * 0.6):
+				trapped = false
+				break
+	if not trapped:
+		return
+	var map := get_world_3d().navigation_map
+	var best := Vector3.INF
+	var best_d := INF
+	for r in [1.2, 2.0, 3.0]:
+		for i in range(12):
+			var a := TAU * i / 12.0
+			var want: Vector3 = global_position + Vector3(cos(a), 0.0, sin(a)) * float(r)
+			var p := NavigationServer3D.map_get_closest_point(map, want)
+			if Vector2(p.x - want.x, p.z - want.z).length() > 0.8 or absf(p.y - global_position.y) > 2.0:
+				continue
+			var xf2 := Transform3D(Basis(), p + Vector3(0, 0.15, 0))
+			if test_move(xf2, Vector3(0, 0.05, 0)):
+				continue
+			# 推搖桿的方向優先
+			var score: float = float(r) - Vector3(cos(a), 0.0, sin(a)).dot(input.normalized()) * 0.8
+			if score < best_d:
+				best_d = score
+				best = p
+		if best != Vector3.INF:
+			break
+	if best == Vector3.INF:
+		best = NavigationServer3D.map_get_closest_point(map, global_position)
+	push_warning("player stuck at %s, moved to %s" % [global_position, best])
+	global_position = best + Vector3(0, 0.1, 0)
+	velocity = Vector3.ZERO
+	Fx.afterimage(body, Color(0.6, 0.8, 1.0, 0.4), 0.25)
 
 
 ## 讀搖桿/鍵盤，轉成「相對鏡頭」的世界方向（搖桿往上 = 往畫面深處）

@@ -61,6 +61,15 @@ func _ready() -> void:
 			if c.size() == 2:
 				cam_rig.pitch = deg_to_rad(float(c[0]))
 				cam_rig.distance = float(c[1])
+	# 月光陰影：預設涵蓋 100 公尺、4 層，2048 貼圖攤下來每格很大，屋簷／台地的影子邊緣一格一格的（破圖）。
+	# 鏡頭只看得到附近 30–40 公尺，縮到 40 公尺、2 層，同樣貼圖解析度約兩倍；加一點偏移與模糊消掉條紋
+	var moon := get_node_or_null("Moon") as DirectionalLight3D
+	if moon:
+		moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+		moon.directional_shadow_max_distance = 32.0
+		moon.shadow_bias = 0.05
+		moon.shadow_normal_bias = 1.4
+		moon.shadow_blur = 2.0
 	_checkpoint = start_pos
 	player.global_position = start_pos
 	# 玩家傳送後鏡頭立刻定位；再用黑幕蓋住開場的著色器預熱（火花、刀光），淡入 0.45 秒
@@ -92,6 +101,12 @@ func _ready() -> void:
 		_measure_routes()
 	if _extra_args.has("--hooktest"):
 		_hook_test()
+	if _extra_args.has("--zfight"):
+		_zfight_scan()
+	if _extra_args.has("--stucktest"):
+		_stuck_test()
+	if _extra_args.has("--wallpush"):
+		_wall_push_test()
 
 
 ## 子類別覆寫
@@ -341,10 +356,12 @@ func _fence_poly(points: Array, h: float, color: Color, collide_h: float = 0.0) 
 		var yaw := rad_to_deg(atan2(-d.x, -d.z))
 		var base := minf(a.y, b.y)
 		_group_begin(Vector3((a.x + b.x) / 2.0, base, (a.z + b.z) / 2.0), yaw)
-		_fence(0.0, 0.0, length, false, h, color, 0.0, collide_h)
+		# 相鄰兩段高度差 1.5 公分：轉角重疊處的頂面不再同高（閃爍）
+		var jit := 0.013 * float((absi(int(a.x * 3.1 + a.z * 7.3 + b.x * 1.3 - b.z * 2.9)) + i) % 4)
+		_fence(0.0, 0.0, length, false, h + jit, color, 0.0, collide_h)
 		# 柵欄架在台地高度、但下面是地面時：補一段石垣到地面，不然人能從柵欄底下鑽出去
 		if base > 0.05:
-			_box(Vector3(0.0, -base / 2.0, 0.0), Vector3(0.6, base, length), Color(0.3, 0.3, 0.28))
+			_box(Vector3(0.0, -base / 2.0 - jit, 0.0), Vector3(0.6 + jit * 2.0, base, length), Color(0.3, 0.3, 0.28))
 		_group_end()
 
 
@@ -356,7 +373,8 @@ func _path_poly(points: Array, width: float, color: Color, y_off: float = 0.03) 
 		var d := b - a
 		var length := Vector2(d.x, d.z).length() + width * 0.6
 		var yaw := rad_to_deg(atan2(-d.x, -d.z))
-		_box(Vector3((a.x + b.x) / 2.0, (a.y + b.y) / 2.0 + y_off, (a.z + b.z) / 2.0), Vector3(width, 0.06, length), color, Vector3(0.0, yaw, 0.0), false)
+		# 相鄰兩段錯開 1.3 公分：接縫處兩段重疊的上表面不再同高（不然會閃爍）
+		_box(Vector3((a.x + b.x) / 2.0, (a.y + b.y) / 2.0 + y_off + 0.013 * (i % 2), (a.z + b.z) / 2.0), Vector3(width, 0.06, length), color, Vector3(0.0, yaw, 0.0), false)
 
 
 ## 任意方向的斜坡：from → to（含高度），寬 w。長軸沿 -Z 的板子，先依坡度繞 X、再依方向繞 Y
@@ -546,6 +564,8 @@ func _wall(cx: float, cz: float, sx: float, sz: float, h: float, color: Color, y
 
 ## 木柵／圍籬：矮牆加上一排柱子
 func _fence(cx: float, cz: float, length: float, along_x: bool, h: float, color: Color, y_base: float = 0.0, collide_h: float = 0.0) -> void:
+	# 依位置錯開 0–2.4 公分：兩道柵欄在轉角相接時頂面不同高（不然轉角那塊會閃）
+	h += 0.012 * float(absi(int(cx * 3.1 + cz * 7.3 + length * 1.7 + (5.0 if along_x else 0.0))) % 4)
 	var sx := length if along_x else 0.22
 	var sz := 0.22 if along_x else length
 	_box(Vector3(cx, y_base + h / 2.0, cz), Vector3(sx, h, sz), color)
@@ -555,7 +575,9 @@ func _fence(cx: float, cz: float, length: float, along_x: bool, h: float, color:
 	for i in range(n + 1):
 		var k := float(i) / maxf(n, 1.0)
 		var p := Vector3(cx + (k - 0.5) * length if along_x else cx, y_base + (h + 0.3) / 2.0, cz if along_x else cz + (k - 0.5) * length)
-		_box(p, Vector3(0.3, h + 0.3, 0.3), color.darkened(0.3), Vector3.ZERO, false)
+		# 柱子粗細依段長微調：兩段柵欄在轉角各自的端柱疊在一起時不同大小（不閃）
+		var pw := 0.28 + 0.012 * float(absi(int(cx * 5.0 + cz * 11.0 + length * 3.0)) % 5)
+		_box(p, Vector3(pw, h + 0.3 + pw - 0.3, pw), color.darkened(0.3), Vector3.ZERO, false)
 
 
 ## 切妻屋頂：兩片斜板在 ridge 交會。ridge_along_z=true 表示屋脊沿 z。
@@ -572,8 +594,9 @@ func _gable(cx: float, cz: float, sx: float, sz: float, eave_y: float, rise: flo
 		var rot := Vector3(0.0, 0.0, -side * ang) if ridge_along_z else Vector3(side * ang, 0.0, 0.0)
 		_box(center, size, color, rot, true, 0.95)
 	# 屋脊
-	var ridge_size := Vector3(0.35, 0.25, length) if ridge_along_z else Vector3(length, 0.25, 0.35)
-	_box(Vector3(cx, eave_y + rise + 0.05, cz), ridge_size, color.darkened(0.35), Vector3.ZERO, false)
+	# 屋脊木比屋頂兩端各長 4 公分：端面不跟屋頂板的端面疊在同一平面（閃爍）
+	var ridge_size := Vector3(0.35, 0.25, length + 0.08) if ridge_along_z else Vector3(length + 0.08, 0.25, 0.35)
+	_box(Vector3(cx, eave_y + rise + 0.07, cz), ridge_size, color.darkened(0.35), Vector3.ZERO, false)
 
 
 ## 小屋／長屋：四面牆（door 面留 1.8 公尺門口）、地板、切妻屋頂。door: "n"/"s"/"e"/"w"
@@ -617,7 +640,8 @@ func _tower(cx: float, cz: float, platform_y: float, y_base: float, wood: Color,
 	var s := 3.2
 	for dx in [-1.0, 1.0]:
 		for dz in [-1.0, 1.0]:
-			_box(Vector3(cx + dx * s / 2.0, y_base + platform_y / 2.0, cz + dz * s / 2.0), Vector3(0.3, platform_y, 0.3), wood)
+			# 柱頂停在平台面下 3 公分（以前柱頂和平台面齊平，平台上四個角在閃）
+			_box(Vector3(cx + dx * s / 2.0, y_base + (platform_y - 0.03) / 2.0, cz + dz * s / 2.0), Vector3(0.3, platform_y - 0.03, 0.3), wood)
 	_box(Vector3(cx, y_base + platform_y - 0.1, cz), Vector3(s + 0.6, 0.2, s + 0.6), wood.lightened(0.1))
 	# 欄杆（矮，不擋人）
 	for side in [[0.0, 1.0], [0.0, -1.0], [1.0, 0.0], [-1.0, 0.0]]:
@@ -1041,6 +1065,128 @@ func _hook_test() -> void:
 					fail_n += 1
 				print("HOOKTEST %s %s 段%d %s → %s：落在 %s %s" % [d.id, r.name, k, a, b, land, "OK" if good else "失敗"])
 	print("HOOKTEST 總結：成功 %d 段、失敗 %d 段" % [ok_n, fail_n])
+	get_tree().quit()
+
+
+## 閃爍（z-fighting）掃描：--zfight  找出「朝同一方向、在同一個平面上、又互相重疊」的方塊面
+## （兩個面搶同一個深度 → 畫面上條紋閃爍，就是常說的破圖）。印出每一對的描述，對回原始碼就找得到。
+func _zfight_scan() -> void:
+	await get_tree().process_frame
+	var faces: Dictionary = {}
+	var all: Array = []
+	var stack: Array = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var mi := n as MeshInstance3D
+		if mi == null or not (mi.mesh is BoxMesh) or not mi.is_visible_in_tree():
+			continue
+		var size: Vector3 = (mi.mesh as BoxMesh).size
+		var xf := mi.global_transform
+		for axis in range(3):
+			for sgn in [-1.0, 1.0]:
+				var col: Vector3 = xf.basis[axis]
+				var nrm: Vector3 = col.normalized() * sgn
+				if nrm.y < -0.9:
+					continue   # 朝下的底面看不到
+				var center: Vector3 = xf.origin + col * (size[axis] / 2.0) * sgn
+				var j := (axis + 1) % 3
+				var k := (axis + 2) % 3
+				var u: Vector3 = xf.basis[j] * (size[j] / 2.0)
+				var v: Vector3 = xf.basis[k] * (size[k] / 2.0)
+				var d := nrm.dot(center)
+				var f := {"mi": mi, "n": nrm, "c": center, "u": u, "v": v, "d": d}
+				var key := "%d,%d,%d|%d" % [roundi(nrm.x * 50), roundi(nrm.y * 50), roundi(nrm.z * 50), roundi(d * 100)]
+				if not faces.has(key):
+					faces[key] = []
+				faces[key].append(f)
+				all.append([key, f])
+	var hits := 0
+	var seen := {}
+	for e in all:
+		var key: String = e[0]
+		var f: Dictionary = e[1]
+		var parts := key.split("|")
+		var dk := int(parts[1])
+		for dd in [-1, 0, 1]:
+			var k2 := "%s|%d" % [parts[0], dk + dd]
+			if not faces.has(k2):
+				continue
+			for g in faces[k2]:
+				if g.mi == f.mi:
+					continue
+				var pair := "%d-%d" % [mini(f.mi.get_instance_id(), g.mi.get_instance_id()), maxi(f.mi.get_instance_id(), g.mi.get_instance_id())]
+				if seen.has(pair):
+					continue
+				if (f.n as Vector3).dot(g.n) < 0.999 or absf(float(f.d) - float(g.d)) > 0.012:
+					continue
+				if _face_overlap(f, g) < 0.02:
+					continue
+				seen[pair] = true
+				hits += 1
+				if hits <= 80:
+					print("ZFIGHT %s  ↔  %s" % [_desc_of(f.mi), _desc_of(g.mi)])
+	print("ZFIGHT 總共 %d 對重疊的面" % hits)
+	get_tree().quit()
+
+
+func _face_overlap(f: Dictionary, g: Dictionary) -> float:
+	var u: Vector3 = f.u
+	var v: Vector3 = f.v
+	var uh := u.normalized()
+	var vh := v.normalized()
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for su in [-1.0, 1.0]:
+		for sv in [-1.0, 1.0]:
+			var corner: Vector3 = (g.c as Vector3) + (g.u as Vector3) * su + (g.v as Vector3) * sv - (f.c as Vector3)
+			var p := Vector2(corner.dot(uh), corner.dot(vh))
+			lo = Vector2(minf(lo.x, p.x), minf(lo.y, p.y))
+			hi = Vector2(maxf(hi.x, p.x), maxf(hi.y, p.y))
+	var ox := minf(hi.x, u.length()) - maxf(lo.x, -u.length())
+	var oy := minf(hi.y, v.length()) - maxf(lo.y, -v.length())
+	return maxf(ox, 0.0) * maxf(oy, 0.0)
+
+
+func _desc_of(n: Node) -> String:
+	var w: Node = n
+	while w:
+		if w.has_meta("desc"):
+			return String(w.get_meta("desc"))
+		w = w.get_parent()
+	return "%s @ %s" % [n.name, (n as Node3D).global_position]
+
+
+## 脫困測試：--stucktest  在半藏周圍蓋一個 1 公尺見方的籠子（四面牆），推著搖桿 2.5 秒，看有沒有被放出來
+func _stuck_test() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.queue_free()
+	await get_tree().create_timer(0.5).timeout
+	var c := player.global_position
+	for side in [Vector3(0.75, 0, 0), Vector3(-0.75, 0, 0), Vector3(0, 0, 0.75), Vector3(0, 0, -0.75)]:
+		var sz := Vector3(0.3, 3.0, 1.8) if side.x != 0.0 else Vector3(1.8, 3.0, 0.3)
+		_box(c + side + Vector3(0, 1.5, 0), sz, Color(0.8, 0.2, 0.2))
+	await get_tree().physics_frame
+	hud.touch.move_vector = Vector2(0.0, -1.0)
+	await get_tree().create_timer(2.5).timeout
+	hud.touch.move_vector = Vector2.ZERO
+	var moved := Vector2(player.global_position.x - c.x, player.global_position.z - c.z).length()
+	print("STUCKTEST 從 %s 到 %s，移動 %.1f 公尺 → %s" % [c, player.global_position, moved, "脫困成功" if moved > 0.9 else "還卡著"])
+	get_tree().quit()
+
+
+## 頂牆測試：--wallpush  從起點往後（朝外牆）推搖桿 3 秒，不應該被脫困機制傳走
+func _wall_push_test() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.queue_free()
+	await get_tree().create_timer(0.5).timeout
+	hud.touch.move_vector = Vector2(0.0, 1.0)
+	await get_tree().create_timer(3.5).timeout
+	var a := player.global_position
+	await get_tree().create_timer(1.5).timeout
+	hud.touch.move_vector = Vector2.ZERO
+	print("WALLPUSH 頂牆 1.5 秒內位置變化 %.2f 公尺（應接近 0：沒有被亂傳）" % player.global_position.distance_to(a))
 	get_tree().quit()
 
 

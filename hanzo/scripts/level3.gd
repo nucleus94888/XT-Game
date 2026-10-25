@@ -50,7 +50,7 @@ func _build_world() -> void:
 
 	_ground(90.0, gravel)
 	# 大街（微微彎）、十字橫街、城門廣場
-	_path_poly([Vector3(0.0, 0.0, 33.0), Vector3(0.6, 0.0, 22.0), Vector3(-0.4, 0.0, 10.0), Vector3(0.3, 0.0, -2.0), Vector3(0.0, 0.0, -12.0)], 5.0, street)
+	_path_poly([Vector3(0.0, 0.0, 33.0), Vector3(0.6, 0.0, 22.0), Vector3(-0.4, 0.0, 10.0), Vector3(0.3, 0.0, -2.0), Vector3(0.0, 0.0, -10.4)], 5.0, street)
 	_box(Vector3(0.0, 0.02, 14.0), Vector3(40.0, 0.04, 4.6), street, Vector3.ZERO, false)
 	_box(Vector3(0.0, 0.02, -23.0), Vector3(30.0, 0.04, 9.0), street, Vector3.ZERO, false)
 

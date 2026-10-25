@@ -60,7 +60,7 @@ func _build_world() -> void:
 	_fence(0.0, -31.5, 42.0, true, 2.0, fence, 0.0, 12.0)
 
 	# 庭園：碎石路、池、石橋、茶室、松、燈籠
-	_box(Vector3(0.0, 0.03, 6.0), Vector3(3.0, 0.06, 14.0), gravel, Vector3.ZERO, false)
+	_box(Vector3(0.0, 0.03, 6.4), Vector3(3.0, 0.06, 13.2), gravel, Vector3.ZERO, false)   # 不壓到緣側階梯
 	# 池（可涉水）：水面抬高 3 公分，不然和地面同高會 z-fighting 閃爍
 	_box(Vector3(-9.0, -0.37, 8.0), Vector3(9.0, 0.8, 6.0), water, Vector3.ZERO, true, 0.2)
 	_box(Vector3(-9.0, 0.25, 8.0), Vector3(1.6, 0.3, 7.6), stone)                               # 石橋
@@ -158,7 +158,7 @@ func _mansion(wood: Color, dark_wood: Color, roof: Color, tatami: Color) -> void
 	for side in [-1.0, 1.0]:
 		_wall_with_gap(-22.5, -14.0, side * 6.0, false, -18.0, 1.8, func(x: float, z: float, len: float) -> void: sh2.call(x, z, len, false))
 	# 北側露台（從後院鉤上來的潛入路線）
-	_box(Vector3(0.0, F2 - 0.1, -23.6), Vector3(6.0, 0.2, 2.2), wood)
+	_box(Vector3(0.0, F2 - 0.115, -23.75), Vector3(6.0, 0.2, 2.1), wood)   # 比二樓地板低 1.5 公分，接縫不閃
 	_box(Vector3(0.0, F2 + 0.5, -24.7), Vector3(6.0, 0.08, 0.08), wood, Vector3.ZERO, false)
 	for x in [-3.0, 0.0, 3.0]:
 		_box(Vector3(x, F2 + 0.5, -24.7), Vector3(0.12, 1.0, 0.12), wood, Vector3.ZERO, false)
